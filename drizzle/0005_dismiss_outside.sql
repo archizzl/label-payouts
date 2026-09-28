@@ -1,0 +1,1 @@
+ALTER TABLE `outside_artists` ADD `dismissed` integer DEFAULT false NOT NULL;

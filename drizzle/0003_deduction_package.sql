@@ -1,0 +1,1 @@
+ALTER TABLE `deductions` ADD `package_id` integer;

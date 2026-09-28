@@ -1,0 +1,1 @@
+ALTER TABLE `periods` ADD `band_id` integer REFERENCES bands(id);

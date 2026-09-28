@@ -1,36 +1,83 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Label Payouts
 
-## Getting Started
+A local web app for splitting a label's Bandcamp earnings between bands and band members, then paying everyone through PayPal.
 
-First, run the development server:
+- **Bands, people and roles.** One person can be in several bands and still gets one payment.
+- **Configurable splits** per band, per item type (for example merch split evenly), per release and per track, each with an effective date so shares can change without rewriting history.
+- **Deductions:**
+  - A label cut (a percentage).
+  - Band funds.
+  - Recoupable fixed costs, taken from sales until they're paid off.
+- **Import** of Bandcamp's label-wide sales report (CSV, UTF-8 or UTF-16). Sales are matched to the right band automatically, and duplicates are skipped on re-import.
+- **Payout periods:**
+  - Review the numbers, then finalize (this locks the amounts).
+  - Pay each person with a **PayPal.me link**, or upload the **PayPal bulk payout CSV**.
+  - Mark payments as paid.
+  - Print a statement for each band.
+
+Everything stays on your machine in `data/label.db` (SQLite). Nothing is sent anywhere.
+
+## Run it
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000. The database is created automatically on first run.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Workflow
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. **Bands.** On the Bands page, open *grab bands from your Bandcamp label page*, enter your label's address (e.g. `mylabel.bandcamp.com`) and tick the artists to add. This reads the public "artists" tab of the label page and fills in each band's name and Bandcamp subdomain, which is what sales are matched on. You can also add bands by hand; add other spellings as aliases if the "artist" column in your sales report differs.
+   **Releases & merch:** on the Catalog page, open *grab releases & merch from your Bandcamp label page*. Standalone merch (shirts, hats, posters, bundles) comes in too, with its type, SKU, price, photo and each size/option's SKU; formats of a release (vinyl, CD, tape) come in with the release. Merch sales are matched by the item's page or any of its SKUs, and each item can have its own split (otherwise the band's merch split or default applies).
+   For releases: It lists every release on your label's "music" page, grouped by band; tick the ones you want and it reads each release page for tracks (with durations and track-level artist credits), release date, UPC, catalog number (derived from the formats' SKUs), physical formats (SKU, UPC, price), tags, description, credits and cover art. Artists that aren't bands yet are created. Re-running refreshes releases without touching splits, a catalog number you typed, or tracks you added by hand. Sales are then also matched by catalog number, SKU, UPC and ISRC.
+   **Label releases & compilations:** releases credited to the label itself (label tapes, compilations) go under a band marked as *the label* — without a split of its own, the label keeps what they earn. On a compilation, a track credited to one of your bands goes to that band; a track by anyone else is credited to an *outside artist* (no band is created). The Catalog page asks for one contact per outside artist (name + PayPal email), who's paid for their tracks; until then, those sales are held back. Album sales of a compilation are shared across its tracks.
+2. **Members.** Add people to each band, with their roles, PayPal email and (optionally) PayPal.me handle. Someone in several bands should be one person (so they get one payment): adding a member whose email — or name, if no conflicting email — matches an existing person reuses that person. People who share an email are merged automatically; the People page lists other likely duplicates (same name) with a one-click merge, and each person has a "merge into…" option.
+3. **Splits.**
+   - Set a **label-wide default split** under *Label rules*: each band's current members share evenly, optionally after fixed carve-outs for specific people (e.g. 10% to a producer). Or set a default split per band; a band's own default always wins.
+   - Optionally add splits by item type, release or track.
+   - Precedence, most specific first: track, then release, then item type, then band default, then the label-wide default.
+   - An item-type split can be set to override release and track splits (useful for merch).
+4. **Deductions.** Add the label cut under *Label rules*. Add band funds or recoupable costs on each band's page.
+   - **Per-format costs**, e.g. $3.42 for the Triple Single CD and $8 for its vinyl: on the band page, under *Physical formats*, click *+ cost* on that format. Sales are matched to the exact format by SKU/UPC (including size SKUs), falling back to the package name.
+   - **Per-item costs by format word**, e.g. $3.42 for every CD sold: choose *Fixed amount per item sold*, set *Only for item type* to merch and *Only for format* to `CD`. Choose whether it's withheld (to pay the plant) or paid to a person (whoever fronted the pressing — it's added to their payout). The profit is split after it. It's multiplied by quantity, never takes more than the sale, and a refund reverses it.
+5. **Import.** With Bandcamp API access, put the credentials in `.env.local` (`BANDCAMP_CLIENT_ID=…` and `BANDCAMP_CLIENT_SECRET=…`, never committed) and click **Sync sales now** on the *Import sales* page: it pulls the label's raw sales report (all artists, refunds included) and imports whatever's new. It lines up exactly with CSV imports, so mixing the two never double-counts.
+   Without API access: in Bandcamp, go to the label's **Tools** page, then **Sales Report**, choose **All artists**, and download the CSV. Drop it on the *Import sales* page.
+   - Anything the app can't match goes into a queue. Assign it once and the choice is remembered.
+6. **Pay out.** On *Payouts*, pick the whole label or one band and the dates, and click **Preview**. The preview isn't saved: check the per-band and per-person numbers, then click **Finalize**, which saves the payout and locks the amounts. (**Undo finalize** turns it back into a preview.)
+   - **Label bank account:** on *People*, choose who the label's bank account belongs to. Their share is recorded as theirs but marked *kept in label account*: no PayPal payment, and they're left out of the bulk file.
 
-## Learn More
+   Then either:
+   - use each person's **PayPal.me** button, or copy their email into PayPal, or
+   - with a PayPal Business account, download the **PayPal bulk payout file** and upload it under PayPal, then *Pay & Get Paid*, then *Payouts*.
 
-To learn more about Next.js, take a look at the following resources:
+   Mark people as paid as you go.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+7. **Label funds.** The *Label funds* section on *Payouts* shows what the label has kept from sales, what it has sent on to others, and what's left. For a fundraiser, add a 100% *Kept by the label* deduction for that release (or band) on the band page; when you send the money on (e.g. to an aid group), click *Record money sent out* and pick the band and release. It then shows how much that release raised for the label, how much was sent, and anything still held.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## How the money is calculated
 
-## Deploy on Vercel
+Each sale starts from Bandcamp's **net amount**, which is after Bandcamp's and the payment processor's fees. Then:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+1. **Label-wide deductions** (e.g. a 20% label cut) come off first.
+2. **Band deductions** come off next. Percentages apply to what's left after earlier deductions. Per-item costs are taken per item sold. Fixed totals are recouped from the oldest sales first until covered.
+3. **The split** is chosen by precedence (see step 3 of the workflow) and must be in effect on the sale date. The remainder is divided by that split. Rounding uses the largest remainder, so every cent is accounted for.
+4. **Album sales with no release split** use the band default, or the average of the track splits (a per-release setting).
+5. **Currencies are kept separate.** There is no currency conversion.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+A sale that can't be matched to a band, or has no split, is flagged. You can't finalize a period while such sales remain, unless you choose to leave that money unallocated.
+
+## Development
+
+```bash
+npm test          # split engine, CSV parser, routing, PayPal export
+npm run lint
+npx drizzle-kit generate   # after changing src/db/schema.ts
+```
+
+Code layout:
+
+- `src/lib/` holds the pure logic: `splits.ts`, `routing.ts`, `bandcamp-csv.ts`, `paypal-export.ts` and `money.ts`.
+- `src/server/` holds the database queries and server actions.
+- `src/app/` holds the pages.
+- Migrations in `drizzle/` run automatically on startup.

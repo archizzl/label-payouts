@@ -1,26 +1,179 @@
 @import "tailwindcss";
 
+/* Bandcamp-flavoured palette: white pages, #333 text, hairline grey rules,
+   teal for primary actions and blue for links. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --bg: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #f3f3f3;
+  --border: #d9d9d9;
+  --text: #333333;
+  --muted: #7a7a7a;
+  --accent: #1da0c3;
+  --accent-fg: #ffffff;
+  --link: #0687f5;
+  --good: #3d8c40;
+  --good-bg: #eaf5ea;
+  --warn: #b86e00;
+  --warn-bg: #fff5e0;
+  --bad: #d23a3a;
+  --bad-bg: #fdeeee;
+  /* Charts. Categorical slots in fixed order (validated on these surfaces, light and dark);
+     single-series charts use the accent teal. */
+  --chart-accent: #1da0c3;
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --series-4: #eda100;
+  --series-5: #e87ba4;
+  --series-6: #008300;
+  --series-7: #4a3aa7;
+  --series-8: #e34948;
+  --chart-grid: #ebe9e4;
+  --chart-baseline: #c3c2b7;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --bg: #161616;
+    --surface: #1e1e1e;
+    --surface-2: #272727;
+    --border: #3a3a3a;
+    --text: #e6e6e6;
+    --muted: #9a9a9a;
+    --accent: #2bb3d6;
+    --accent-fg: #ffffff;
+    --link: #4aa8ff;
+    --good: #6cc070;
+    --good-bg: #1f3320;
+    --warn: #f0a847;
+    --warn-bg: #3a2b14;
+    --bad: #ff7b7b;
+    --bad-bg: #3d1f1f;
+    --chart-accent: #1da0c3;
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --series-3: #199e70;
+    --series-4: #c98500;
+    --series-5: #d55181;
+    --series-6: #008300;
+    --series-7: #9085e9;
+    --series-8: #e66767;
+    --chart-grid: #2c2c2a;
+    --chart-baseline: #444440;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@theme {
+  /* Bandcamp's UI is nearly square-cornered. */
+  --radius-sm: 2px;
+  --radius-md: 3px;
+  --radius-lg: 4px;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-fg: var(--accent-fg);
+  --color-link: var(--link);
+  --color-good: var(--good);
+  --color-good-bg: var(--good-bg);
+  --color-warn: var(--warn);
+  --color-warn-bg: var(--warn-bg);
+  --color-bad: var(--bad);
+  --color-bad-bg: var(--bad-bg);
+  --color-chart-accent: var(--chart-accent);
+  --font-sans: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, Menlo, monospace;
+}
+
+@layer base {
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans);
+  }
+  /* Links are blue and underline on hover, like Bandcamp. Utility classes still win. */
+  a {
+    color: var(--link);
+  }
+  a:hover {
+    text-decoration: underline;
+  }
+}
+
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+select,
+textarea {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  padding: 5px 8px;
+  font-size: 14px;
+  width: 100%;
+  color: var(--text);
+}
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+input[type="checkbox"] {
+  accent-color: var(--accent);
+}
+
+table.data {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+table.data th {
+  text-align: left;
+  font-weight: normal;
+  color: var(--muted);
+  font-size: 12px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  text-transform: lowercase;
+}
+table.data td {
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+table.data tbody tr:hover td {
+  background: color-mix(in srgb, var(--surface-2) 60%, transparent);
+}
+table.data tr:last-child td {
+  border-bottom: none;
+}
+table.data .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+details > summary {
+  cursor: pointer;
+  list-style: none;
+}
+details > summary::-webkit-details-marker {
+  display: none;
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: white;
+    color: black;
+  }
 }
