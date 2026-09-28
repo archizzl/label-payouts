@@ -33,6 +33,18 @@ export const accountSettings = pgTable("account_settings", {
   bandcampClientId: text("bandcamp_client_id"),
   /** Encrypted at rest (see src/server/secrets.ts). */
   bandcampClientSecret: text("bandcamp_client_secret"),
+  /**
+   * The current Bandcamp sign-in, shared by every server process and kept across restarts:
+   * Bandcamp allows one active sign-in per API client, so we renew this one rather than asking for
+   * a new one. Both tokens are encrypted.
+   */
+  bandcampAccessToken: text("bandcamp_access_token"),
+  bandcampRefreshToken: text("bandcamp_refresh_token"),
+  /** When the access token expires (ISO time). */
+  bandcampTokenExpiresAt: text("bandcamp_token_expires_at"),
+  /** Which Bandcamp accounts the API last reported, and when ("Test connection" or a sync). */
+  bandcampConnectedAs: text("bandcamp_connected_as"),
+  bandcampCheckedAt: text("bandcamp_checked_at"),
 });
 
 export const bands = pgTable(

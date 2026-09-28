@@ -1,11 +1,15 @@
 import "server-only";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db, schema } from "@/db";
-import { decryptSecret } from "./secrets";
+import { decryptSecret, encryptSecret } from "./secrets";
 
 /**
  * Bandcamp's official API (https://bandcamp.com/developer). Each account (label or band) has its own
  * API access, entered on its settings page and stored encrypted; it never leaves the server.
+ *
+ * Bandcamp allows one active sign-in per API client. So the sign-in (access token + refresh token)
+ * is kept in the database, shared by every server process and restart, and renewed with the
+ * refresh token when it expires. A brand-new sign-in is only requested when there's nothing to renew.
  */
 
 export type BandcampCredentials = { clientId: string; clientSecret: string };
@@ -21,38 +25,132 @@ export async function bandcampCredentials(orgId: string): Promise<BandcampCreden
 export const API_SYNC_PREFIX = "Bandcamp API sync";
 
 type Token = { accessToken: string; expiresAt: number };
-// Tokens per API client, kept on globalThis so dev reloads don't ask Bandcamp for new ones every time.
+// A per-process copy of each account's token ("org:<id>"), so most calls don't touch the database.
+// (Older code kept it here by client ID; that's picked up once and saved.)
 const cache = globalThis as unknown as { bandcampTokens?: Map<string, Token> };
 const tokens = (cache.bandcampTokens ??= new Map());
+const cacheKey = (orgId: string) => `org:${orgId}`;
 
-async function token(creds: BandcampCredentials): Promise<string> {
-  const t = tokens.get(creds.clientId);
-  if (t && t.expiresAt > Date.now() + 60_000) return t.accessToken;
+const stillGood = (expiresAt: number) => expiresAt > Date.now() + 60_000;
+
+type GrantReply = { access_token?: string; refresh_token?: string; expires_in?: number; error?: string; error_description?: string };
+
+async function requestGrant(params: Record<string, string>): Promise<GrantReply & { status: number }> {
   const res = await fetch("https://bandcamp.com/oauth_token", {
     method: "POST",
-    body: new URLSearchParams({
-      grant_type: "client_credentials",
-      client_id: creds.clientId,
-      client_secret: creds.clientSecret,
-    }),
+    body: new URLSearchParams(params),
     signal: AbortSignal.timeout(20000),
   });
-  const body = (await res.json().catch(() => ({}))) as { access_token?: string; expires_in?: number; error_description?: string };
-  if (!res.ok || !body.access_token) {
-    throw new Error(`Bandcamp didn't accept the API credentials${body.error_description ? `: ${body.error_description}` : ` (${res.status})`}.`);
-  }
-  tokens.set(creds.clientId, { accessToken: body.access_token, expiresAt: Date.now() + (body.expires_in ?? 3600) * 1000 });
-  return body.access_token;
+  const body = (await res.json().catch(() => ({}))) as GrantReply;
+  return { ...body, status: res.status };
 }
 
-async function call<T>(creds: BandcampCredentials, path: string, payload: object = {}): Promise<T> {
+/**
+ * Bandcamp's refusal, in plain words. The common one: the API client already has an active sign-in
+ * somewhere else (another copy of this app), and Bandcamp only allows one.
+ */
+export function describeGrantError(reply: { status: number; error?: string; error_description?: string }) {
+  const text = `${reply.error ?? ""} ${reply.error_description ?? ""}`;
+  if (/duplicate|already|another|in use|elsewhere|one location/i.test(text)) {
+    return (
+      "Bandcamp says this API client is already signed in somewhere else, probably another copy of this app. " +
+      "Stop syncing from there; its sign-in runs out within about an hour, then try again here. " +
+      `(Bandcamp said: ${reply.error_description ?? reply.error})`
+    );
+  }
+  if (/invalid_client|unauthori[sz]ed/i.test(text)) return "Bandcamp didn't accept the client ID and secret. Check them under Settings.";
+  return `Bandcamp didn't accept the API credentials${reply.error_description ? `: ${reply.error_description}` : ` (${reply.status})`}.`;
+}
+
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+async function saveTokens(tx: Tx, orgId: string, accessToken: string, expiresAt: number, refreshToken: string | null) {
+  await tx
+    .update(schema.accountSettings)
+    .set({
+      bandcampAccessToken: encryptSecret(accessToken),
+      bandcampRefreshToken: refreshToken ? encryptSecret(refreshToken) : null,
+      bandcampTokenExpiresAt: new Date(expiresAt).toISOString(),
+    })
+    .where(eq(schema.accountSettings.orgId, orgId));
+  tokens.set(cacheKey(orgId), { accessToken, expiresAt });
+  return accessToken;
+}
+
+const expiryOf = (reply: GrantReply) => Date.now() + (reply.expires_in ?? 3600) * 1000;
+
+/** Forget the access token (e.g. Bandcamp rejected it), but keep the refresh token to renew with. */
+async function dropAccessToken(orgId: string, clientId: string) {
+  tokens.delete(cacheKey(orgId));
+  tokens.delete(clientId);
+  await db
+    .update(schema.accountSettings)
+    .set({ bandcampAccessToken: null, bandcampTokenExpiresAt: null })
+    .where(eq(schema.accountSettings.orgId, orgId));
+}
+
+/** Forget the whole saved sign-in: when the client ID or secret changes. */
+export async function forgetBandcampSignIn(orgId: string) {
+  tokens.delete(cacheKey(orgId));
+  await db
+    .update(schema.accountSettings)
+    .set({ bandcampAccessToken: null, bandcampRefreshToken: null, bandcampTokenExpiresAt: null, bandcampConnectedAs: null, bandcampCheckedAt: null })
+    .where(eq(schema.accountSettings.orgId, orgId));
+}
+
+/**
+ * A valid access token for the account: the saved one, else renewed with the refresh token, else a
+ * new sign-in. This runs under a database lock, so two processes never renew at the same time (a
+ * refresh token can only be used once).
+ */
+export async function accessToken(orgId: string, creds: BandcampCredentials): Promise<string> {
+  const t = tokens.get(cacheKey(orgId));
+  if (t && stillGood(t.expiresAt)) return t.accessToken;
+
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`bandcamp-sign-in:${orgId}`}))`);
+    const [s] = await tx.select().from(schema.accountSettings).where(eq(schema.accountSettings.orgId, orgId));
+    // Another process may have just renewed it.
+    if (s?.bandcampAccessToken && s.bandcampTokenExpiresAt && stillGood(Date.parse(s.bandcampTokenExpiresAt))) {
+      const saved = decryptSecret(s.bandcampAccessToken);
+      tokens.set(cacheKey(orgId), { accessToken: saved, expiresAt: Date.parse(s.bandcampTokenExpiresAt) });
+      return saved;
+    }
+    // A sign-in this process already had from before sign-ins were saved: keep using it.
+    const legacy = tokens.get(creds.clientId);
+    if (legacy && stillGood(legacy.expiresAt)) {
+      tokens.delete(creds.clientId);
+      return saveTokens(tx, orgId, legacy.accessToken, legacy.expiresAt, null);
+    }
+    const refresh = s?.bandcampRefreshToken ? decryptSecret(s.bandcampRefreshToken) : null;
+    if (refresh) {
+      const renewed = await requestGrant({
+        grant_type: "refresh_token",
+        refresh_token: refresh,
+        client_id: creds.clientId,
+        client_secret: creds.clientSecret,
+      });
+      if (renewed.access_token) return saveTokens(tx, orgId, renewed.access_token, expiryOf(renewed), renewed.refresh_token ?? refresh);
+      // The refresh token is no good any more: fall back to a new sign-in.
+    }
+    const fresh = await requestGrant({ grant_type: "client_credentials", client_id: creds.clientId, client_secret: creds.clientSecret });
+    if (!fresh.access_token) throw new Error(describeGrantError(fresh));
+    return saveTokens(tx, orgId, fresh.access_token, expiryOf(fresh), fresh.refresh_token ?? null);
+  });
+}
+
+async function call<T>(orgId: string, creds: BandcampCredentials, path: string, payload: object = {}, retried = false): Promise<T> {
   const res = await fetch(`https://bandcamp.com/api/${path}`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${await token(creds)}`, "Content-Type": "application/json" },
+    headers: { Authorization: `Bearer ${await accessToken(orgId, creds)}`, "Content-Type": "application/json" },
     body: JSON.stringify(payload),
     signal: AbortSignal.timeout(120_000),
   });
-  if (res.status === 401) tokens.delete(creds.clientId);
+  // Bandcamp no longer accepts this token: renew it once and try again.
+  if (res.status === 401 && !retried) {
+    await dropAccessToken(orgId, creds.clientId);
+    return call(orgId, creds, path, payload, true);
+  }
   const body = (await res.json().catch(() => null)) as (T & { error?: boolean; error_message?: string; message?: string }) | null;
   if (!res.ok || !body || body.error) {
     throw new Error(`Bandcamp API error on ${path}: ${body?.error_message ?? body?.message ?? res.status}`);
@@ -67,8 +165,15 @@ export type BandcampAccountBand = {
   member_bands?: { band_id: number; name: string; subdomain: string }[];
 };
 
-export async function myBands(creds: BandcampCredentials) {
-  return (await call<{ bands: BandcampAccountBand[] }>(creds, "account/1/my_bands")).bands;
+/** The Bandcamp accounts this API access reaches. Also noted in settings, for the settings page. */
+export async function myBands(orgId: string, creds: BandcampCredentials) {
+  const bands = (await call<{ bands: BandcampAccountBand[] }>(orgId, creds, "account/1/my_bands")).bands;
+  const summary = bands.map((b) => (b.member_bands?.length ? `${b.name} (with ${b.member_bands.length} artists)` : b.name)).join(", ");
+  await db
+    .update(schema.accountSettings)
+    .set({ bandcampConnectedAs: summary || "no Bandcamp accounts", bandcampCheckedAt: new Date().toISOString() })
+    .where(eq(schema.accountSettings.orgId, orgId));
+  return bands;
 }
 
 /** "YYYY-MM-DD HH:MM:SS" in UTC, the format the sales API takes. */
@@ -80,11 +185,11 @@ function apiTime(d: Date) {
  * The raw sales report (every sale, refund and payout row) for each account the credentials manage.
  * For a label that includes all its artists. Rows are the API's own objects, one per item sold.
  */
-export async function salesReport(creds: BandcampCredentials, from: Date, to: Date) {
-  const accounts = await myBands(creds);
+export async function salesReport(orgId: string, creds: BandcampCredentials, from: Date, to: Date) {
+  const accounts = await myBands(orgId, creds);
   const rows = new Map<string, Record<string, unknown>>();
   for (const account of accounts) {
-    const { report } = await call<{ report: Record<string, unknown>[] }>(creds, "sales/4/sales_report", {
+    const { report } = await call<{ report: Record<string, unknown>[] }>(orgId, creds, "sales/4/sales_report", {
       band_id: account.band_id,
       start_time: apiTime(from),
       end_time: apiTime(to),

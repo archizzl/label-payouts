@@ -9,6 +9,7 @@ import { db, schema } from "@/db";
 import { auth } from "./auth";
 import { accountsFor, getSession, requireAdmin } from "./context";
 import { normalizeEmail } from "./people";
+import { bandcampCredentials, forgetBandcampSignIn, myBands } from "./bandcamp-api";
 import { encryptSecret } from "./secrets";
 
 /*
@@ -123,6 +124,9 @@ export async function saveAccountSettings(_: FormState, fd: FormData): Promise<F
   if (name) await db.update(schema.organization).set({ name }).where(eq(schema.organization.id, orgId));
   const clientId = str(fd, "bandcampClientId") || null;
   const secret = str(fd, "bandcampClientSecret");
+  // New API access means the saved Bandcamp sign-in belongs to the old one: forget it.
+  const [before] = await db.select().from(schema.accountSettings).where(eq(schema.accountSettings.orgId, orgId));
+  const changedAccess = !!before && (before.bandcampClientId !== clientId || !!secret);
   const values = {
     bandcampUrl: str(fd, "bandcampUrl") || null,
     bandcampClientId: clientId,
@@ -134,8 +138,25 @@ export async function saveAccountSettings(_: FormState, fd: FormData): Promise<F
     .insert(schema.accountSettings)
     .values({ orgId, ...values })
     .onConflictDoUpdate({ target: schema.accountSettings.orgId, set: values });
+  if (changedAccess) await forgetBandcampSignIn(orgId);
   revalidatePath("/", "layout");
   return { ok: "Saved" };
+}
+
+/** Settings → "Test connection": sign in to Bandcamp and list the accounts the API reaches. */
+export async function testBandcampConnection(): Promise<FormState> {
+  const { orgId } = await requireAdmin();
+  const creds = await bandcampCredentials(orgId);
+  if (!creds) return { error: "Add the client ID and secret first." };
+  try {
+    const bands = await myBands(orgId, creds);
+    revalidatePath("/account");
+    if (!bands.length) return { error: "Connected, but this API access doesn't reach any Bandcamp accounts." };
+    const names = bands.map((b) => (b.member_bands?.length ? `${b.name} (with ${b.member_bands.length} artists)` : b.name)).join(", ");
+    return { ok: `Connected. This API access reaches ${names}.` };
+  } catch (e) {
+    return { error: messageOf(e, "Couldn't reach Bandcamp.") };
+  }
 }
 
 // ---------- members & invites ----------

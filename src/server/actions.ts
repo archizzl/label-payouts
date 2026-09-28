@@ -591,7 +591,7 @@ async function saveSales(orgId: string, filename: string, parsed: ParseResult) {
 async function runSalesSync(orgId: string, from = "2000-01-01") {
   const creds = await bandcampCredentials(orgId);
   if (!creds) throw new Error("This account has no Bandcamp API access set up. Add it under Settings.");
-  const report = await salesReport(creds, new Date(`${from}T00:00:00Z`), new Date(Date.now() + 86_400_000));
+  const report = await salesReport(orgId, creds, new Date(`${from}T00:00:00Z`), new Date(Date.now() + 86_400_000));
   const parsed = parseBandcampApiReport(report.rows);
   if (parsed.missingColumns.length) throw new Error(`Bandcamp's report was missing ${parsed.missingColumns.join(", ")}.`);
   const names = report.accounts.map((a) => a.name).join(", ");

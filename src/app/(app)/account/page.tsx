@@ -10,6 +10,7 @@ import {
   removeAccountMember,
   saveAccountSettings,
   setMemberRole,
+  testBandcampConnection,
 } from "@/server/account-actions";
 import { requireAdmin } from "@/server/context";
 import { acceptLinkCode, unlink } from "@/server/link-actions";
@@ -77,6 +78,25 @@ export default async function AccountPage() {
             <SubmitButton>Save</SubmitButton>
           </div>
         </ActionForm>
+        {settings?.bandcampClientId && settings.bandcampClientSecret && (
+          <div className="mt-5 border-t border-border pt-4">
+            <p className="mb-2 text-sm text-muted">
+              {settings.bandcampConnectedAs ? (
+                <>
+                  Connected to <b className="text-text">{settings.bandcampConnectedAs}</b>, last checked{" "}
+                  {settings.bandcampCheckedAt?.slice(0, 16).replace("T", " ")} UTC.
+                </>
+              ) : (
+                "Not connected yet. Test it to see which Bandcamp accounts this access reaches."
+              )}
+            </p>
+            <ActionForm action={testBandcampConnection}>
+              <SubmitButton variant="secondary" size="sm">
+                Test connection
+              </SubmitButton>
+            </ActionForm>
+          </div>
+        )}
       </Card>
 
       {kind === "band" && (
