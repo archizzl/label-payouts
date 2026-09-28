@@ -1,4 +1,5 @@
 import Database from "better-sqlite3";
+import { and, eq, isNull } from "drizzle-orm";
 import { db, schema } from "@/db";
 
 /*
@@ -312,4 +313,40 @@ export async function importLocalBooks(sqlitePath: string, orgId: string): Promi
     old.close();
   }
   return counts;
+}
+
+/** Whether an account has any books yet (bands, people who aren't logins, sales, payouts…). */
+export async function accountHasBooks(orgId: string) {
+  const checks = await Promise.all([
+    db.select({ id: schema.bands.id }).from(schema.bands).where(eq(schema.bands.orgId, orgId)).limit(1),
+    db.select({ id: schema.sales.id }).from(schema.sales).where(eq(schema.sales.orgId, orgId)).limit(1),
+    db.select({ id: schema.periods.id }).from(schema.periods).where(eq(schema.periods.orgId, orgId)).limit(1),
+  ]);
+  return checks.some((rows) => rows.length > 0);
+}
+
+/**
+ * Empty an account's books so they can be replaced by an import. Keeps the account itself, who can
+ * sign in (and the payee records linked to their logins), settings, invites and links to labels.
+ * Links from this account's bands to band accounts go with the bands.
+ */
+export async function clearBooks(orgId: string) {
+  const o = orgId;
+  await db.transaction(async (tx) => {
+    // Children before parents, so nothing is left pointing at a deleted row.
+    await tx.delete(schema.expenses).where(eq(schema.expenses.orgId, o)); // files cascade
+    await tx.delete(schema.payouts).where(eq(schema.payouts.orgId, o));
+    await tx.delete(schema.periods).where(eq(schema.periods.orgId, o));
+    await tx.delete(schema.labelTransfers).where(eq(schema.labelTransfers.orgId, o));
+    await tx.delete(schema.imports).where(eq(schema.imports.orgId, o)); // sales cascade
+    await tx.delete(schema.routingOverrides).where(eq(schema.routingOverrides.orgId, o));
+    await tx.delete(schema.deductions).where(eq(schema.deductions.orgId, o));
+    await tx.delete(schema.splitRules).where(eq(schema.splitRules.orgId, o)); // shares cascade
+    await tx.delete(schema.tracks).where(eq(schema.tracks.orgId, o));
+    await tx.delete(schema.releases).where(eq(schema.releases.orgId, o));
+    await tx.delete(schema.bandMemberships).where(eq(schema.bandMemberships.orgId, o));
+    await tx.delete(schema.bands).where(eq(schema.bands.orgId, o));
+    await tx.delete(schema.outsideArtists).where(eq(schema.outsideArtists.orgId, o));
+    await tx.delete(schema.people).where(and(eq(schema.people.orgId, o), isNull(schema.people.userId)));
+  });
 }

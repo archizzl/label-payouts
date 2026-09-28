@@ -11,11 +11,13 @@ import { newAccount, testDb } from "../../../test/helpers/db";
 let db: Awaited<ReturnType<typeof testDb>>["db"];
 let schema: Awaited<ReturnType<typeof testDb>>["schema"];
 let importLocalBooks: typeof import("../import-local").importLocalBooks;
+let local: typeof import("../import-local");
 let data: typeof import("../data");
 
 beforeAll(async () => {
   ({ db, schema } = await testDb());
-  ({ importLocalBooks } = await import("../import-local"));
+  local = await import("../import-local");
+  ({ importLocalBooks } = local);
   data = await import("../data");
 });
 
@@ -81,5 +83,29 @@ describe("bringing over the old local app's books", () => {
 
     // Nothing leaked into the other account.
     expect((await data.computeAllTime(other)).results).toEqual([]);
+  });
+});
+
+describe("refilling an account that already has books", () => {
+  it("clears the books but keeps logins' payee records, then imports cleanly", async () => {
+    const orgId = await newAccount("Reaction Future Records");
+    const [u] = await db
+      .insert(schema.user)
+      .values({ id: `u-${orgId}`, name: "Alex", email: `alex-${orgId}@example.test`, emailVerified: false, createdAt: new Date(), updatedAt: new Date() })
+      .returning();
+    const [me] = await db.insert(schema.people).values({ orgId, userId: u.id, name: "Alex" }).returning();
+    await db.insert(schema.bands).values({ orgId, name: "Flag Day" });
+    await db.insert(schema.people).values({ orgId, name: "Someone" });
+    expect(await local.accountHasBooks(orgId)).toBe(true);
+
+    await local.clearBooks(orgId);
+    expect(await local.accountHasBooks(orgId)).toBe(false);
+    const left = await db.select().from(schema.people).where(eq(schema.people.orgId, orgId));
+    expect(left.map((p) => p.id)).toEqual([me.id]); // only the login's own record
+
+    await importLocalBooks(oldDatabase(), orgId);
+    const bands = await db.select().from(schema.bands).where(eq(schema.bands.orgId, orgId));
+    expect(bands.map((b) => b.name).sort()).toEqual(["Flag Day", "Sweetums"]); // no duplicate Flag Day
+    expect((await data.computeAllTime(orgId)).summary.byCurrency.USD.grossCents).toBe(3000);
   });
 });
