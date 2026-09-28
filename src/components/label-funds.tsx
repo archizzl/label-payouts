@@ -4,13 +4,18 @@ import { Card, Disclosure, Empty, Field, Money, MoneyList } from "@/components/u
 import { db, schema } from "@/db";
 import { centsToDecimal } from "@/lib/money";
 import { deleteLabelTransfer, saveLabelTransfer } from "@/server/actions";
+import { eq } from "drizzle-orm";
+import { getContext } from "@/server/context";
 import { labelFunds, nameMaps } from "@/server/data";
 
 type Transfer = typeof schema.labelTransfers.$inferSelect;
 
-function TransferForm({ transfer, bandId }: { transfer?: Transfer; bandId?: number }) {
-  const bands = db.select().from(schema.bands).orderBy(schema.bands.name).all();
-  const releases = db.select().from(schema.releases).orderBy(schema.releases.title).all();
+async function TransferForm({ transfer, bandId }: { transfer?: Transfer; bandId?: number }) {
+  const { orgId } = await getContext();
+  const [bands, releases] = await Promise.all([
+    db.select().from(schema.bands).where(eq(schema.bands.orgId, orgId)).orderBy(schema.bands.name),
+    db.select().from(schema.releases).where(eq(schema.releases.orgId, orgId)).orderBy(schema.releases.title),
+  ]);
   const today = new Date().toLocaleDateString("en-CA"); // local yyyy-mm-dd
   const forBand = transfer?.bandId ?? bandId ?? null;
   return (
@@ -83,9 +88,9 @@ function TransferForm({ transfer, bandId }: { transfer?: Transfer; bandId?: numb
  * The label's own money and where it went: kept from sales, sent on to others (fundraisers,
  * donations), and what's left. With `bandId`, only transfers raised by that band.
  */
-export function LabelFunds({ bandId }: { bandId?: number }) {
-  const funds = labelFunds();
-  const names = nameMaps();
+export async function LabelFunds({ bandId }: { bandId?: number }) {
+  const { orgId } = await getContext();
+  const [funds, names] = await Promise.all([labelFunds(orgId), nameMaps(orgId)]);
   const transfers = bandId ? funds.transfers.filter((t) => t.bandId === bandId) : funds.transfers;
   const causes = bandId ? funds.causes.filter((c) => c.bandId === bandId) : funds.causes;
   const causeName = (c: { bandId: number | null; releaseId: number | null }) =>

@@ -1,58 +1,49 @@
-import "server-only";
-import { mkdirSync, statSync } from "node:fs";
-import { dirname, join } from "node:path";
-import Database from "better-sqlite3";
-import { drizzle } from "drizzle-orm/better-sqlite3";
-import { migrate } from "drizzle-orm/better-sqlite3/migrator";
+import { mkdirSync } from "node:fs";
+import { join } from "node:path";
+import { PGlite } from "@electric-sql/pglite";
+import { drizzle as drizzleNodePg, type NodePgDatabase } from "drizzle-orm/node-postgres";
+import { migrate as migrateNodePg } from "drizzle-orm/node-postgres/migrator";
+import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
+import { migrate as migratePglite } from "drizzle-orm/pglite/migrator";
+import { Pool } from "pg";
 import * as schema from "./schema";
 
-const migrationsFolder = join(process.cwd(), "drizzle");
-const journal = join(migrationsFolder, "meta", "_journal.json");
+/*
+ * Postgres. With DATABASE_URL set (any hosted Postgres: Neon, Supabase, Railway…) we connect to it.
+ * Without it, we run PGlite: real Postgres inside this process, stored in data/pglite, so local
+ * development needs nothing installed. Tests use PGLITE_DIR=memory:// for a fresh database.
+ */
 
-function open() {
-  const file = process.env.LABEL_DB ?? join(process.cwd(), "data", "label.db");
-  mkdirSync(dirname(file), { recursive: true });
-  const sqlite = new Database(file);
-  sqlite.pragma("journal_mode = WAL");
-  sqlite.pragma("foreign_keys = ON");
-  return drizzle(sqlite, { schema });
+export type DB = NodePgDatabase<typeof schema>;
+
+const migrationsFolder = join(process.cwd(), "drizzle");
+
+function open(): { db: DB; migrate: () => Promise<void> } {
+  const url = process.env.DATABASE_URL;
+  if (url) {
+    const db = drizzleNodePg(new Pool({ connectionString: url }), { schema });
+    return { db, migrate: () => migrateNodePg(db, { migrationsFolder }) };
+  }
+  const dir = process.env.PGLITE_DIR ?? join(process.cwd(), "data", "pglite");
+  if (!dir.includes("://")) mkdirSync(dir, { recursive: true });
+  const db = drizzlePglite(new PGlite(dir), { schema });
+  return {
+    // Same query API as node-postgres for everything we use.
+    db: db as unknown as DB,
+    migrate: () => migratePglite(db, { migrationsFolder }),
+  };
 }
 
-type DB = ReturnType<typeof open>;
-const state = globalThis as unknown as { __labelDb?: DB; __labelMigrated?: number; __labelCheckedAt?: number };
+// One connection per server process: survives dev hot reloads, and PGlite must never be opened twice.
+const state = globalThis as unknown as { __labelDb?: ReturnType<typeof open>; __labelReady?: Promise<void> };
+const conn = (state.__labelDb ??= open());
 
-/** One connection per server process (survives dev hot reloads). */
-const conn: DB = state.__labelDb ?? (state.__labelDb = open());
+export const db: DB = conn.db;
 
 /**
- * Apply any new migrations. A running dev server keeps its connection across code changes, so
- * rather than relying on this module being reloaded, we notice when the migrations journal
- * changes (checked at most once a second) and migrate then. Already-applied migrations are skipped.
+ * Resolves once the schema is up to date. The server awaits it at startup (src/instrumentation.ts);
+ * scripts and tests await it before their first query.
  */
-function ensureMigrated() {
-  const now = Date.now();
-  if (state.__labelCheckedAt && now - state.__labelCheckedAt < 1000) return;
-  state.__labelCheckedAt = now;
-  let stamp = 0;
-  try {
-    stamp = statSync(journal).mtimeMs;
-  } catch {
-    return;
-  }
-  if (state.__labelMigrated === stamp) return;
-  migrate(conn, { migrationsFolder });
-  state.__labelMigrated = stamp;
-}
-
-ensureMigrated();
-
-/** The database. Every use first makes sure the schema is up to date. */
-export const db: DB = new Proxy(conn, {
-  get(target, prop, receiver) {
-    ensureMigrated();
-    const value = Reflect.get(target, prop, receiver);
-    return typeof value === "function" ? value.bind(target) : value;
-  },
-});
+export const ready: Promise<void> = (state.__labelReady ??= conn.migrate());
 
 export { schema };

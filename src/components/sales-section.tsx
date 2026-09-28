@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { SALES_RANGES, salesRangeDates } from "@/lib/dates";
 import { formatCents } from "@/lib/money";
+import { getContext } from "@/server/context";
 import { salesReport } from "@/server/sales-report";
 import { BarList, MonthlyColumns, type Segment, StackedBar } from "./charts";
 import { Card, Money } from "./ui";
@@ -10,21 +11,27 @@ import { Card, Money } from "./ui";
  * net by month, by format and by source, where the money went (fees, label, band, people), and
  * — for a band — a per-item table. The range links scope everything in the section.
  */
-export function SalesSection({
+export async function SalesSection({
   scope,
   range,
   basePath,
   showItems = false,
+  readOnly = false,
+  title = "Sales",
 }: {
   scope: { bandId?: number; releaseId?: number };
   range?: string;
   /** The page's own path, for the range links. */
   basePath: string;
   showItems?: boolean;
+  /** For members: no links into the admin pages. */
+  readOnly?: boolean;
+  title?: string;
 }) {
   const today = new Date().toISOString().slice(0, 10);
   const r = salesRangeDates(range, today);
-  const report = salesReport({ ...scope, from: r.from, to: r.to });
+  const { orgId } = await getContext();
+  const report = await salesReport(orgId, { ...scope, from: r.from, to: r.to });
   const cur = report.currency ?? "USD";
   const fees = report.bandcampShare + report.processorFee;
   // Everything fans paid, split by where it ended up. Any gap (e.g. a fee column we don't read)
@@ -47,7 +54,7 @@ export function SalesSection({
 
   return (
     <Card
-      title="Sales"
+      title={title}
       actions={
         <nav className="flex flex-wrap gap-3 text-xs" aria-label="Date range">
           {SALES_RANGES.map((o) => (
@@ -65,7 +72,12 @@ export function SalesSection({
     >
       {report.saleCount === 0 ? (
         <p className="text-sm text-muted">
-          No sales {r.key === "all" ? "yet" : "in this range"}. <Link href="/import">Import a sales report</Link> to see them here.
+          No sales {r.key === "all" ? "yet" : "in this range"}.{" "}
+          {!readOnly && (
+            <>
+              <Link href="/import">Import a sales report</Link> to see them here.
+            </>
+          )}
         </p>
       ) : (
         <div className="space-y-8">
@@ -176,7 +188,7 @@ export function SalesSection({
                             ) : (
                               <span className="h-6 w-6 shrink-0 bg-surface-2" />
                             )}
-                            {it.releaseId ? <Link href={`/catalog/${it.releaseId}`}>{it.title}</Link> : <span>{it.title}</span>}
+                            {it.releaseId && !readOnly ? <Link href={`/catalog/${it.releaseId}`}>{it.title}</Link> : <span>{it.title}</span>}
                             <span className="text-xs text-muted">{it.kind === "unmatched" ? "not in catalog" : it.kind === "track" ? "single" : it.kind === "merch" ? "merch" : ""}</span>
                           </div>
                         </td>

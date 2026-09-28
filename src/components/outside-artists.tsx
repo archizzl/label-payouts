@@ -2,18 +2,22 @@ import { eq } from "drizzle-orm";
 import Link from "next/link";
 import { db, schema } from "@/db";
 import { clearOutsideArtistContact, saveOutsideArtistContact, setOutsideArtistDismissed } from "@/server/actions";
+import { getContext } from "@/server/context";
 import { SubmitButton } from "./client";
 import { Card } from "./ui";
 
 /** Outside artists that appear on the label's releases, with the tracks they're on and their contact. */
-export function outsideArtistRows() {
-  const artists = db.select().from(schema.outsideArtists).all();
-  const trackRows = db
-    .select({ track: schema.tracks, release: schema.releases })
-    .from(schema.tracks)
-    .innerJoin(schema.releases, eq(schema.releases.id, schema.tracks.releaseId))
-    .all();
-  const people = new Map(db.select().from(schema.people).all().map((p) => [p.id, p]));
+export async function outsideArtistRows(orgId: string) {
+  const [artists, trackRows, peopleRows] = await Promise.all([
+    db.select().from(schema.outsideArtists).where(eq(schema.outsideArtists.orgId, orgId)),
+    db
+      .select({ track: schema.tracks, release: schema.releases })
+      .from(schema.tracks)
+      .innerJoin(schema.releases, eq(schema.releases.id, schema.tracks.releaseId))
+      .where(eq(schema.tracks.orgId, orgId)),
+    db.select().from(schema.people).where(eq(schema.people.orgId, orgId)),
+  ]);
+  const people = new Map(peopleRows.map((p) => [p.id, p]));
   return artists
     .map((a) => {
       const contact = a.contactPersonId ? (people.get(a.contactPersonId) ?? null) : null;
@@ -33,8 +37,9 @@ export function outsideArtistRows() {
  * Artists on the label's releases (usually compilations) who aren't on the label. No band for
  * them: just one contact per artist, who's paid for their tracks. Missing contacts come first.
  */
-export function OutsideArtists() {
-  const all = outsideArtistRows();
+export async function OutsideArtists() {
+  const { orgId } = await getContext();
+  const all = await outsideArtistRows(orgId);
   if (all.length === 0) return null;
   const rows = all.filter((r) => !r.artist.dismissed || r.contact);
   const dismissed = all.filter((r) => r.artist.dismissed && !r.contact);
@@ -142,7 +147,7 @@ export function OutsideArtists() {
   );
 }
 
-function TracksLine({ tracks }: { tracks: ReturnType<typeof outsideArtistRows>[number]["tracks"] }) {
+function TracksLine({ tracks }: { tracks: Awaited<ReturnType<typeof outsideArtistRows>>[number]["tracks"] }) {
   return (
     <span className="block text-xs text-muted">
       {tracks.length === 1 ? "“" + tracks[0].track.title + "” on " : `${tracks.length} tracks on `}

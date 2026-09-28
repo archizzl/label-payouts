@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import Link from "next/link";
 import { ActionForm, CopyButton, SubmitButton } from "@/components/client";
 import { outsideArtistRows } from "@/components/outside-artists";
@@ -9,11 +9,12 @@ import { formatCents } from "@/lib/money";
 import { payHandlesSummary, payMethods } from "@/lib/paypal-export";
 import { STATUS_LABEL, STATUS_TONE } from "@/lib/status";
 import { finalizePayout, markAllPaid, resyncPreview, setPayoutStatus, undoFinalize } from "@/server/actions";
-import { bandcampApiConfigured } from "@/server/bandcamp-api";
+import { bandcampCredentials } from "@/server/bandcamp-api";
+import { getContext } from "@/server/context";
 import { type PayoutScope, payoutNote, type periodView, type previewView } from "@/server/period-view";
 import { PayQueue, type QueueItem } from "./pay-queue";
 
-type View = NonNullable<ReturnType<typeof periodView>> | ReturnType<typeof previewView>;
+type View = NonNullable<Awaited<ReturnType<typeof periodView>>> | Awaited<ReturnType<typeof previewView>>;
 
 /** The band and dates of a payout, as hidden fields for forms that act on a preview. */
 function ScopeFields({ scope }: { scope: PayoutScope }) {
@@ -30,7 +31,7 @@ function ScopeFields({ scope }: { scope: PayoutScope }) {
  * One payout, either a preview (nothing stored yet; `view.period` is null) or a finalized payout
  * with its locked amounts and who's been paid.
  */
-export function PayoutView({
+export async function PayoutView({
   view,
   name,
   sync,
@@ -44,17 +45,19 @@ export function PayoutView({
   const bandName = (bid: number | null) => (bid === null ? "Unrouted" : (names.band.get(bid) ?? `#${bid}`));
   const currencies = live.summary.currencies;
   const pending = lines.filter((l) => l.status === "pending" && l.amountCents > 0);
-  const needContacts = outsideArtistRows().filter((r) => r.needsContact).length;
+  const { orgId } = await getContext();
+  const [outside, labelBandRows, canSync] = await Promise.all([
+    outsideArtistRows(orgId),
+    db
+      .select({ id: schema.bands.id })
+      .from(schema.bands)
+      .where(and(eq(schema.bands.orgId, orgId), eq(schema.bands.isLabel, true))),
+    bandcampCredentials(orgId).then(Boolean),
+  ]);
+  const needContacts = outside.filter((r) => r.needsContact).length;
   // Bands whose own sales lack a split. The label's band keeps its money by default, so a problem
   // there is always a missing outside-artist contact, not a missing split.
-  const labelBands = new Set(
-    db
-      .select()
-      .from(schema.bands)
-      .where(eq(schema.bands.isLabel, true))
-      .all()
-      .map((b) => b.id),
-  );
+  const labelBands = new Set(labelBandRows.map((b) => b.id));
   const splitlessBands = problems.noRuleBands.filter((b) => !labelBands.has(b));
   // Whoever holds the label's account is never sent money, so doesn't need PayPal details.
   const missingPaypal = lines.filter(
@@ -114,7 +117,7 @@ export function PayoutView({
             </>
           ) : (
             <>
-              {bandcampApiConfigured() && (
+              {canSync && (
                 <form action={resyncPreview}>
                   <ScopeFields scope={scope} />
                   <input type="hidden" name="name" value={name} />

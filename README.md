@@ -1,7 +1,8 @@
 # Label Payouts
 
-A local web app for splitting a label's Bandcamp earnings between bands and band members, then paying everyone through PayPal.
+A web app for labels and bands to split their Bandcamp earnings between bands and band members, then pay everyone (PayPal, Venmo, Cash App).
 
+- **Accounts and logins.** A label account holds several bands; a band account holds one. Anyone can belong to several accounts and switch between them. Owners and admins manage everything; members see only their own earnings and payouts, plus their bands' sales totals.
 - **Bands, people and roles.** One person can be in several bands and still gets one payment.
 - **Configurable splits** per band, per item type (for example merch split evenly), per release and per track, each with an effective date so shares can change without rewriting history.
 - **Deductions:**
@@ -15,8 +16,6 @@ A local web app for splitting a label's Bandcamp earnings between bands and band
   - Mark payments as paid.
   - Print a statement for each band.
 
-Everything stays on your machine in `data/label.db` (SQLite). Nothing is sent anywhere.
-
 ## Run it
 
 ```bash
@@ -24,7 +23,36 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:3000. The database is created automatically on first run.
+Open http://localhost:3000, create a login, then create your label or band account (or open an invite someone sent you).
+
+### Settings (`.env.local`)
+
+| Variable | What it's for |
+| --- | --- |
+| `BETTER_AUTH_SECRET` | Signs login sessions. Any long random string (`openssl rand -base64 32`). |
+| `BETTER_AUTH_URL` | The app's address, e.g. `http://localhost:3000` or `https://yourapp.com`. Also used in invite links. |
+| `APP_ENCRYPTION_KEY` | Encrypts secrets stored in the database (each account's Bandcamp API secret). Keep it safe: without it they can't be read. |
+| `DATABASE_URL` | A Postgres connection string (Neon, Supabase, Railway…). Leave it out to use PGlite, a Postgres that runs inside the app and stores its data in `data/pglite`. |
+
+The database schema is created and updated automatically when the server starts.
+
+### Accounts and roles
+
+- **Owner / admin**: everything: bands, splits, imports, payouts, settings, inviting people.
+- **Member**: *My earnings* only: their payouts (paid and to come), what they've earned since the last payout, and their bands' sales totals. Never anyone else's amounts.
+- Invite people under **Settings → Who can sign in**. Choose which payee they are, so their login is linked to their earnings. There's no email sending yet: copy the invite link and send it yourself.
+- Each account enters its own Bandcamp API access under **Settings**.
+
+### Bringing over the old local app's data
+
+1. Create your login at `/signup` (you don't need to create an account).
+2. Stop the dev server, then run:
+
+   ```bash
+   npm run import:local -- --email you@example.com --sqlite ../label-payouts/data/label.db
+   ```
+
+   This creates the label account (named after your label), makes you its owner, copies all bands, people, releases, splits, sales and payouts, links your login to your payee record, and copies `BANDCAMP_CLIENT_ID`/`BANDCAMP_CLIENT_SECRET` from `.env.local` into the account's settings.
 
 ## Workflow
 
@@ -78,6 +106,7 @@ npx drizzle-kit generate   # after changing src/db/schema.ts
 Code layout:
 
 - `src/lib/` holds the pure logic: `splits.ts`, `routing.ts`, `bandcamp-csv.ts`, `paypal-export.ts` and `money.ts`.
-- `src/server/` holds the database queries and server actions.
-- `src/app/` holds the pages.
-- Migrations in `drizzle/` run automatically on startup.
+- `src/server/` holds the database queries and server actions. `context.ts` works out who's signed in, which account they're in and their role; every query is scoped to that account's `orgId`, and every action that changes data starts with `requireAdmin()`.
+- `src/server/auth.ts` sets up logins (Better Auth); `src/db/auth-schema.ts` holds its tables.
+- `src/app/(app)/` holds the signed-in pages; `src/app/(auth)/` sign-in, sign-up and invites.
+- Migrations in `drizzle/` run automatically on startup (`src/instrumentation.ts`).

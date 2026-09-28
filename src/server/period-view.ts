@@ -1,5 +1,5 @@
 import "server-only";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db, schema } from "@/db";
 import type { PayoutLine } from "@/lib/paypal-export";
 import { periodName } from "@/lib/dates";
@@ -41,27 +41,45 @@ export type BandLine = {
 };
 
 /** The default name of a payout, e.g. "Flag Day — August 2026". */
-export function payoutName(scope: PayoutScope) {
-  const band = scope.bandId ? db.select().from(schema.bands).where(eq(schema.bands.id, scope.bandId)).get() : undefined;
+export async function payoutName(orgId: string, scope: PayoutScope) {
+  const [band] = scope.bandId
+    ? await db
+        .select()
+        .from(schema.bands)
+        .where(and(eq(schema.bands.orgId, orgId), eq(schema.bands.id, scope.bandId)))
+    : [];
   return band ? `${band.name} — ${periodName(scope.startDate, scope.endDate)}` : periodName(scope.startDate, scope.endDate);
 }
 
 /** A finalized payout: its locked amounts and payment status, plus today's calculation for comparison. */
-export function periodView(periodId: number) {
-  const period = db.select().from(schema.periods).where(eq(schema.periods.id, periodId)).get();
+export async function periodView(orgId: string, periodId: number) {
+  const [period] = await db
+    .select()
+    .from(schema.periods)
+    .where(and(eq(schema.periods.orgId, orgId), eq(schema.periods.id, periodId)));
   if (!period) return null;
-  return { ...buildView(period, period), period };
+  return { ...(await buildView(orgId, period, period)), period };
 }
 
 /** A payout that hasn't been finalized: computed on the fly, nothing stored. */
-export function previewView(scope: PayoutScope) {
-  return buildView(scope, null);
+export function previewView(orgId: string, scope: PayoutScope) {
+  return buildView(orgId, scope, null);
 }
 
-function buildView(scope: PayoutScope, period: Period | null) {
-  const live = computePayoutPeriod({ id: period?.id ?? 0, ...scope });
-  const names = nameMaps();
-  const peopleRows = new Map(db.select().from(schema.people).all().map((p) => [p.id, p]));
+async function buildView(orgId: string, scope: PayoutScope, period: Period | null) {
+  const [live, names, peopleList, payoutRows, deductionRows] = await Promise.all([
+    computePayoutPeriod(orgId, { id: period?.id ?? 0, ...scope }),
+    nameMaps(orgId),
+    db.select().from(schema.people).where(eq(schema.people.orgId, orgId)),
+    period
+      ? db
+          .select()
+          .from(schema.payouts)
+          .where(and(eq(schema.payouts.orgId, orgId), eq(schema.payouts.periodId, period.id)))
+      : Promise.resolve([]),
+    db.select().from(schema.deductions).where(eq(schema.deductions.orgId, orgId)),
+  ]);
+  const peopleRows = new Map(peopleList.map((p) => [p.id, p]));
   const person = (id: number) => peopleRows.get(id);
 
   const liveLines: PersonLine[] = [];
@@ -87,7 +105,6 @@ function buildView(scope: PayoutScope, period: Period | null) {
   }
 
   const finalized = period !== null;
-  const payoutRows = period ? db.select().from(schema.payouts).where(eq(schema.payouts.periodId, period.id)).all() : [];
   const lines: PersonLine[] = finalized
     ? payoutRows.map((r) => ({
         personId: r.personId,
@@ -150,14 +167,7 @@ function buildView(scope: PayoutScope, period: Period | null) {
     noRuleBands: [...new Set(live.results.filter((r) => r.problem === "no_rule").map((r) => r.bandId!))],
   };
 
-  const deductionPerson = new Map(
-    db
-      .select()
-      .from(schema.deductions)
-      .all()
-      .filter((d) => d.personId)
-      .map((d) => [d.id, d.personId!]),
-  );
+  const deductionPerson = new Map(deductionRows.filter((d) => d.personId).map((d) => [d.id, d.personId!]));
 
   return { period, scope, live, lines, bands, names, problems, drift, finalized, deductionPerson };
 }
@@ -171,7 +181,7 @@ export function payoutNote(periodName: string, line: PersonLine, bandName: (id: 
   return `Label payout ${periodName}${bands ? `: ${bands}` : ""}`;
 }
 
-export function toPayoutLines(view: NonNullable<ReturnType<typeof periodView>>): PayoutLine[] {
+export function toPayoutLines(view: NonNullable<Awaited<ReturnType<typeof periodView>>>): PayoutLine[] {
   const bandName = (id: number) => view.names.band.get(id) ?? "Unknown band";
   return view.lines
     .filter((l) => l.status === "pending")

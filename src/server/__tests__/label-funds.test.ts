@@ -1,47 +1,44 @@
-import { mkdtempSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
+import { newAccount, testDb } from "../../../test/helpers/db";
 
-// A throwaway database for these tests; must be set before the db module loads.
-process.env.LABEL_DB = join(mkdtempSync(join(tmpdir(), "label-payouts-funds-")), "test.db");
-
-let db: typeof import("@/db").db;
-let schema: typeof import("@/db").schema;
+let db: Awaited<ReturnType<typeof testDb>>["db"];
+let schema: Awaited<ReturnType<typeof testDb>>["schema"];
 let data: typeof import("../data");
 
 beforeAll(async () => {
-  ({ db, schema } = await import("@/db"));
+  ({ db, schema } = await testDb());
   data = await import("../data");
 });
 
 describe("label funds", () => {
-  it("tracks a fundraiser: all of a release's money kept by the label, then sent on", () => {
+  it("tracks a fundraiser: all of a release's money kept by the label, then sent on", async () => {
+    const orgId = await newAccount();
     const { bands, people, releases, deductions, splitRules, splitShares, imports, sales, labelTransfers } = schema;
-    const band = db.insert(bands).values({ name: "Flag Day" }).returning().get();
-    const member = db.insert(people).values({ name: "Member" }).returning().get();
-    const rule = db.insert(splitRules).values({ scope: "band_default", bandId: band.id }).returning().get();
-    db.insert(splitShares).values({ ruleId: rule.id, personId: member.id, bps: 10000 }).run();
-    const benefit = db.insert(releases).values({ bandId: band.id, title: "Benefit EP" }).returning().get();
-    const album = db.insert(releases).values({ bandId: band.id, title: "Album" }).returning().get();
+    const [band] = await db.insert(bands).values({ orgId, name: "Flag Day" }).returning();
+    const [member] = await db.insert(people).values({ orgId, name: "Member" }).returning();
+    const [rule] = await db.insert(splitRules).values({ orgId, scope: "band_default", bandId: band.id }).returning();
+    await db.insert(splitShares).values({ orgId, ruleId: rule.id, personId: member.id, bps: 10000 });
+    const [benefit] = await db.insert(releases).values({ orgId, bandId: band.id, title: "Benefit EP" }).returning();
+    const [album] = await db.insert(releases).values({ orgId, bandId: band.id, title: "Album" }).returning();
     // The label's usual 20% cut, and the fundraiser: everything from the benefit release goes to the label.
-    db.insert(deductions).values({ label: "Label cut", kind: "percent", percentBps: 2000, destination: "label" }).run();
-    db.insert(deductions).values({ label: "Fundraiser", kind: "percent", percentBps: 10000, destination: "label", releaseId: benefit.id, sortOrder: -1 }).run();
-    const imp = db.insert(imports).values({ filename: "t", rowCount: 2, addedCount: 2, duplicateCount: 0 }).returning().get();
+    await db.insert(deductions).values({ orgId, label: "Label cut", kind: "percent", percentBps: 2000, destination: "label" });
+    await db
+      .insert(deductions)
+      .values({ orgId, label: "Fundraiser", kind: "percent", percentBps: 10000, destination: "label", releaseId: benefit.id, sortOrder: -1 });
+    const [imp] = await db.insert(imports).values({ orgId, filename: "t", rowCount: 2, addedCount: 2, duplicateCount: 0 }).returning();
     const sale = (key: string, releaseId: number, netCents: number) =>
-      db
-        .insert(sales)
-        .values({
-          importId: imp.id, dedupeKey: key, date: "2026-03-01", itemType: "album", category: "album", itemName: key, artist: "",
-          itemUrl: "", packageName: "", currency: "USD", netCents, transactionId: key, routingKey: key, bandId: band.id, releaseId, raw: {},
-        })
-        .run();
-    sale("benefit", benefit.id, 10000);
-    sale("album", album.id, 1000);
+      db.insert(sales).values({
+        orgId, importId: imp.id, dedupeKey: key, date: "2026-03-01", itemType: "album", category: "album", itemName: key, artist: "",
+        itemUrl: "", packageName: "", currency: "USD", netCents, transactionId: key, routingKey: key, bandId: band.id, releaseId, raw: {},
+      });
+    await sale("benefit", benefit.id, 10000);
+    await sale("album", album.id, 1000);
 
-    db.insert(labelTransfers).values({ date: "2026-04-01", recipient: "Aid group", currency: "USD", amountCents: 6000, bandId: band.id, releaseId: benefit.id }).run();
+    await db
+      .insert(labelTransfers)
+      .values({ orgId, date: "2026-04-01", recipient: "Aid group", currency: "USD", amountCents: 6000, bandId: band.id, releaseId: benefit.id });
 
-    const funds = data.labelFunds();
+    const funds = await data.labelFunds(orgId);
     expect(funds.kept.get("USD")).toBe(10000 + 200); // all of the benefit, 20% of the album
     expect(funds.sent.get("USD")).toBe(6000);
     expect(funds.balance.get("USD")).toBe(4200);

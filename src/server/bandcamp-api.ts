@@ -1,31 +1,39 @@
 import "server-only";
+import { eq } from "drizzle-orm";
+import { db, schema } from "@/db";
+import { decryptSecret } from "./secrets";
 
 /**
- * Bandcamp's official API (https://bandcamp.com/developer). Credentials live in .env.local as
- * BANDCAMP_CLIENT_ID / BANDCAMP_CLIENT_SECRET and never leave the server.
+ * Bandcamp's official API (https://bandcamp.com/developer). Each account (label or band) has its own
+ * API access, entered on its settings page and stored encrypted; it never leaves the server.
  */
+
+export type BandcampCredentials = { clientId: string; clientSecret: string };
+
+/** This account's Bandcamp API access, or null if it hasn't been set up. */
+export async function bandcampCredentials(orgId: string): Promise<BandcampCredentials | null> {
+  const [s] = await db.select().from(schema.accountSettings).where(eq(schema.accountSettings.orgId, orgId));
+  if (!s?.bandcampClientId || !s.bandcampClientSecret) return null;
+  return { clientId: s.bandcampClientId, clientSecret: decryptSecret(s.bandcampClientSecret) };
+}
 
 /** Imports made by syncing with the API are named with this. */
 export const API_SYNC_PREFIX = "Bandcamp API sync";
 
 type Token = { accessToken: string; expiresAt: number };
-// Kept on globalThis so dev reloads don't ask Bandcamp for a new token every time.
-const cache = globalThis as unknown as { bandcampToken?: Token };
+// Tokens per API client, kept on globalThis so dev reloads don't ask Bandcamp for new ones every time.
+const cache = globalThis as unknown as { bandcampTokens?: Map<string, Token> };
+const tokens = (cache.bandcampTokens ??= new Map());
 
-export function bandcampApiConfigured() {
-  return Boolean(process.env.BANDCAMP_CLIENT_ID && process.env.BANDCAMP_CLIENT_SECRET);
-}
-
-async function token(): Promise<string> {
-  const t = cache.bandcampToken;
+async function token(creds: BandcampCredentials): Promise<string> {
+  const t = tokens.get(creds.clientId);
   if (t && t.expiresAt > Date.now() + 60_000) return t.accessToken;
-  if (!bandcampApiConfigured()) throw new Error("Bandcamp API credentials aren't set (BANDCAMP_CLIENT_ID and BANDCAMP_CLIENT_SECRET in .env.local).");
   const res = await fetch("https://bandcamp.com/oauth_token", {
     method: "POST",
     body: new URLSearchParams({
       grant_type: "client_credentials",
-      client_id: process.env.BANDCAMP_CLIENT_ID!,
-      client_secret: process.env.BANDCAMP_CLIENT_SECRET!,
+      client_id: creds.clientId,
+      client_secret: creds.clientSecret,
     }),
     signal: AbortSignal.timeout(20000),
   });
@@ -33,18 +41,18 @@ async function token(): Promise<string> {
   if (!res.ok || !body.access_token) {
     throw new Error(`Bandcamp didn't accept the API credentials${body.error_description ? `: ${body.error_description}` : ` (${res.status})`}.`);
   }
-  cache.bandcampToken = { accessToken: body.access_token, expiresAt: Date.now() + (body.expires_in ?? 3600) * 1000 };
+  tokens.set(creds.clientId, { accessToken: body.access_token, expiresAt: Date.now() + (body.expires_in ?? 3600) * 1000 });
   return body.access_token;
 }
 
-async function call<T>(path: string, payload: object = {}): Promise<T> {
+async function call<T>(creds: BandcampCredentials, path: string, payload: object = {}): Promise<T> {
   const res = await fetch(`https://bandcamp.com/api/${path}`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${await token()}`, "Content-Type": "application/json" },
+    headers: { Authorization: `Bearer ${await token(creds)}`, "Content-Type": "application/json" },
     body: JSON.stringify(payload),
     signal: AbortSignal.timeout(120_000),
   });
-  if (res.status === 401) cache.bandcampToken = undefined;
+  if (res.status === 401) tokens.delete(creds.clientId);
   const body = (await res.json().catch(() => null)) as (T & { error?: boolean; error_message?: string; message?: string }) | null;
   if (!res.ok || !body || body.error) {
     throw new Error(`Bandcamp API error on ${path}: ${body?.error_message ?? body?.message ?? res.status}`);
@@ -59,8 +67,8 @@ export type BandcampAccountBand = {
   member_bands?: { band_id: number; name: string; subdomain: string }[];
 };
 
-export async function myBands() {
-  return (await call<{ bands: BandcampAccountBand[] }>("account/1/my_bands")).bands;
+export async function myBands(creds: BandcampCredentials) {
+  return (await call<{ bands: BandcampAccountBand[] }>(creds, "account/1/my_bands")).bands;
 }
 
 /** "YYYY-MM-DD HH:MM:SS" in UTC, the format the sales API takes. */
@@ -72,11 +80,11 @@ function apiTime(d: Date) {
  * The raw sales report (every sale, refund and payout row) for each account the credentials manage.
  * For a label that includes all its artists. Rows are the API's own objects, one per item sold.
  */
-export async function salesReport(from: Date, to: Date) {
-  const accounts = await myBands();
+export async function salesReport(creds: BandcampCredentials, from: Date, to: Date) {
+  const accounts = await myBands(creds);
   const rows = new Map<string, Record<string, unknown>>();
   for (const account of accounts) {
-    const { report } = await call<{ report: Record<string, unknown>[] }>("sales/4/sales_report", {
+    const { report } = await call<{ report: Record<string, unknown>[] }>(creds, "sales/4/sales_report", {
       band_id: account.band_id,
       start_time: apiTime(from),
       end_time: apiTime(to),

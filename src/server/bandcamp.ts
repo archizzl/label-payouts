@@ -48,7 +48,7 @@ type BandRow = typeof bands.$inferSelect;
  * Which band a release belongs to: by its Bandcamp subdomain (unless it's hosted on the label's own
  * page), then by artist name or alias.
  */
-export function findBandFor(url: string, artist: string | null, labelHost: string, all: BandRow[] = db.select().from(bands).all()) {
+export function findBandFor(url: string, artist: string | null, labelHost: string, all: BandRow[]) {
   const host = hostOf(url);
   if (host && host !== labelHost) {
     const n = normalizeUrl(url);
@@ -62,42 +62,46 @@ export function findBandFor(url: string, artist: string | null, labelHost: strin
   return null;
 }
 
-/** Create a band for a release's artist. Never records the label's own subdomain as a band URL. */
-/** Give the label's own band its Bandcamp profile photo, read from any page of the label's account. */
-export function rememberLabelPhoto(html: string) {
-  const photo = parseBandPhoto(html);
-  if (!photo) return;
-  db.update(bands)
-    .set({ imageUrl: photo })
-    .where(and(eq(bands.isLabel, true), or(isNull(bands.imageUrl), ne(bands.imageUrl, photo))))
-    .run();
+/** Every band in the account, for matching releases to bands. */
+export function allBands(orgId: string) {
+  return db.select().from(bands).where(eq(bands.orgId, orgId));
 }
 
-export function createBandFor(url: string, artist: string, labelHost: string, isLabel = false): BandRow {
+/** Give the label's own band its Bandcamp profile photo, read from any page of the label's account. */
+export async function rememberLabelPhoto(orgId: string, html: string) {
+  const photo = parseBandPhoto(html);
+  if (!photo) return;
+  await db
+    .update(bands)
+    .set({ imageUrl: photo })
+    .where(and(eq(bands.orgId, orgId), eq(bands.isLabel, true), or(isNull(bands.imageUrl), ne(bands.imageUrl, photo))));
+}
+
+/** Create a band for a release's artist. Never records the label's own subdomain as a band URL. */
+export async function createBandFor(orgId: string, url: string, artist: string, labelHost: string, isLabel = false): Promise<BandRow> {
   const host = hostOf(url);
-  return db
+  const [band] = await db
     .insert(bands)
-    .values({ name: artist, isLabel, urlPatterns: host && host !== labelHost ? [subdomainPattern(host)] : [] })
-    .returning()
-    .get();
+    .values({ orgId, name: artist, isLabel, urlPatterns: host && host !== labelHost ? [subdomainPattern(host)] : [] })
+    .returning();
+  return band;
 }
 
 /** Find (or create) the outside artist with this name. Names compare loosely ("The X" = "x"). */
-function outsideArtistId(name: string): number {
+async function outsideArtistId(orgId: string, name: string): Promise<number> {
   const n = normalizeText(name);
-  const existing = db
-    .select()
-    .from(outsideArtists)
-    .all()
-    .find((a) => normalizeText(a.name) === n);
-  return existing?.id ?? db.insert(outsideArtists).values({ name: name.trim() }).returning({ id: outsideArtists.id }).get().id;
+  const existing = (await db.select().from(outsideArtists).where(eq(outsideArtists.orgId, orgId))).find((a) => normalizeText(a.name) === n);
+  if (existing) return existing.id;
+  const [created] = await db.insert(outsideArtists).values({ orgId, name: name.trim() }).returning({ id: outsideArtists.id });
+  return created.id;
 }
 
-export function findExistingRelease(
+export async function findExistingRelease(
+  orgId: string,
   r: { bandcampId: number; url: string; title: string; kind: "album" | "track" | "merch" },
   bandId: number | null,
 ) {
-  const all = db.select().from(releases).all();
+  const all = await db.select().from(releases).where(eq(releases.orgId, orgId));
   const url = normalizeUrl(r.url);
   // Album, track and merch ids are separate number spaces on Bandcamp.
   const sameKind = (x: (typeof all)[number]) => (x.kind === "merch") === (r.kind === "merch");
@@ -116,17 +120,13 @@ export function findExistingRelease(
 /**
  * Create or update a release and its tracks from Bandcamp. Your own edits are kept where they
  * matter: the release's band, a catalog number you typed, splits, and tracks you added by hand.
- */
-/**
- * Create or update a release and its tracks from Bandcamp. Your own edits are kept where they
- * matter: the release's band, a catalog number you typed, splits, and tracks you added by hand.
  *
  * Compilations: a track credited to another band on the label is attributed to that band; a track
  * credited to anyone else is attributed to an outside artist (paid via their contact). A release
  * seen as a compilation for the first time splits its album sales across its tracks.
  */
-export function upsertRelease(d: ReleaseDetails, bandId: number, existingId: number | null) {
-  const allBands = db.select().from(bands).all();
+export async function upsertRelease(orgId: string, d: ReleaseDetails, bandId: number, existingId: number | null) {
+  const allBands = await db.select().from(bands).where(eq(bands.orgId, orgId));
   // Track credits that are really the label itself, or the release's own band, aren't outside artists.
   const labelNames = allBands.filter((b) => b.isLabel).flatMap((b) => [b.name, ...b.aliases].map(normalizeText));
   const outsideIds = new Map<string, number>();
@@ -134,10 +134,15 @@ export function upsertRelease(d: ReleaseDetails, bandId: number, existingId: num
     if (!t.artist) continue;
     const n = normalizeText(t.artist);
     const onLabel = allBands.some((b) => [b.name, ...b.aliases].some((x) => normalizeText(x) === n));
-    if (!onLabel && !labelNames.includes(n)) outsideIds.set(n, outsideArtistId(t.artist));
+    if (!onLabel && !labelNames.includes(n)) outsideIds.set(n, await outsideArtistId(orgId, t.artist));
   }
-  return db.transaction((tx) => {
-    const existing = existingId ? tx.select().from(releases).where(eq(releases.id, existingId)).get() : undefined;
+  return db.transaction(async (tx) => {
+    const [existing] = existingId
+      ? await tx
+          .select()
+          .from(releases)
+          .where(and(eq(releases.orgId, orgId), eq(releases.id, existingId)))
+      : [];
     const fields = {
       title: d.title,
       url: d.url,
@@ -158,20 +163,20 @@ export function upsertRelease(d: ReleaseDetails, bandId: number, existingId: num
       // Keep a catalog number you typed; replace one that was only ever a Bandcamp SKU.
       const skus = [...existing.packages, ...d.packages].map((p) => p.sku?.toUpperCase());
       const keepCatalog = existing.catalogNumber && !skus.includes(existing.catalogNumber.toUpperCase());
-      tx.update(releases)
+      await tx
+        .update(releases)
         .set({ ...fields, catalogNumber: keepCatalog ? existing.catalogNumber : d.catalogNumber || existing.catalogNumber })
-        .where(eq(releases.id, releaseId))
-        .run();
+        .where(eq(releases.id, releaseId));
     } else {
-      releaseId = tx
+      const [created] = await tx
         .insert(releases)
-        .values({ ...fields, bandId, catalogNumber: d.catalogNumber })
-        .returning({ id: releases.id })
-        .get().id;
+        .values({ ...fields, orgId, bandId, catalogNumber: d.catalogNumber })
+        .returning({ id: releases.id });
+      releaseId = created.id;
     }
     const releaseBandId = existing?.bandId ?? bandId;
 
-    const current = tx.select().from(tracks).where(eq(tracks.releaseId, releaseId)).all();
+    const current = await tx.select().from(tracks).where(eq(tracks.releaseId, releaseId));
     const wasAttributed = current.some((c) => c.outsideArtistId !== null || (c.bandId !== null && c.bandId !== releaseBandId));
     const used = new Set<number>();
     let added = 0;
@@ -197,19 +202,19 @@ export function upsertRelease(d: ReleaseDetails, bandId: number, existingId: num
         used.add(match.id);
         // A band you picked for the track by hand wins over what the credit says.
         const bandIdForTrack = match.bandId ?? creditedBand?.id ?? null;
-        tx.update(tracks)
+        await tx
+          .update(tracks)
           .set({
             ...values,
             isrc: match.isrc || t.isrc,
             bandId: bandIdForTrack,
             outsideArtistId: bandIdForTrack ? null : outsideId,
           })
-          .where(eq(tracks.id, match.id))
-          .run();
+          .where(eq(tracks.id, match.id));
       } else {
-        tx.insert(tracks)
-          .values({ ...values, releaseId, isrc: t.isrc, bandId: creditedBand?.id ?? null, outsideArtistId: creditedBand ? null : outsideId })
-          .run();
+        await tx
+          .insert(tracks)
+          .values({ ...values, orgId, releaseId, isrc: t.isrc, bandId: creditedBand?.id ?? null, outsideArtistId: creditedBand ? null : outsideId });
         added++;
       }
     }
@@ -222,7 +227,7 @@ export function upsertRelease(d: ReleaseDetails, bandId: number, existingId: num
     // Album sales of a compilation are shared across its tracks' artists, the first time we see it
     // as one (after that it's your setting to change).
     if (isCompilation && d.kind === "album" && (!existing || (!wasAttributed && existing.albumSplitMode === "band_default"))) {
-      tx.update(releases).set({ albumSplitMode: "average_tracks" }).where(eq(releases.id, releaseId)).run();
+      await tx.update(releases).set({ albumSplitMode: "average_tracks" }).where(eq(releases.id, releaseId));
     }
     return { releaseId, tracks: d.tracks.length, addedTracks: added, created: !existing, compilation: isCompilation };
   });

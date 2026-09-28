@@ -7,13 +7,17 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "vitest run"
+    "test": "vitest run",
+    "import:local": "tsx --conditions=react-server --env-file=.env.local scripts/import-local.mts"
   },
   "dependencies": {
+    "@electric-sql/pglite": "^0.5.8",
+    "better-auth": "^1.7.6",
     "better-sqlite3": "^12.11.1",
     "drizzle-orm": "^0.45.3",
     "next": "16.3.6",
     "papaparse": "^5.7.0",
+    "pg": "^8.23.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "server-only": "^0.0.1",
@@ -24,6 +28,7 @@
     "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^20",
     "@types/papaparse": "^5.5.2",
+    "@types/pg": "^8.23.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "drizzle-kit": "^0.31.11",

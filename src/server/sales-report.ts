@@ -1,4 +1,5 @@
 import "server-only";
+import { eq } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { parseCents } from "@/lib/money";
 import { computePeriod, salePackage, type SaleRow } from "./data";
@@ -91,9 +92,12 @@ function formatOf(s: SaleRow, packages: (typeof schema.releases.$inferSelect)["p
   return pkg?.typeName ?? (s.packageName || "Merch");
 }
 
-export function salesReport(scope: SalesScope): SalesReport {
-  const { results, saleById } = computePeriod(scope.from ?? "0000-01-01", scope.to ?? "9999-12-31");
-  const releases = new Map(db.select().from(schema.releases).all().map((r) => [r.id, r]));
+export async function salesReport(orgId: string, scope: SalesScope): Promise<SalesReport> {
+  const [{ results, saleById }, releaseRows] = await Promise.all([
+    computePeriod(orgId, scope.from ?? "0000-01-01", scope.to ?? "9999-12-31"),
+    db.select().from(schema.releases).where(eq(schema.releases.orgId, orgId)),
+  ]);
+  const releases = new Map(releaseRows.map((r) => [r.id, r]));
 
   const inScope = results.filter((r) => {
     const s = saleById.get(r.saleId)!;
