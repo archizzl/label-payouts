@@ -18,17 +18,21 @@ export function Mark() {
   );
 }
 
-function itemsFor(account: Account, isAdmin: boolean) {
+type Item = { href: string; label: string };
+
+function itemsFor(account: Account, isAdmin: boolean, labels: Item[]): Item[] {
   if (!isAdmin) return [{ href: "/me", label: "my earnings" }];
   return [
     { href: "/", label: "dashboard" },
     { href: "/import", label: "import sales" },
     { href: "/periods", label: "payouts" },
+    { href: "/receipts", label: "receipts" },
     { href: "/bands", label: account.kind === "band" ? "band" : "bands" },
     { href: "/people", label: "people" },
     { href: "/catalog", label: "catalog" },
     { href: "/rules", label: account.kind === "band" ? "rules" : "label rules" },
     { href: "/me", label: "my earnings" },
+    ...labels,
     { href: "/account", label: "settings" },
   ];
 }
@@ -67,14 +71,17 @@ export function Nav({
   account,
   accounts,
   isAdmin,
+  labels = [],
 }: {
   user: { name: string; email: string };
   account: Account;
   accounts: Account[];
   isAdmin: boolean;
+  /** Band accounts: a link to each label they're linked to. */
+  labels?: Item[];
 }) {
   const path = usePathname();
-  const items = itemsFor(account, isAdmin);
+  const items = itemsFor(account, isAdmin, labels);
   return (
     <header className="no-print border-b border-border bg-surface">
       <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 pt-4 pb-3 md:px-8">

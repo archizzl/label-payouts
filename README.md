@@ -23,7 +23,7 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:3000, create a login, then create your label or band account (or open an invite someone sent you).
+`npm run dev` starts a local Postgres database for you (its data lives in `data/postgres`; nothing to install), then the app. Open http://localhost:3000, create a login, then create your label or band account (or open an invite someone sent you).
 
 ### Settings (`.env.local`)
 
@@ -32,7 +32,7 @@ Open http://localhost:3000, create a login, then create your label or band accou
 | `BETTER_AUTH_SECRET` | Signs login sessions. Any long random string (`openssl rand -base64 32`). |
 | `BETTER_AUTH_URL` | The app's address, e.g. `http://localhost:3000` or `https://yourapp.com`. Also used in invite links. |
 | `APP_ENCRYPTION_KEY` | Encrypts secrets stored in the database (each account's Bandcamp API secret). Keep it safe: without it they can't be read. |
-| `DATABASE_URL` | A Postgres connection string (Neon, Supabase, Railway…). Leave it out to use PGlite, a Postgres that runs inside the app and stores its data in `data/pglite`. |
+| `DATABASE_URL` | A Postgres connection string (Neon, Supabase, Railway…). Leave it out locally: `npm run dev` runs its own Postgres in `data/postgres`. |
 
 The database schema is created and updated automatically when the server starts.
 
@@ -43,10 +43,21 @@ The database schema is created and updated automatically when the server starts.
 - Invite people under **Settings → Who can sign in**. Choose which payee they are, so their login is linked to their earnings. There's no email sending yet: copy the invite link and send it yourself.
 - Each account enters its own Bandcamp API access under **Settings**.
 
+### Receipts
+
+- **Receipts** (admins): every expense with its receipt photos or PDFs, who paid (the label, a band fund, or a person out of pocket), and what it was for (a band, optionally a release).
+- **Pay it back from sales**: the band's (or release's) sales pay it back before they're split, and the money goes to whoever paid (a person gets it in their next payout). It only ever comes out of sales that haven't been paid out yet.
+- Not paid back from sales, and a person paid? The label owes them; mark it reimbursed once you've paid them. Label funds show what the label spent.
+- **Members** submit receipts for things they paid for from *My earnings*; an admin approves (choosing whether sales pay it back) or rejects them. Nothing counts until approved.
+
+### Linking a band's own account to its label
+
+A band can have its own account (its members, its own sales) and also be on a label. On the band's page in the label account, **Create a link code** and send it to the band; an admin of the band's account enters it under **Settings → Labels**. The band account then gets a read-only *from [label]* page: that band's sales through the label, where the money went, its members' payouts, statements and receipts. Only the label can change anything; either side can unlink.
+
 ### Bringing over the old local app's data
 
 1. Create your login at `/signup` (you don't need to create an account).
-2. Stop the dev server, then run:
+2. Run (the dev server can keep running):
 
    ```bash
    npm run import:local -- --email you@example.com --sqlite ../label-payouts/data/label.db
@@ -110,3 +121,4 @@ Code layout:
 - `src/server/auth.ts` sets up logins (Better Auth); `src/db/auth-schema.ts` holds its tables.
 - `src/app/(app)/` holds the signed-in pages; `src/app/(auth)/` sign-in, sign-up and invites.
 - Migrations in `drizzle/` run automatically on startup (`src/instrumentation.ts`).
+- Tests use an in-memory Postgres (PGlite), a fresh one per test file.

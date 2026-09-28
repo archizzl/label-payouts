@@ -8,6 +8,20 @@
       "when": 1790562422737,
       "tag": "0000_init",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1790565908531,
+      "tag": "0001_receipts_and_links",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790566594127,
+      "tag": "0002_expense_recoup_from",
+      "breakpoints": true
     }
   ]
 }

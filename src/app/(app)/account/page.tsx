@@ -1,4 +1,5 @@
 import { and, asc, eq } from "drizzle-orm";
+import Link from "next/link";
 import { connection } from "next/server";
 import { ActionForm, CopyButton, SubmitButton } from "@/components/client";
 import { Badge, Card, Disclosure, Empty, Field, PageHeader } from "@/components/ui";
@@ -11,6 +12,8 @@ import {
   setMemberRole,
 } from "@/server/account-actions";
 import { requireAdmin } from "@/server/context";
+import { acceptLinkCode, unlink } from "@/server/link-actions";
+import { labelsForBandAccount } from "@/server/links";
 
 const ROLE_LABEL: Record<string, string> = { owner: "owner", admin: "admin", member: "member" };
 
@@ -19,7 +22,7 @@ export default async function AccountPage() {
   await connection();
   const ctx = await requireAdmin();
   const { orgId } = ctx;
-  const [[settings], members, invites, people] = await Promise.all([
+  const [[settings], members, invites, people, labels] = await Promise.all([
     db.select().from(schema.accountSettings).where(eq(schema.accountSettings.orgId, orgId)),
     db
       .select({ member: schema.member, user: schema.user })
@@ -32,6 +35,7 @@ export default async function AccountPage() {
       .from(schema.invitation)
       .where(and(eq(schema.invitation.organizationId, orgId), eq(schema.invitation.status, "pending"))),
     db.select().from(schema.people).where(eq(schema.people.orgId, orgId)).orderBy(asc(schema.people.name)),
+    ctx.org.kind === "band" ? labelsForBandAccount(orgId) : Promise.resolve([]),
   ]);
   const personOf = (userId: string) => people.find((p) => p.userId === userId);
   const base = process.env.BETTER_AUTH_URL ?? "";
@@ -74,6 +78,39 @@ export default async function AccountPage() {
           </div>
         </ActionForm>
       </Card>
+
+      {kind === "band" && (
+        <Card title="Labels">
+          <p className="mb-4 text-sm text-muted">
+            If you’re on a label that uses this app, link to it to see your band’s sales, payouts, statements and receipts from the
+            label here. Ask the label for a link code (it’s on your band’s page in their account).
+          </p>
+          {labels.length > 0 && (
+            <ul className="mb-4 space-y-2">
+              {labels.map(({ link, label, band }) => (
+                <li key={link.id} className="flex flex-wrap items-center gap-3 text-sm">
+                  <Link href={`/from-label/${link.id}`} className="font-medium">
+                    {label.name}
+                  </Link>
+                  <span className="text-muted">as {band.name}</span>
+                  <form action={unlink} className="ml-auto">
+                    <input type="hidden" name="id" value={link.id} />
+                    <SubmitButton variant="ghost" size="sm" confirm={`Unlink ${label.name}?`}>
+                      Unlink
+                    </SubmitButton>
+                  </form>
+                </li>
+              ))}
+            </ul>
+          )}
+          <ActionForm action={acceptLinkCode} className="flex flex-wrap items-end gap-3">
+            <Field label="Link code from your label">
+              <input name="code" required placeholder="ABCD-EFGH-JKLM" className="!w-56 uppercase" autoComplete="off" />
+            </Field>
+            <SubmitButton>Link</SubmitButton>
+          </ActionForm>
+        </Card>
+      )}
 
       <Card title="Who can sign in">
         <p className="mb-4 text-sm text-muted">

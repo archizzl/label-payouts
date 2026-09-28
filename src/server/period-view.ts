@@ -4,6 +4,7 @@ import { db, schema } from "@/db";
 import type { PayoutLine } from "@/lib/paypal-export";
 import { periodName } from "@/lib/dates";
 import { computePayoutPeriod, nameMaps } from "./data";
+import { expenseDeductions } from "./expenses";
 
 /** What a payout covers: one band (or the whole label) over a date range. */
 export type PayoutScope = { bandId: number | null; startDate: string; endDate: string };
@@ -67,7 +68,7 @@ export function previewView(orgId: string, scope: PayoutScope) {
 }
 
 async function buildView(orgId: string, scope: PayoutScope, period: Period | null) {
-  const [live, names, peopleList, payoutRows, deductionRows] = await Promise.all([
+  const [live, names, peopleList, payoutRows, deductionRows, expenseRows] = await Promise.all([
     computePayoutPeriod(orgId, { id: period?.id ?? 0, ...scope }),
     nameMaps(orgId),
     db.select().from(schema.people).where(eq(schema.people.orgId, orgId)),
@@ -78,6 +79,7 @@ async function buildView(orgId: string, scope: PayoutScope, period: Period | nul
           .where(and(eq(schema.payouts.orgId, orgId), eq(schema.payouts.periodId, period.id)))
       : Promise.resolve([]),
     db.select().from(schema.deductions).where(eq(schema.deductions.orgId, orgId)),
+    db.select().from(schema.expenses).where(eq(schema.expenses.orgId, orgId)),
   ]);
   const peopleRows = new Map(peopleList.map((p) => [p.id, p]));
   const person = (id: number) => peopleRows.get(id);
@@ -125,11 +127,9 @@ async function buildView(orgId: string, scope: PayoutScope, period: Period | nul
     : liveLines.filter((l) => l.amountCents !== 0);
   lines.sort((a, b) => a.name.localeCompare(b.name) || a.currency.localeCompare(b.currency));
 
-  // Did rules or sales change after finalizing?
-  const key = (l: PersonLine) => `${l.personId}|${l.currency}|${l.amountCents}`;
-  const drift =
-    finalized &&
-    [...new Set(liveLines.filter((l) => l.amountCents !== 0).map(key))].sort().join() !== [...new Set(lines.map(key))].sort().join();
+  // Did rules or sales change after finalizing? A cent here or there with the same totals is only
+  // rounding (e.g. a tie broken differently), not a change worth flagging.
+  const drift = finalized && changedSinceFinalized(lines, liveLines.filter((l) => l.amountCents !== 0));
 
   const bandLines = new Map<string, BandLine>();
   for (const r of live.results) {
@@ -167,9 +167,25 @@ async function buildView(orgId: string, scope: PayoutScope, period: Period | nul
     noRuleBands: [...new Set(live.results.filter((r) => r.problem === "no_rule").map((r) => r.bandId!))],
   };
 
-  const deductionPerson = new Map(deductionRows.filter((d) => d.personId).map((d) => [d.id, d.personId!]));
+  const deductionPerson = new Map(
+    [...deductionRows, ...expenseDeductions(expenseRows)].filter((d) => d.personId).map((d) => [d.id, d.personId!]),
+  );
 
   return { period, scope, live, lines, bands, names, problems, drift, finalized, deductionPerson };
+}
+
+/** Whether today's amounts differ from the locked ones by more than rounding. */
+export function changedSinceFinalized(
+  locked: { personId: number; currency: string; amountCents: number }[],
+  live: { personId: number; currency: string; amountCents: number }[],
+) {
+  const key = (l: { personId: number; currency: string }) => `${l.personId}|${l.currency}`;
+  const was = new Map(locked.map((l) => [key(l), l.amountCents]));
+  const now = new Map(live.map((l) => [key(l), l.amountCents]));
+  if (was.size !== now.size || [...was.keys()].some((k) => !now.has(k))) return true;
+  if ([...was].some(([k, cents]) => Math.abs(cents - now.get(k)!) > 1)) return true;
+  const total = (m: Map<string, number>, cur: string) => [...m].filter(([k]) => k.endsWith(`|${cur}`)).reduce((a, [, c]) => a + c, 0);
+  return [...new Set(live.map((l) => l.currency))].some((cur) => total(was, cur) !== total(now, cur));
 }
 
 export function payoutNote(periodName: string, line: PersonLine, bandName: (id: number) => string) {

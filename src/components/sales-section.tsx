@@ -18,6 +18,7 @@ export async function SalesSection({
   showItems = false,
   readOnly = false,
   title = "Sales",
+  orgId: fromOrg,
 }: {
   scope: { bandId?: number; releaseId?: number };
   range?: string;
@@ -27,10 +28,12 @@ export async function SalesSection({
   /** For members: no links into the admin pages. */
   readOnly?: boolean;
   title?: string;
+  /** Read another account's books (a label linked to this band account). Callers check access. */
+  orgId?: string;
 }) {
   const today = new Date().toISOString().slice(0, 10);
   const r = salesRangeDates(range, today);
-  const { orgId } = await getContext();
+  const orgId = fromOrg ?? (await getContext()).orgId;
   const report = await salesReport(orgId, { ...scope, from: r.from, to: r.to });
   const cur = report.currency ?? "USD";
   const fees = report.bandcampShare + report.processorFee;

@@ -2,11 +2,13 @@ import { and, desc, eq, isNull } from "drizzle-orm";
 import { connection } from "next/server";
 import { SubmitButton } from "@/components/client";
 import { SalesSection } from "@/components/sales-section";
-import { Badge, Callout, Card, Empty, Money, MoneyList, PageHeader } from "@/components/ui";
+import { ExpenseTable, SubmitReceiptForm } from "@/components/receipts";
+import { Badge, Callout, Card, Disclosure, Empty, Money, MoneyList, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
 import { linkMyself } from "@/server/account-actions";
 import { getContext } from "@/server/context";
 import { computePayoutPeriod, nameMaps } from "@/server/data";
+import { expenseFileList } from "@/server/expenses";
 
 const STATUS = {
   pending: { label: "To be paid", tone: "warn" },
@@ -59,7 +61,7 @@ export default async function MyEarningsPage({ searchParams }: PageProps<"/me">)
     );
   }
 
-  const [payoutRows, myBands, names, unpaid] = await Promise.all([
+  const [payoutRows, myBands, names, unpaid, expenseRows, files] = await Promise.all([
     db
       .select({ payout: schema.payouts, period: schema.periods })
       .from(schema.payouts)
@@ -74,7 +76,11 @@ export default async function MyEarningsPage({ searchParams }: PageProps<"/me">)
     nameMaps(orgId),
     // Sales no finalized payout has covered yet: what they've earned since the last one.
     computePayoutPeriod(orgId, { id: 0, bandId: null, startDate: "0000-01-01", endDate: "9999-12-31" }),
+    db.select().from(schema.expenses).where(eq(schema.expenses.orgId, orgId)).orderBy(desc(schema.expenses.date)),
+    expenseFileList(orgId),
   ]);
+  // Their receipts: ones they submitted, or paid for.
+  const myExpenses = expenseRows.filter((e) => e.submittedByUserId === ctx.user.id || e.paidByPersonId === person.id);
 
   const owed = new Map<string, number>();
   const received = new Map<string, number>();
@@ -155,6 +161,26 @@ export default async function MyEarningsPage({ searchParams }: PageProps<"/me">)
             </tbody>
           </table>
         )}
+      </Card>
+
+      <Card title="My receipts">
+        <p className="mb-3 text-sm text-muted">
+          Paid for something for the band? Submit the receipt. Once an admin approves it, you’re paid back, either from the band’s
+          sales in your next payout or directly by the label.
+        </p>
+        <div className="mb-4">
+          <Disclosure summary="+ Submit a receipt">
+            <SubmitReceiptForm bands={myBands.map(({ band }) => band)} />
+          </Disclosure>
+        </div>
+        <ExpenseTable
+          rows={myExpenses}
+          files={files}
+          personName={(id) => (id === person.id ? "you" : names.person.get(id))}
+          bandName={(id) => names.band.get(id)}
+          mode="member"
+          userId={ctx.user.id}
+        />
       </Card>
 
       {myBands.map(({ band }) => (

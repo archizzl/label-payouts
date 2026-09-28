@@ -9,9 +9,10 @@ import { Pool } from "pg";
 import * as schema from "./schema";
 
 /*
- * Postgres. With DATABASE_URL set (any hosted Postgres: Neon, Supabase, Railway…) we connect to it.
- * Without it, we run PGlite: real Postgres inside this process, stored in data/pglite, so local
- * development needs nothing installed. Tests use PGLITE_DIR=memory:// for a fresh database.
+ * Postgres, from DATABASE_URL: a hosted one (Neon, Supabase, Railway…), or the local one that
+ * `npm run dev` starts (data/postgres). Tests set PGLITE_DIR=memory:// instead, for a fresh
+ * in-memory Postgres each run. (PGlite is never used for real data: it must only ever be opened by
+ * one process, and Next's dev server runs several.)
  */
 
 export type DB = NodePgDatabase<typeof schema>;
@@ -24,7 +25,10 @@ function open(): { db: DB; migrate: () => Promise<void> } {
     const db = drizzleNodePg(new Pool({ connectionString: url }), { schema });
     return { db, migrate: () => migrateNodePg(db, { migrationsFolder }) };
   }
-  const dir = process.env.PGLITE_DIR ?? join(process.cwd(), "data", "pglite");
+  const dir = process.env.PGLITE_DIR;
+  if (!dir) {
+    throw new Error("DATABASE_URL isn't set. Start the app with `npm run dev`, which runs a local database, or set DATABASE_URL.");
+  }
   if (!dir.includes("://")) mkdirSync(dir, { recursive: true });
   const db = drizzlePglite(new PGlite(dir), { schema });
   return {

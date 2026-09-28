@@ -2,7 +2,7 @@
  * Move the books from the old local app into a label account, owned by an existing login.
  *
  *   1. Create your login at /signup (don't create an account there).
- *   2. Stop the dev server (the local database can only be open in one place), then run:
+ *   2. Run (the dev server can keep running):
  *        npm run import:local -- --email you@example.com --sqlite ../label-payouts/data/label.db
  *      Optional: --name "Label name" (defaults to the label band's name) --kind band
  *
@@ -13,10 +13,20 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { and, eq } from "drizzle-orm";
-import { db, ready, schema } from "../src/db";
-import { importLocalBooks } from "../src/server/import-local";
-import { normalizeEmail } from "../src/server/people";
-import { encryptSecret } from "../src/server/secrets";
+import { configuredDatabaseUrl, startLocalDatabase } from "./local-db.mjs";
+
+// The local database (started if needed), unless DATABASE_URL points elsewhere. This must happen
+// before the app's database module loads.
+let stopDb = async () => {};
+if (!configuredDatabaseUrl()) {
+  const local = await startLocalDatabase({ quiet: true });
+  process.env.DATABASE_URL = local.url;
+  stopDb = local.stop;
+}
+const { db, ready, schema } = await import("../src/db");
+const { importLocalBooks } = await import("../src/server/import-local");
+const { normalizeEmail } = await import("../src/server/people");
+const { encryptSecret } = await import("../src/server/secrets");
 
 const { values: args } = parseArgs({
   options: { email: { type: "string" }, sqlite: { type: "string" }, name: { type: "string" }, kind: { type: "string", default: "label" } },
@@ -30,6 +40,7 @@ await ready;
 const [user] = await db.select().from(schema.user).where(eq(schema.user.email, normalizeEmail(args.email)));
 if (!user) {
   console.error(`No login for ${args.email}. Create one at /signup first.`);
+  await stopDb();
   process.exit(1);
 }
 
@@ -65,4 +76,5 @@ console.log(`Imported into "${org.name}" (${kind}), owned by ${user.email}:`);
 for (const [table, n] of Object.entries(counts)) console.log(`  ${table}: ${n}`);
 console.log(mine ? `Linked your login to ${mine.name}.` : "No person with your email; link yourself on the My earnings page.");
 console.log(process.env.BANDCAMP_CLIENT_ID ? "Copied the Bandcamp API access into the account settings." : "");
+await stopDb();
 process.exit(0);

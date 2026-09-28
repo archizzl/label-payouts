@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { bigint, boolean, index, integer, jsonb, pgTable, text, uniqueIndex } from "drizzle-orm/pg-core";
+import { bigint, boolean, customType, index, integer, jsonb, pgTable, text, uniqueIndex } from "drizzle-orm/pg-core";
 import { organization, user } from "./auth-schema";
 
 export * from "./auth-schema";
@@ -370,6 +370,94 @@ export const labelTransfers = pgTable(
     createdAt: text("created_at").notNull().default(now),
   },
   (t) => [index("label_transfers_org").on(t.orgId)],
+);
+
+/** Raw file bytes (receipt photos and PDFs), kept in the database so there's no separate file store. */
+const bytea = customType<{ data: Uint8Array; driverData: Uint8Array }>({ dataType: () => "bytea" });
+
+/**
+ * An expense with its receipt: pressing CDs, mastering, a van repair. Members can submit their own
+ * (status "pending") for an admin to approve; only approved expenses count.
+ *
+ * - `paidBy`: who paid the bill: the label, a band fund, or a person out of pocket.
+ * - `recoup`: pay it back from the band's (or release's) sales not yet paid out (from `recoupFrom`),
+ *   before they're split. The money goes back to whoever paid (a person gets it in their next payout).
+ * - Not recouped and paid by a person: the label reimburses them (`reimbursedAt` once done).
+ */
+export const expenses = pgTable(
+  "expenses",
+  {
+    id: id(),
+    orgId: orgId(),
+    date: text("date").notNull(),
+    description: text("description").notNull(),
+    vendor: text("vendor"),
+    amountCents: integer("amount_cents").notNull(),
+    currency: text("currency").notNull().default("USD"),
+    bandId: integer("band_id").references(() => bands.id, { onDelete: "set null" }),
+    releaseId: integer("release_id").references(() => releases.id, { onDelete: "set null" }),
+    paidBy: text("paid_by", { enum: ["label", "band_fund", "person"] }).notNull(),
+    paidByPersonId: integer("paid_by_person_id").references(() => people.id, { onDelete: "set null" }),
+    recoup: boolean("recoup").notNull().default(false),
+    /**
+     * Pay back from sales made on or after this date: the expense date, or the day after the last
+     * finalized payout covering the band if that's later (paid-out sales are never touched). Set
+     * when it's approved.
+     */
+    recoupFrom: text("recoup_from"),
+    status: text("status", { enum: ["pending", "approved", "rejected"] }).notNull().default("pending"),
+    submittedByUserId: text("submitted_by_user_id").references(() => user.id, { onDelete: "set null" }),
+    /** Why it was rejected, or anything the reviewer wants to note. */
+    reviewNote: text("review_note"),
+    reviewedAt: text("reviewed_at"),
+    reimbursedAt: text("reimbursed_at"),
+    reimbursedReference: text("reimbursed_reference"),
+    createdAt: text("created_at").notNull().default(now),
+  },
+  (t) => [index("expenses_org").on(t.orgId), index("expenses_band").on(t.bandId)],
+);
+
+export const expenseFiles = pgTable(
+  "expense_files",
+  {
+    id: id(),
+    orgId: orgId(),
+    expenseId: integer("expense_id")
+      .notNull()
+      .references(() => expenses.id, { onDelete: "cascade" }),
+    filename: text("filename").notNull(),
+    contentType: text("content_type").notNull(),
+    size: integer("size").notNull(),
+    data: bytea("data").notNull(),
+    createdAt: text("created_at").notNull().default(now),
+  },
+  (t) => [index("expense_files_expense").on(t.expenseId)],
+);
+
+/**
+ * A band's own account linked to its label's account: the band account gets a read-only view of
+ * the label's books for that band. The label creates a code (pending); the band account accepts it.
+ */
+export const accountLinks = pgTable(
+  "account_links",
+  {
+    id: id(),
+    labelOrgId: text("label_org_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    /** The band in the label's books. */
+    labelBandId: integer("label_band_id")
+      .notNull()
+      .references(() => bands.id, { onDelete: "cascade" }),
+    /** The band's own account, once it has accepted. */
+    bandOrgId: text("band_org_id").references(() => organization.id, { onDelete: "cascade" }),
+    code: text("code").notNull(),
+    status: text("status", { enum: ["pending", "active"] }).notNull().default("pending"),
+    createdByUserId: text("created_by_user_id").references(() => user.id, { onDelete: "set null" }),
+    createdAt: text("created_at").notNull().default(now),
+    acceptedAt: text("accepted_at"),
+  },
+  (t) => [uniqueIndex("account_links_code").on(t.code), uniqueIndex("account_links_label_band").on(t.labelBandId)],
 );
 
 export type PeriodSnapshot = {

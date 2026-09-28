@@ -5,6 +5,7 @@ import type { ReleasePackage } from "@/db/schema";
 import type { ItemCategory } from "@/lib/bandcamp-csv";
 import { type Catalog, normalizeId, normalizeText, routeSale } from "@/lib/routing";
 import { computeLedger, type EngineContext, type EngineSale, type SaleResult, summarize } from "@/lib/splits";
+import { expenseDeductions } from "./expenses";
 
 /*
  * Reads for one account. Every function takes the account's orgId and only ever sees its rows.
@@ -66,7 +67,7 @@ export async function reRouteAll(orgId: string) {
 }
 
 export async function loadEngineContext(orgId: string): Promise<EngineContext> {
-  const [shareRows, memberRows, trackRows, outsideRows, labelBands, ruleRows, deductionRows, releaseRows] = await Promise.all([
+  const [shareRows, memberRows, trackRows, outsideRows, labelBands, ruleRows, deductionRows, releaseRows, expenseRows] = await Promise.all([
     db.select().from(splitShares).where(eq(splitShares.orgId, orgId)),
     db
       .select()
@@ -81,6 +82,7 @@ export async function loadEngineContext(orgId: string): Promise<EngineContext> {
     db.select().from(splitRules).where(eq(splitRules.orgId, orgId)),
     db.select().from(deductions).where(eq(deductions.orgId, orgId)),
     db.select({ id: releases.id, albumSplitMode: releases.albumSplitMode }).from(releases).where(eq(releases.orgId, orgId)),
+    db.select().from(schema.expenses).where(eq(schema.expenses.orgId, orgId)),
   ]);
   const members = new Map<number, number[]>();
   for (const m of memberRows) members.set(m.bandId, [...(members.get(m.bandId) ?? []), m.personId]);
@@ -104,7 +106,8 @@ export async function loadEngineContext(orgId: string): Promise<EngineContext> {
       itemCategory: r.itemCategory as ItemCategory | null,
       shares: shareRows.filter((s) => s.ruleId === r.id).map((s) => ({ personId: s.personId, bps: s.bps })),
     })),
-    deductions: deductionRows,
+    // Approved receipts being paid back from sales are recoupable costs like any other.
+    deductions: [...deductionRows, ...expenseDeductions(expenseRows)],
     releases: releaseRows.map((r) => ({
       id: r.id,
       albumSplitMode: r.albumSplitMode,
@@ -114,6 +117,13 @@ export async function loadEngineContext(orgId: string): Promise<EngineContext> {
 }
 
 export type SaleRow = typeof sales.$inferSelect;
+
+/** FNV-1a: a small, stable number for a string. */
+function hash32(text: string) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 0x01000193);
+  return h >>> 0;
+}
 
 /**
  * Compute the ledger for sales between start and end (inclusive). Runs over all history up to
@@ -143,6 +153,7 @@ export async function computePeriod(orgId: string, start: string, end: string) {
       quantity: s.quantity,
       format,
       packageId: pkg?.bandcampId ?? null,
+      tieKey: hash32(s.dedupeKey),
     };
   });
   const all = computeLedger(engineSales, ctx);
@@ -387,9 +398,10 @@ const causeKey = (c: FundCause) => (c.releaseId ? `r${c.releaseId}` : c.bandId ?
  * and release that transfers were made for, how much it raised for the label and how much went out.
  */
 export async function labelFunds(orgId: string) {
-  const [{ results, saleById }, transferRows] = await Promise.all([
+  const [{ results, saleById }, transferRows, expenseRows] = await Promise.all([
     computeAllTime(orgId),
     db.select().from(schema.labelTransfers).where(eq(schema.labelTransfers.orgId, orgId)),
+    db.select().from(schema.expenses).where(and(eq(schema.expenses.orgId, orgId), eq(schema.expenses.status, "approved"))),
   ]);
   const kept: Totals = new Map();
   const raised = new Map<string, Totals>(); // cause key → kept from its sales
@@ -417,8 +429,24 @@ export async function labelFunds(orgId: string) {
     addTo(c.sent, t.currency, t.amountCents);
     causes.set(key, c);
   }
+  // Expenses the label paid for (whether or not sales pay it back: that comes in as money kept), and
+  // people it has reimbursed for things they paid for.
+  const spent: Totals = new Map();
+  for (const e of expenseRows) {
+    if (e.paidBy === "label" || (e.paidBy === "person" && !e.recoup && e.reimbursedAt)) addTo(spent, e.currency, e.amountCents);
+  }
   const balance: Totals = new Map();
-  for (const cur of new Set([...kept.keys(), ...sent.keys()])) balance.set(cur, (kept.get(cur) ?? 0) - (sent.get(cur) ?? 0));
+  for (const cur of new Set([...kept.keys(), ...sent.keys(), ...spent.keys()])) {
+    balance.set(cur, (kept.get(cur) ?? 0) - (sent.get(cur) ?? 0) - (spent.get(cur) ?? 0));
+  }
 
-  return { kept, sent, balance, transfers, causes: [...causes.values()], raisedBy: (c: FundCause) => raised.get(causeKey(c)) ?? new Map() };
+  return {
+    kept,
+    sent,
+    spent,
+    balance,
+    transfers,
+    causes: [...causes.values()],
+    raisedBy: (c: FundCause) => raised.get(causeKey(c)) ?? new Map(),
+  };
 }

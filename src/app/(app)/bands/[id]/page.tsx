@@ -15,14 +15,18 @@ import { db, schema } from "@/db";
 import { ITEM_CATEGORIES } from "@/lib/bandcamp-csv";
 import { payHandlesSummary } from "@/lib/paypal-export";
 import { STATUS_LABEL, STATUS_TONE } from "@/lib/status";
+import { BandAccountLink } from "@/components/band-link";
 import { LabelFunds } from "@/components/label-funds";
+import { ExpenseForm, ExpenseTable } from "@/components/receipts";
 import { addMember, deleteBand, removeMember, saveRelease, updateMembership } from "@/server/actions";
 import { requireAdmin } from "@/server/context";
+import { accountExpenses, expenseFileList } from "@/server/expenses";
 import { bandAssociatedPeople, bandMembers, computeAllTime, labelHost, nameMaps, ruleFilter, rulesWhere } from "@/server/data";
 
 export default async function BandPage({ params, searchParams }: PageProps<"/bands/[id]">) {
   await connection();
-  const { orgId } = await requireAdmin();
+  const ctx = await requireAdmin();
+  const { orgId } = ctx;
   const id = Number((await params).id);
   const [band] = await db
     .select()
@@ -30,7 +34,7 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
     .where(and(eq(schema.bands.orgId, orgId), eq(schema.bands.id, id)));
   if (!band) notFound();
 
-  const [members, allPeople, releases, allReleases, orgDeductions, names, defaultRules, labelRules, bandPeople, periodRows, { summary }] =
+  const [members, allPeople, releases, allReleases, orgDeductions, names, defaultRules, labelRules, bandPeople, periodRows, { summary }, bandExpenses, expenseFiles] =
     await Promise.all([
       bandMembers(orgId, id),
       db.select().from(schema.people).where(eq(schema.people.orgId, orgId)).orderBy(asc(schema.people.name)),
@@ -47,6 +51,8 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
       bandAssociatedPeople(orgId, id),
       db.select().from(schema.periods).where(eq(schema.periods.orgId, orgId)),
       computeAllTime(orgId),
+      accountExpenses(orgId, { bandId: id }),
+      expenseFileList(orgId),
     ]);
   const personOptions: PersonOption[] = [
     ...members.filter((m) => m.active).map((m) => ({ id: m.person.id, name: m.person.name, roles: m.roles, inBand: true })),
@@ -240,7 +246,28 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
         )}
       </Card>
 
+      <Card title="Receipts" actions={<LinkButton href={`/receipts?band=${id}`} size="sm">All receipts</LinkButton>}>
+        {bandExpenses.length === 0 ? (
+          <p className="mb-3 text-sm text-muted">No expenses for {band.name} yet.</p>
+        ) : (
+          <div className="mb-4">
+            <ExpenseTable
+              rows={bandExpenses.slice(0, 5)}
+              files={expenseFiles}
+              personName={(pid) => names.person.get(pid)}
+              bandName={(bid) => names.band.get(bid)}
+              mode="admin"
+            />
+          </div>
+        )}
+        <Disclosure summary="+ Add an expense">
+          <ExpenseForm bands={[band]} releases={releases} people={bandPeople} bandId={id} />
+        </Disclosure>
+      </Card>
+
       <LabelFunds bandId={id} />
+
+      {ctx.org.kind === "label" && !band.isLabel && <BandAccountLink labelOrgId={orgId} bandId={id} bandName={band.name} />}
 
       {band.isLabel && (
         <Callout tone="neutral">

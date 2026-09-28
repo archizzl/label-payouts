@@ -6,12 +6,13 @@ import { LabelImport } from "@/components/label-import";
 import { Card, Disclosure, Empty, MoneyList, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
 import { requireAdmin } from "@/server/context";
+import { linkedBandAccounts } from "@/server/links";
 import { computeAllTime, labelHost } from "@/server/data";
 
 export default async function BandsPage() {
   await connection();
   const { orgId } = await requireAdmin();
-  const [bands, memberCounts, allReleases, splitRules, { summary }] = await Promise.all([
+  const [bands, memberCounts, allReleases, splitRules, { summary }, linked] = await Promise.all([
     db.select().from(schema.bands).where(eq(schema.bands.orgId, orgId)).orderBy(schema.bands.name),
     db
       .select({ bandId: schema.bandMemberships.bandId, n: count() })
@@ -21,6 +22,7 @@ export default async function BandsPage() {
     db.select({ bandId: schema.releases.bandId, kind: schema.releases.kind }).from(schema.releases).where(eq(schema.releases.orgId, orgId)),
     db.select().from(schema.splitRules).where(eq(schema.splitRules.orgId, orgId)),
     computeAllTime(orgId),
+    linkedBandAccounts(orgId),
   ]);
   const members = new Map(memberCounts.map((r) => [r.bandId, r.n]));
   const countOf = (bandId: number, merch: boolean) => allReleases.filter((r) => r.bandId === bandId && (r.kind === "merch") === merch).length;
@@ -84,6 +86,11 @@ export default async function BandsPage() {
                       <span>
                         {b.name}
                         {b.isLabel && <span className="ml-2 text-xs font-normal text-muted">(the label)</span>}
+                        {linked.has(b.id) && (
+                          <span className="ml-2 text-xs font-normal text-good" title={`Linked to the band's own account, ${linked.get(b.id)}`}>
+                            linked
+                          </span>
+                        )}
                         {b.location && <span className="block text-xs font-normal text-muted">{b.location}</span>}
                       </span>
                     </Link>

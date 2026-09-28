@@ -11,7 +11,7 @@ import { computeAllTime, nameMaps } from "@/server/data";
 export default async function Dashboard() {
   await connection();
   const { orgId } = await requireAdmin();
-  const [bands, memberships, defaults, saleRows, periods, pending, names, outside, { summary }, people, releaseRows] = await Promise.all([
+  const [bands, memberships, defaults, saleRows, periods, pending, names, outside, { summary }, people, releaseRows, fundExpenses] = await Promise.all([
     db.select().from(schema.bands).where(eq(schema.bands.orgId, orgId)),
     db.select().from(schema.bandMemberships).where(eq(schema.bandMemberships.orgId, orgId)),
     db
@@ -29,6 +29,11 @@ export default async function Dashboard() {
     computeAllTime(orgId),
     db.select().from(schema.people).where(eq(schema.people.orgId, orgId)),
     db.select({ id: schema.releases.id }).from(schema.releases).where(eq(schema.releases.orgId, orgId)),
+    // Band funds pay for some expenses; what's held is what went in, less what they paid for.
+    db
+      .select()
+      .from(schema.expenses)
+      .where(and(eq(schema.expenses.orgId, orgId), eq(schema.expenses.status, "approved"), eq(schema.expenses.paidBy, "band_fund"))),
   ]);
   const saleCount = saleRows.length;
   const unrouted = saleRows.filter((s) => s.bandId === null).length;
@@ -135,7 +140,11 @@ export default async function Dashboard() {
             <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
               <Figure label="Net sales" cents={s.grossCents} currency={cur} />
               <Figure label="Label income" cents={dest("label")} currency={cur} />
-              <Figure label="Held in band funds" cents={dest("band_fund")} currency={cur} />
+              <Figure
+                label="Held in band funds"
+                cents={dest("band_fund") - fundExpenses.filter((e) => e.currency === cur).reduce((a, e) => a + e.amountCents, 0)}
+                currency={cur}
+              />
               <Figure label="Earned by people" cents={[...s.byPerson.values()].reduce((a, p) => a + p.total, 0)} currency={cur} />
             </div>
             <h3 className="mb-2 text-sm font-medium text-muted">Net sales by band</h3>

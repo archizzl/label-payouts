@@ -1,0 +1,237 @@
+"use server";
+
+import { and, eq, inArray } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
+import { db, schema } from "@/db";
+import { parseCents } from "@/lib/money";
+import { getContext, requireAdmin } from "./context";
+import { recoupStartFor } from "./expenses";
+
+/*
+ * Receipts. Admins add expenses directly (approved) and review what members submit. Members submit
+ * receipts for things they paid for; nothing counts until an admin approves it.
+ */
+
+export type ExpenseState = { ok?: string; error?: string } | null;
+
+const { expenses, expenseFiles, bands, releases, people, bandMemberships } = schema;
+
+const str = (fd: FormData, k: string) => String(fd.get(k) ?? "").trim();
+const optInt = (fd: FormData, k: string) => {
+  const n = Number.parseInt(str(fd, k), 10);
+  return Number.isFinite(n) ? n : null;
+};
+const isoDate = (s: string) => (/^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null);
+const now = () => new Date().toISOString();
+
+const MAX_FILE_BYTES = 10 * 1024 * 1024;
+const MAX_FILES = 10;
+const ALLOWED = /^(image\/(jpeg|png|gif|webp|heic|heif)|application\/pdf)$/;
+
+/** Receipt photos and PDFs from a form; refuses anything else, or anything too big. */
+async function readFiles(fd: FormData) {
+  const files = fd.getAll("files").filter((f): f is File => f instanceof File && f.size > 0);
+  if (files.length > MAX_FILES) throw new Error(`Up to ${MAX_FILES} files at a time.`);
+  return Promise.all(
+    files.map(async (f) => {
+      if (!ALLOWED.test(f.type)) throw new Error(`“${f.name}” isn’t a photo or PDF.`);
+      if (f.size > MAX_FILE_BYTES) throw new Error(`“${f.name}” is over 10 MB.`);
+      return { filename: f.name.slice(0, 200), contentType: f.type, size: f.size, data: new Uint8Array(await f.arrayBuffer()) };
+    }),
+  );
+}
+
+/** Check a band/release/person id belongs to this account. */
+async function inAccount(orgId: string, table: typeof bands | typeof releases | typeof people, id: number | null) {
+  if (id === null) return;
+  const [row] = await db
+    .select({ id: table.id })
+    .from(table)
+    .where(and(eq(table.orgId, orgId), eq(table.id, id)));
+  if (!row) throw new Error("That item isn't part of this account.");
+}
+
+function done() {
+  revalidatePath("/", "layout");
+}
+
+function describe(e: unknown) {
+  return e instanceof Error && !e.message.startsWith("NEXT_") ? e.message : "Something went wrong.";
+}
+
+/** Admin: add or edit an expense. New ones count straight away (they're approved). */
+export async function saveExpense(_: ExpenseState, fd: FormData): Promise<ExpenseState> {
+  const ctx = await requireAdmin();
+  const { orgId } = ctx;
+  try {
+    const date = isoDate(str(fd, "date"));
+    const description = str(fd, "description");
+    const amountCents = parseCents(str(fd, "amount"));
+    if (!date) return { error: "Pick the date." };
+    if (!description) return { error: "Say what it was for." };
+    if (!(amountCents > 0)) return { error: "Enter the amount." };
+    const paidByRaw = str(fd, "paidBy");
+    const paidByPersonId = paidByRaw.startsWith("person:") ? Number(paidByRaw.slice(7)) || null : null;
+    const paidBy = paidByPersonId ? "person" : paidByRaw === "band_fund" ? "band_fund" : "label";
+    const releaseId = optInt(fd, "releaseId");
+    let bandId = optInt(fd, "bandId");
+    await inAccount(orgId, releases, releaseId);
+    await inAccount(orgId, bands, bandId);
+    await inAccount(orgId, people, paidByPersonId);
+    if (releaseId) {
+      const [r] = await db.select({ bandId: releases.bandId }).from(releases).where(eq(releases.id, releaseId));
+      bandId = r.bandId; // a release implies its band
+    }
+    const recoup = fd.get("recoup") === "on";
+    if (recoup && !bandId) return { error: "To pay it back from sales, choose the band (or release) whose sales pay for it." };
+    if (paidBy === "band_fund" && !bandId) return { error: "Choose which band's fund paid for it." };
+    const files = await readFiles(fd);
+    const id = optInt(fd, "id");
+    // Keep an existing start when editing, unless the date changed; never reach into paid-out sales.
+    const [current] = id ? await db.select().from(expenses).where(and(eq(expenses.orgId, orgId), eq(expenses.id, id))) : [];
+    const recoupFrom =
+      recoup && bandId
+        ? current?.recoupFrom && current.date === date && current.bandId === bandId
+          ? current.recoupFrom
+          : await recoupStartFor(orgId, date, bandId)
+        : null;
+    const values = {
+      date,
+      description,
+      vendor: str(fd, "vendor") || null,
+      amountCents,
+      currency: (str(fd, "currency") || "USD").toUpperCase(),
+      bandId,
+      releaseId,
+      paidBy: paidBy as "label" | "band_fund" | "person",
+      paidByPersonId,
+      recoup,
+      recoupFrom,
+    };
+    await db.transaction(async (tx) => {
+      let expenseId = id;
+      if (id) {
+        const [row] = await tx
+          .update(expenses)
+          .set(values)
+          .where(and(eq(expenses.orgId, orgId), eq(expenses.id, id)))
+          .returning({ id: expenses.id });
+        if (!row) throw new Error("Expense not found.");
+      } else {
+        [{ id: expenseId }] = await tx
+          .insert(expenses)
+          .values({ ...values, orgId, status: "approved", reviewedAt: now(), submittedByUserId: ctx.user.id })
+          .returning({ id: expenses.id });
+      }
+      if (files.length) await tx.insert(expenseFiles).values(files.map((f) => ({ ...f, orgId, expenseId: expenseId! })));
+    });
+    done();
+    return { ok: id ? "Saved." : "Added." };
+  } catch (e) {
+    return { error: describe(e) };
+  }
+}
+
+/** Member: submit a receipt for something you paid for. An admin approves it before it counts. */
+export async function submitReceipt(_: ExpenseState, fd: FormData): Promise<ExpenseState> {
+  const ctx = await getContext();
+  const { orgId, person } = ctx;
+  if (!person) return { error: "Your login isn’t linked to anyone who gets paid here yet." };
+  try {
+    const date = isoDate(str(fd, "date"));
+    const description = str(fd, "description");
+    const amountCents = parseCents(str(fd, "amount"));
+    if (!date) return { error: "Pick the date." };
+    if (!description) return { error: "Say what it was for." };
+    if (!(amountCents > 0)) return { error: "Enter the amount." };
+    const files = await readFiles(fd);
+    if (!files.length) return { error: "Attach a photo or PDF of the receipt." };
+    // Members can only file against bands they're in.
+    const bandId = optInt(fd, "bandId");
+    if (bandId !== null) {
+      const [m] = await db
+        .select({ id: bandMemberships.id })
+        .from(bandMemberships)
+        .where(and(eq(bandMemberships.orgId, orgId), eq(bandMemberships.bandId, bandId), eq(bandMemberships.personId, person.id)));
+      if (!m) return { error: "You can only submit receipts for your own bands." };
+    }
+    await db.transaction(async (tx) => {
+      const [{ id }] = await tx
+        .insert(expenses)
+        .values({
+          orgId,
+          date,
+          description,
+          vendor: str(fd, "vendor") || null,
+          amountCents,
+          currency: (str(fd, "currency") || "USD").toUpperCase(),
+          bandId,
+          paidBy: "person",
+          paidByPersonId: person.id,
+          status: "pending",
+          submittedByUserId: ctx.user.id,
+        })
+        .returning({ id: expenses.id });
+      await tx.insert(expenseFiles).values(files.map((f) => ({ ...f, orgId, expenseId: id })));
+    });
+    done();
+    return { ok: "Submitted. An admin will review it." };
+  } catch (e) {
+    return { error: describe(e) };
+  }
+}
+
+/** Admin: approve a submitted receipt (choosing whether sales pay it back) or reject it. */
+export async function reviewExpense(fd: FormData) {
+  const { orgId } = await requireAdmin();
+  const approve = str(fd, "decision") === "approve";
+  const recoup = fd.get("recoup") === "on";
+  const [e] = await db
+    .select()
+    .from(expenses)
+    .where(and(eq(expenses.orgId, orgId), eq(expenses.id, Number(str(fd, "id")))));
+  if (!e) return;
+  if (approve && recoup && !e.bandId) throw new Error("Choose a band for this expense first (edit it), so its sales can pay it back.");
+  await db
+    .update(expenses)
+    .set({
+      status: approve ? "approved" : "rejected",
+      recoup: approve ? recoup : e.recoup,
+      recoupFrom: approve && recoup && e.bandId ? await recoupStartFor(orgId, e.date, e.bandId) : e.recoupFrom,
+      reviewNote: str(fd, "note") || null,
+      reviewedAt: now(),
+    })
+    .where(eq(expenses.id, e.id));
+  done();
+}
+
+/** Admin: the label has paid back someone who fronted an expense (or undo that). */
+export async function setReimbursed(fd: FormData) {
+  const { orgId } = await requireAdmin();
+  const reimbursed = str(fd, "reimbursed") === "true";
+  await db
+    .update(expenses)
+    .set({ reimbursedAt: reimbursed ? now() : null, reimbursedReference: reimbursed ? str(fd, "reference") || null : null })
+    .where(and(eq(expenses.orgId, orgId), eq(expenses.id, Number(str(fd, "id")))));
+  done();
+}
+
+/** Admins can delete any expense; members can withdraw their own while it's still pending. */
+export async function deleteExpense(fd: FormData) {
+  const ctx = await getContext();
+  const [e] = await db
+    .select()
+    .from(expenses)
+    .where(and(eq(expenses.orgId, ctx.orgId), eq(expenses.id, Number(str(fd, "id")))));
+  if (!e) return;
+  const ownPending = e.status === "pending" && e.submittedByUserId === ctx.user.id;
+  if (!ctx.isAdmin && !ownPending) throw new Error("Only admins can delete this.");
+  await db.delete(expenses).where(eq(expenses.id, e.id));
+  done();
+}
+
+export async function deleteExpenseFile(fd: FormData) {
+  const { orgId } = await requireAdmin();
+  await db.delete(expenseFiles).where(and(eq(expenseFiles.orgId, orgId), inArray(expenseFiles.id, [Number(str(fd, "id"))])));
+  done();
+}

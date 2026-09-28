@@ -102,14 +102,15 @@ export async function LabelFunds({ bandId }: { bandId?: number }) {
       <p className="mb-4 text-sm text-muted">
         {bandId
           ? "Money the label kept from this band’s sales and then passed on, e.g. a fundraiser’s proceeds sent to an aid group."
-          : "What the label kept from sales (its cut, label releases, anything routed to it like a fundraiser), what it passed on to others, and what’s left in its account."}
+          : "What the label kept from sales (its cut, label releases, anything routed to it like a fundraiser), what it passed on to others or spent (expenses it paid, people it reimbursed; see Receipts), and what’s left in its account."}
       </p>
 
       {!bandId &&
         currencies.map((cur) => (
-          <div key={cur} className="mb-6 grid grid-cols-3 gap-4">
+          <div key={cur} className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
             <Stat label={`Kept by the label${currencies.length > 1 ? ` (${cur})` : ""}`} cents={funds.kept.get(cur) ?? 0} currency={cur} />
             <Stat label="Sent on to others" cents={funds.sent.get(cur) ?? 0} currency={cur} />
+            <Stat label="Spent on expenses" cents={funds.spent.get(cur) ?? 0} currency={cur} />
             <Stat label="Left in the label’s account" cents={funds.balance.get(cur) ?? 0} currency={cur} emphasis />
           </div>
         ))}

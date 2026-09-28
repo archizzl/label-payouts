@@ -68,6 +68,11 @@ export type EngineSale = {
   format?: string;
   /** The release format that was sold (its Bandcamp package id), when it could be identified. */
   packageId?: number | null;
+  /**
+   * A number that identifies the sale for good (e.g. a hash of its Bandcamp transaction), used to
+   * break rounding ties. Unlike the database id it doesn't change if the books are moved.
+   */
+  tieKey?: number;
 };
 
 export type EngineContext = {
@@ -100,6 +105,8 @@ export type RuleSource =
 
 export type SaleResult = {
   saleId: number;
+  /** See EngineSale.tieKey. */
+  tieKey: number;
   bandId: number | null;
   currency: string;
   netCents: number;
@@ -284,6 +291,7 @@ export function computeLedger(sales: EngineSale[], ctx: EngineContext): SaleResu
   return ordered.map((sale) => {
     const base: SaleResult = {
       saleId: sale.id,
+      tieKey: sale.tieKey ?? sale.id,
       bandId: sale.bandId,
       currency: sale.currency,
       netCents: sale.netCents,
@@ -438,7 +446,7 @@ export function summarize(results: SaleResult[]): PeriodSummary {
       pools.set(r.currency, bands);
       const pool = bands.get(r.bandId) ?? { cents: 0, exact: new Map<number, number>(), seed: r.bandId };
       bands.set(r.bandId, pool);
-      pool.seed = mix(pool.seed, r.saleId);
+      pool.seed = mix(pool.seed, r.tieKey);
       for (const s of r.shares) {
         pool.cents += s.cents;
         pool.exact.set(s.personId, (pool.exact.get(s.personId) ?? 0) + s.exact);
