@@ -9,6 +9,7 @@ import { linkMyself } from "@/server/account-actions";
 import { getContext } from "@/server/context";
 import { computePayoutPeriod, nameMaps } from "@/server/data";
 import { expenseFileList } from "@/server/expenses";
+import { accountProjects } from "@/server/projects";
 
 const STATUS = {
   pending: { label: "To be paid", tone: "warn" },
@@ -170,7 +171,10 @@ export default async function MyEarningsPage({ searchParams }: PageProps<"/me">)
         </p>
         <div className="mb-4">
           <Disclosure summary="+ Submit a receipt">
-            <SubmitReceiptForm bands={myBands.map(({ band }) => band)} />
+            <SubmitReceiptForm
+              bands={myBands.map(({ band }) => band)}
+              projects={(await accountProjects(orgId)).filter((p) => myBands.some(({ band }) => band.id === p.bandId) && p.status !== "done")}
+            />
           </Disclosure>
         </div>
         <ExpenseTable

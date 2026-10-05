@@ -384,6 +384,45 @@ export const labelTransfers = pgTable(
   (t) => [index("label_transfers_org").on(t.orgId)],
 );
 
+/**
+ * A project: an album, an EP, a tour, a video. Expenses are assigned to it, and the sales of its
+ * releases (and their formats and merch) are what it makes back.
+ */
+export const projects = pgTable(
+  "projects",
+  {
+    id: id(),
+    orgId: orgId(),
+    name: text("name").notNull(),
+    /** The band it's for; empty for a label-wide project (a compilation, a label showcase). */
+    bandId: integer("band_id").references(() => bands.id, { onDelete: "set null" }),
+    status: text("status", { enum: ["active", "done"] }).notNull().default("active"),
+    /** Optional: what you planned to spend. */
+    budgetCents: integer("budget_cents"),
+    currency: text("currency").notNull().default("USD"),
+    startDate: text("start_date"),
+    notes: text("notes"),
+    createdAt: text("created_at").notNull().default(now),
+  },
+  (t) => [index("projects_org").on(t.orgId)],
+);
+
+/** The releases (and merch items) whose sales count toward a project. */
+export const projectReleases = pgTable(
+  "project_releases",
+  {
+    id: id(),
+    orgId: orgId(),
+    projectId: integer("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    releaseId: integer("release_id")
+      .notNull()
+      .references(() => releases.id, { onDelete: "cascade" }),
+  },
+  (t) => [uniqueIndex("project_release_unique").on(t.projectId, t.releaseId)],
+);
+
 /** Raw file bytes (receipt photos and PDFs), kept in the database so there's no separate file store. */
 const bytea = customType<{ data: Uint8Array; driverData: Uint8Array }>({ dataType: () => "bytea" });
 
@@ -408,6 +447,10 @@ export const expenses = pgTable(
     currency: text("currency").notNull().default("USD"),
     bandId: integer("band_id").references(() => bands.id, { onDelete: "set null" }),
     releaseId: integer("release_id").references(() => releases.id, { onDelete: "set null" }),
+    /** The project it was spent on, if any. */
+    projectId: integer("project_id").references(() => projects.id, { onDelete: "set null" }),
+    /** What kind of cost: "Studio time", "Session musicians", "Mixing"… (free text, with suggestions). */
+    category: text("category"),
     paidBy: text("paid_by", { enum: ["label", "band_fund", "person"] }).notNull(),
     paidByPersonId: integer("paid_by_person_id").references(() => people.id, { onDelete: "set null" }),
     recoup: boolean("recoup").notNull().default(false),

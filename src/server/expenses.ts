@@ -1,5 +1,5 @@
 import "server-only";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { db, schema } from "@/db";
 import type { Deduction } from "@/lib/splits";
 
@@ -13,22 +13,58 @@ function nextDay(d: string) {
 }
 
 /**
- * When paying an expense back from sales starts: its own date, or, if the band has been paid out
- * since, the day after that payout. Sales already paid out are never taken back.
+ * When paying an expense back from sales starts: its own date, or, if any of the bands whose sales
+ * pay it back has been paid out since, the day after that payout. Sales already paid out are never
+ * taken back.
  */
-export function recoupStart(date: string, bandId: number, periods: { bandId: number | null; endDate: string }[]) {
+export function recoupStart(date: string, bandIds: number | number[], periods: { bandId: number | null; endDate: string }[]) {
+  const bands = Array.isArray(bandIds) ? bandIds : [bandIds];
   const lastPaid = periods
-    .filter((p) => p.bandId === null || p.bandId === bandId)
+    .filter((p) => p.bandId === null || bands.includes(p.bandId))
     .reduce<string | null>((a, p) => (!a || p.endDate > a ? p.endDate : a), null);
   return lastPaid && lastPaid >= date ? nextDay(lastPaid) : date;
 }
 
-export async function recoupStartFor(orgId: string, date: string, bandId: number) {
+export async function recoupStartFor(orgId: string, date: string, bandIds: number | number[]) {
   const periods = await db
     .select({ bandId: schema.periods.bandId, endDate: schema.periods.endDate })
     .from(schema.periods)
     .where(eq(schema.periods.orgId, orgId));
-  return recoupStart(date, bandId, periods);
+  return recoupStart(date, bandIds, periods);
+}
+
+/** Each project's releases (and merch items), by project id. */
+export async function projectReleaseMap(orgId: string) {
+  const rows = await db
+    .select({ projectId: schema.projectReleases.projectId, releaseId: schema.projectReleases.releaseId })
+    .from(schema.projectReleases)
+    .where(eq(schema.projectReleases.orgId, orgId));
+  const m = new Map<number, number[]>();
+  for (const r of rows) m.set(r.projectId, [...(m.get(r.projectId) ?? []), r.releaseId]);
+  return m;
+}
+
+/**
+ * The bands whose sales pay an expense back: its release's band; else the bands of its project's
+ * releases; else its band.
+ */
+export async function recoupBands(orgId: string, e: { bandId: number | null; releaseId: number | null; projectId: number | null }) {
+  const releaseBands = async (ids: number[]) =>
+    ids.length
+      ? (
+          await db
+            .select({ bandId: schema.releases.bandId })
+            .from(schema.releases)
+            .where(and(eq(schema.releases.orgId, orgId), inArray(schema.releases.id, ids)))
+        ).map((r) => r.bandId)
+      : [];
+  if (e.releaseId) return releaseBands([e.releaseId]);
+  if (e.projectId) {
+    const ids = (await projectReleaseMap(orgId)).get(e.projectId) ?? [];
+    const bands = await releaseBands(ids);
+    if (bands.length) return [...new Set(bands)];
+  }
+  return e.bandId ? [e.bandId] : [];
 }
 
 /** Deductions built from expenses have negative ids, so they never clash with real ones. */
@@ -37,14 +73,21 @@ export const expenseIdOf = (deductionId: number) => (deductionId < 0 ? -deductio
 
 /**
  * Approved expenses being paid back from sales, as recoupable costs for the split engine: taken
- * from the band's (or release's) sales made on or after the expense date, in its currency, after
- * the label's cut and the band's own deductions, and paid to whoever paid the bill.
+ * from the sales of its release, else of its project's releases, else of its band, made on or
+ * after `recoupFrom`, in its currency, after the label's cut and the band's own deductions, and
+ * paid to whoever paid the bill.
  */
-export function expenseDeductions(rows: Expense[]): Deduction[] {
+export function expenseDeductions(rows: Expense[], projectReleases: Map<number, number[]> = new Map()): Deduction[] {
   return rows
-    .filter((e) => e.status === "approved" && e.recoup && e.amountCents > 0 && (e.bandId !== null || e.releaseId !== null))
+    .filter((e) => e.status === "approved" && e.recoup && e.amountCents > 0)
     .filter((e) => e.paidBy !== "person" || e.paidByPersonId !== null)
-    .map((e) => ({
+    .map((e) => {
+      // A project's releases, when the expense isn't tied to one release.
+      const releaseIds = !e.releaseId && e.projectId ? (projectReleases.get(e.projectId) ?? []) : [];
+      return { e, releaseIds };
+    })
+    .filter(({ e, releaseIds }) => e.releaseId !== null || releaseIds.length > 0 || e.bandId !== null)
+    .map(({ e, releaseIds }) => ({
       id: expenseDeductionId(e.id),
       label: `Receipt: ${e.description}`,
       kind: "fixed" as const,
@@ -53,8 +96,10 @@ export function expenseDeductions(rows: Expense[]): Deduction[] {
       currency: e.currency,
       destination: e.paidBy === "person" ? ("person" as const) : e.paidBy === "band_fund" ? ("band_fund" as const) : ("label" as const),
       personId: e.paidBy === "person" ? e.paidByPersonId : null,
-      bandId: e.bandId,
+      // A project's releases can span bands, so the release list does the narrowing there.
+      bandId: releaseIds.length ? null : e.bandId,
       releaseId: e.releaseId,
+      releaseIds: releaseIds.length ? releaseIds : null,
       trackId: null,
       itemCategory: null,
       formatMatch: null,

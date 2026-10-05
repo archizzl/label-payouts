@@ -29,6 +29,13 @@
       "when": 1790636848767,
       "tag": "0003_bandcamp_sign_in",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791235252369,
+      "tag": "0004_projects",
+      "breakpoints": true
     }
   ]
 }

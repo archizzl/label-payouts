@@ -133,7 +133,20 @@ export function MonthlyColumns({ data, currency }: { data: { month: string; net:
 }
 
 /** Ranked horizontal bars (by format, by source): label, bar, value at the tip. */
-export function BarList({ data, currency, total }: { data: { key: string; net: number; units: number }[]; currency: string; total: number }) {
+export function BarList({
+  data,
+  currency,
+  total,
+  share = "of net",
+  showUnits = true,
+}: {
+  data: { key: string; net: number; units: number }[];
+  currency: string;
+  total: number;
+  /** What the percentage in the tooltip is of. */
+  share?: string;
+  showUnits?: boolean;
+}) {
   const [tip, setTip] = useState<Tip>(null);
   const wrap = useRef<HTMLDivElement>(null);
   const max = Math.max(1, ...data.map((d) => d.net));
@@ -153,7 +166,7 @@ export function BarList({ data, currency, total }: { data: { key: string; net: n
           setTip({
             x: r.left - box.left + r.width / 2,
             y: r.top - box.top,
-            title: `${d.key} · ${d.units} item${d.units === 1 ? "" : "s"} · ${pct}% of net`,
+            title: `${d.key}${showUnits ? ` · ${d.units} item${d.units === 1 ? "" : "s"}` : ""} · ${pct}% ${share}`,
             lines: [formatCents(d.net, currency)],
           });
         };
@@ -241,6 +254,175 @@ export function StackedBar({ segments, currency, footer }: { segments: Segment[]
       </ul>
       {footer}
       <Tooltip tip={tip} />
+    </div>
+  );
+}
+
+/**
+ * A project's running totals: spent and made back, month by month, on one money axis (and its
+ * budget as a dashed reference). The point where "made back" crosses "spent" is breaking even.
+ * Crosshair + tooltip on hover or keyboard focus; the same numbers are in the table below it.
+ */
+export function SpentVsMadeBack({
+  data,
+  currency,
+  budget,
+}: {
+  data: { month: string; spent: number; madeBack: number }[];
+  currency: string;
+  budget?: number | null;
+}) {
+  // The hovered month, and the chart's size on screen when it was hovered (for the tooltip).
+  const [hoverAt, setHoverAt] = useState<{ i: number; w: number; h: number } | null>(null);
+  const hover = hoverAt?.i ?? null;
+  const wrap = useRef<HTMLDivElement>(null);
+  const W = 640;
+  const H = 220;
+  const pad = { l: 48, r: 92, t: 12, b: 24 };
+  const max = Math.max(0, budget ?? 0, ...data.map((d) => Math.max(d.spent, d.madeBack)));
+  const t = ticks(max);
+  const top = t[t.length - 1] || 1;
+  const n = Math.max(1, data.length - 1);
+  const x = (i: number) => pad.l + ((W - pad.l - pad.r) * i) / n;
+  const y = (v: number) => pad.t + (H - pad.t - pad.b) * (1 - Math.max(0, v) / top);
+  const every = Math.ceil(data.length / 12);
+  const series = [
+    { key: "spent" as const, label: "Spent", color: "var(--series-2)" },
+    { key: "madeBack" as const, label: "Made back", color: "var(--series-1)" },
+  ];
+  const label = (m: string) => {
+    const [yy, mm] = m.split("-").map(Number);
+    return `${MONTHS[mm - 1]} ${yy}`;
+  };
+  const path = (k: "spent" | "madeBack") => data.map((d, i) => `${i ? "L" : "M"}${x(i)},${y(d[k])}`).join(" ");
+  const last = data[data.length - 1];
+  // End labels sit at the line ends; nudge apart if they'd overlap.
+  const ends = series.map((s) => ({ ...s, y: y(last?.[s.key] ?? 0) }));
+  if (ends.length === 2 && Math.abs(ends[0].y - ends[1].y) < 14) {
+    const mid = (ends[0].y + ends[1].y) / 2;
+    const [a, b] = ends[0].y <= ends[1].y ? [0, 1] : [1, 0];
+    ends[a].y = mid - 7;
+    ends[b].y = mid + 7;
+  }
+  const h = hover !== null ? data[hover] : null;
+  const setHover = (i: number) => {
+    const r = wrap.current?.getBoundingClientRect();
+    if (r) setHoverAt({ i, w: r.width, h: r.height });
+  };
+
+  if (!data.length) return null;
+  return (
+    <div>
+      <div className="mb-2 flex flex-wrap gap-4 text-xs text-muted">
+        {series.map((s) => (
+          <span key={s.key} className="inline-flex items-center gap-1.5">
+            <span className="inline-block h-0.5 w-4 rounded-full" style={{ background: s.color }} />
+            {s.label}
+          </span>
+        ))}
+        {budget ? (
+          <span className="inline-flex items-center gap-1.5">
+            <span className="inline-block w-4 border-t-2 border-dashed border-muted" />
+            Budget
+          </span>
+        ) : null}
+      </div>
+      <div ref={wrap} className="relative">
+        <svg
+          viewBox={`0 0 ${W} ${H}`}
+          className="block h-auto w-full"
+          role="img"
+          aria-label="Spent and made back, running totals by month"
+          onPointerLeave={() => setHoverAt(null)}
+        >
+          {t.map((v) => (
+            <g key={v}>
+              <line x1={pad.l} x2={W - pad.r} y1={y(v)} y2={y(v)} stroke={v === 0 ? "var(--chart-baseline)" : "var(--chart-grid)"} strokeWidth={1} />
+              <text x={pad.l - 6} y={y(v)} dy="0.32em" textAnchor="end" fontSize={10} fill="var(--muted)" className="tabular-nums">
+                {compact(v, currency)}
+              </text>
+            </g>
+          ))}
+          {budget ? (
+            <line x1={pad.l} x2={W - pad.r} y1={y(budget)} y2={y(budget)} stroke="var(--muted)" strokeWidth={1.5} strokeDasharray="4 4" />
+          ) : null}
+          {data.map((d, i) =>
+            i % every === 0 ? (
+              <text key={d.month} x={x(i)} y={H - 8} textAnchor="middle" fontSize={10} fill="var(--muted)">
+                {(() => {
+                  const [yy, mm] = d.month.split("-").map(Number);
+                  return mm === 1 || i === 0 ? `${MONTHS[mm - 1]} ’${String(yy).slice(2)}` : MONTHS[mm - 1];
+                })()}
+              </text>
+            ) : null,
+          )}
+          {h && hover !== null && <line x1={x(hover)} x2={x(hover)} y1={pad.t} y2={H - pad.b} stroke="var(--chart-baseline)" strokeWidth={1} />}
+          {series.map((s) => (
+            <path key={s.key} d={path(s.key)} fill="none" stroke={s.color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+          ))}
+          {h &&
+            hover !== null &&
+            series.map((s) => (
+              <circle key={s.key} cx={x(hover)} cy={y(h[s.key])} r={4.5} fill={s.color} stroke="var(--surface)" strokeWidth={2} />
+            ))}
+          {ends.map((s) => (
+            <text key={s.key} x={W - pad.r + 8} y={s.y} dy="0.32em" fontSize={11} fill="var(--text)">
+              {s.label} <tspan fill="var(--muted)">{compact(last[s.key], currency)}</tspan>
+            </text>
+          ))}
+          {/* Hit targets: one column per month, wider than the lines. */}
+          {data.map((d, i) => (
+            <rect
+              key={d.month}
+              x={x(i) - (W - pad.l - pad.r) / n / 2}
+              y={pad.t}
+              width={(W - pad.l - pad.r) / n}
+              height={H - pad.t - pad.b}
+              fill="transparent"
+              tabIndex={0}
+              aria-label={`${label(d.month)}: spent ${formatCents(d.spent, currency)}, made back ${formatCents(d.madeBack, currency)}`}
+              onPointerMove={() => setHover(i)}
+              onFocus={() => setHover(i)}
+              onBlur={() => setHoverAt(null)}
+              className="cursor-default outline-none"
+            />
+          ))}
+        </svg>
+        {h && hoverAt && (
+          <Tooltip
+            tip={{
+              x: (x(hoverAt.i) / W) * hoverAt.w,
+              // Just above the higher of the two points.
+              y: (Math.min(y(h.spent), y(h.madeBack)) / H) * hoverAt.h - 4,
+              title: `${label(h.month)} · ${h.madeBack >= h.spent ? "made back " + formatCents(h.madeBack - h.spent, currency) + " more than spent" : formatCents(h.spent - h.madeBack, currency) + " still to make back"}`,
+              lines: [`Spent ${formatCents(h.spent, currency)} · Made back ${formatCents(h.madeBack, currency)}`],
+            }}
+          />
+        )}
+      </div>
+      <details className="mt-2 text-xs">
+        <summary className="text-muted">show as a table</summary>
+        <table className="data mt-2">
+          <thead>
+            <tr>
+              <th>Month</th>
+              <th className="num">Spent so far</th>
+              <th className="num">Made back so far</th>
+              <th className="num">Difference</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.map((d) => (
+              <tr key={d.month}>
+                <td>{label(d.month)}</td>
+                <td className="num">{formatCents(d.spent, currency)}</td>
+                <td className="num">{formatCents(d.madeBack, currency)}</td>
+                <td className="num">{formatCents(d.madeBack - d.spent, currency)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </details>
     </div>
   );
 }

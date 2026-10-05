@@ -44,6 +44,8 @@ export type Deduction = {
   packageId?: number | null;
   bandId: number | null;
   releaseId: number | null;
+  /** Only sales of these releases (e.g. a project's), when set. */
+  releaseIds?: number[] | null;
   trackId: number | null;
   itemCategory: ItemCategory | null;
   effectiveFrom: string | null;
@@ -246,6 +248,7 @@ function deductionMatches(d: Deduction, sale: EngineSale): boolean {
   if (!inWindow(sale.date, d.effectiveFrom, d.effectiveTo)) return false;
   if (d.bandId !== null && d.bandId !== sale.bandId) return false;
   if (d.releaseId !== null && d.releaseId !== sale.releaseId) return false;
+  if (d.releaseIds?.length && (sale.releaseId === null || !d.releaseIds.includes(sale.releaseId))) return false;
   if (d.trackId !== null && d.trackId !== sale.trackId) return false;
   if (d.itemCategory !== null && d.itemCategory !== sale.category) return false;
   if (d.kind !== "percent" && d.currency && d.currency !== sale.currency) return false;
@@ -273,7 +276,7 @@ export function formatMatches(match: string, format: string): boolean {
 
 /** Label-wide deductions (no band filter) run before band-specific ones; then by sortOrder. */
 function deductionOrder(a: Deduction, b: Deduction) {
-  const stage = (d: Deduction) => (d.bandId === null && d.releaseId === null && d.trackId === null ? 0 : 1);
+  const stage = (d: Deduction) => (d.bandId === null && d.releaseId === null && d.trackId === null && !d.releaseIds?.length ? 0 : 1);
   return stage(a) - stage(b) || a.sortOrder - b.sortOrder || a.id - b.id;
 }
 

@@ -28,6 +28,54 @@ function FilesField({ required }: { required?: boolean }) {
   );
 }
 
+type ProjectOption = { id: number; name: string; bandId: number | null };
+
+/** Kinds of cost, suggested (any text works). */
+export const EXPENSE_CATEGORIES = [
+  "Studio time",
+  "Session musicians",
+  "Producer",
+  "Mixing",
+  "Mastering",
+  "Manufacturing",
+  "Artwork & design",
+  "Photos & video",
+  "Promotion & PR",
+  "Travel",
+  "Gear & rentals",
+  "Shipping",
+  "Other",
+];
+
+function CategoryField({ value }: { value?: string | null }) {
+  return (
+    <Field label="Kind of cost">
+      <input name="category" list="expense-categories" defaultValue={value ?? ""} placeholder="Studio time" />
+      <datalist id="expense-categories">
+        {EXPENSE_CATEGORIES.map((c) => (
+          <option key={c} value={c} />
+        ))}
+      </datalist>
+    </Field>
+  );
+}
+
+function ProjectField({ projects, value, hint }: { projects: ProjectOption[]; value?: number | null; hint?: string }) {
+  if (!projects.length) return null;
+  return (
+    <Field label="Project (optional)" hint={hint}>
+      <select name="projectId" defaultValue={value ?? ""}>
+        <option value="">Not part of a project</option>
+        {projects.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.name}
+          </option>
+        ))}
+      </select>
+    </Field>
+  );
+}
+
 /** Admin: add an expense (counts straight away), or edit one. */
 export function ExpenseForm({
   expense,
@@ -35,6 +83,8 @@ export function ExpenseForm({
   releases,
   people,
   bandId,
+  projects = [],
+  projectId,
 }: {
   expense?: Expense;
   bands: Band[];
@@ -42,6 +92,9 @@ export function ExpenseForm({
   people: Person[];
   /** Pre-select (and limit to) this band, e.g. on a band's page. */
   bandId?: number;
+  projects?: ProjectOption[];
+  /** Pre-select this project, e.g. on a project's page. */
+  projectId?: number;
 }) {
   const e = expense;
   const paidBy = e ? (e.paidBy === "person" ? `person:${e.paidByPersonId}` : e.paidBy) : "label";
@@ -63,6 +116,12 @@ export function ExpenseForm({
       <Field label="From (optional)">
         <input name="vendor" defaultValue={e?.vendor ?? ""} placeholder="Disc Makers" />
       </Field>
+      <CategoryField value={e?.category} />
+      <ProjectField
+        projects={projects.filter((p) => !bandId || p.bandId === bandId || p.bandId === null)}
+        value={e?.projectId ?? projectId}
+        hint="Counts toward what the project cost."
+      />
       <Field label="Band">
         <select name="bandId" defaultValue={e?.bandId ?? bandId ?? ""}>
           {!bandId && <option value="">The whole label</option>}
@@ -111,8 +170,9 @@ export function ExpenseForm({
         <span>
           <b>Pay it back from sales</b>
           <span className="block text-muted">
-            Taken from the band’s (or release’s) sales from this date on, before they’re split, until it’s covered. The money goes
-            back to whoever paid. Unticked, and someone paid out of pocket, the label reimburses them.
+            Taken from sales not yet paid out (of the release, else the project’s releases, else the band), before they’re split,
+            until it’s covered. The money goes back to whoever paid. Unticked, and someone paid out of pocket, the label reimburses
+            them.
           </span>
         </span>
       </label>
@@ -125,7 +185,7 @@ export function ExpenseForm({
 }
 
 /** Member: submit a receipt for something you paid for. */
-export function SubmitReceiptForm({ bands }: { bands: Band[] }) {
+export function SubmitReceiptForm({ bands, projects = [] }: { bands: Band[]; projects?: ProjectOption[] }) {
   return (
     <ActionForm action={submitReceipt} className="grid gap-4 sm:grid-cols-3">
       <Field label="What for" className="sm:col-span-2">
@@ -143,6 +203,8 @@ export function SubmitReceiptForm({ bands }: { bands: Band[] }) {
       <Field label="From (optional)">
         <input name="vendor" placeholder="Where you bought it" />
       </Field>
+      <CategoryField />
+      <ProjectField projects={projects} />
       <Field label="For">
         <select name="bandId" defaultValue={bands[0]?.id ?? ""}>
           {bands.map((b) => (
@@ -198,6 +260,7 @@ export function ExpenseTable({
   files,
   personName,
   bandName,
+  projectName,
   mode,
   edit,
   userId,
@@ -206,6 +269,8 @@ export function ExpenseTable({
   files: Map<number, ReceiptFile[]>;
   personName: (id: number) => string | undefined;
   bandName: (id: number) => string | undefined;
+  /** Shows the project an expense belongs to (linked), when given. */
+  projectName?: (id: number) => string | undefined;
   mode: "admin" | "member" | "readonly";
   /** Admin: the edit form for an expense. */
   edit?: (e: Expense) => React.ReactNode;
@@ -221,6 +286,12 @@ export function ExpenseTable({
             <div className="flex flex-wrap items-baseline gap-x-2">
               <span className="font-medium">{e.description}</span>
               {e.vendor && <span className="text-sm text-muted">· {e.vendor}</span>}
+              {e.category && <span className="text-sm text-muted">· {e.category}</span>}
+              {e.projectId && projectName?.(e.projectId) && (
+                <span className="text-sm text-muted">
+                  · {mode === "admin" ? <Link href={`/projects/${e.projectId}`}>{projectName(e.projectId)}</Link> : projectName(e.projectId)}
+                </span>
+              )}
               {e.bandId && <span className="text-sm text-muted">· {bandName(e.bandId)}</span>}
             </div>
             <div className="flex flex-wrap items-center gap-2 text-xs text-muted">

@@ -4,7 +4,7 @@ import { db, schema } from "@/db";
 import type { PayoutLine } from "@/lib/paypal-export";
 import { periodName } from "@/lib/dates";
 import { computePayoutPeriod, nameMaps } from "./data";
-import { expenseDeductions } from "./expenses";
+import { expenseDeductions, projectReleaseMap } from "./expenses";
 
 /** What a payout covers: one band (or the whole label) over a date range. */
 export type PayoutScope = { bandId: number | null; startDate: string; endDate: string };
@@ -68,7 +68,7 @@ export function previewView(orgId: string, scope: PayoutScope) {
 }
 
 async function buildView(orgId: string, scope: PayoutScope, period: Period | null) {
-  const [live, names, peopleList, payoutRows, deductionRows, expenseRows] = await Promise.all([
+  const [live, names, peopleList, payoutRows, deductionRows, expenseRows, projectReleases] = await Promise.all([
     computePayoutPeriod(orgId, { id: period?.id ?? 0, ...scope }),
     nameMaps(orgId),
     db.select().from(schema.people).where(eq(schema.people.orgId, orgId)),
@@ -80,6 +80,7 @@ async function buildView(orgId: string, scope: PayoutScope, period: Period | nul
       : Promise.resolve([]),
     db.select().from(schema.deductions).where(eq(schema.deductions.orgId, orgId)),
     db.select().from(schema.expenses).where(eq(schema.expenses.orgId, orgId)),
+    projectReleaseMap(orgId),
   ]);
   const peopleRows = new Map(peopleList.map((p) => [p.id, p]));
   const person = (id: number) => peopleRows.get(id);
@@ -168,7 +169,7 @@ async function buildView(orgId: string, scope: PayoutScope, period: Period | nul
   };
 
   const deductionPerson = new Map(
-    [...deductionRows, ...expenseDeductions(expenseRows)].filter((d) => d.personId).map((d) => [d.id, d.personId!]),
+    [...deductionRows, ...expenseDeductions(expenseRows, projectReleases)].filter((d) => d.personId).map((d) => [d.id, d.personId!]),
   );
 
   return { period, scope, live, lines, bands, names, problems, drift, finalized, deductionPerson };

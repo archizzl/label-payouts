@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { db, schema } from "@/db";
 import { parseCents } from "@/lib/money";
 import { getContext, requireAdmin } from "./context";
-import { recoupStartFor } from "./expenses";
+import { recoupBands, recoupStartFor } from "./expenses";
 
 /*
  * Receipts. Admins add expenses directly (approved) and review what members submit. Members submit
@@ -14,7 +14,7 @@ import { recoupStartFor } from "./expenses";
 
 export type ExpenseState = { ok?: string; error?: string } | null;
 
-const { expenses, expenseFiles, bands, releases, people, bandMemberships } = schema;
+const { expenses, expenseFiles, bands, releases, people, bandMemberships, projects } = schema;
 
 const str = (fd: FormData, k: string) => String(fd.get(k) ?? "").trim();
 const optInt = (fd: FormData, k: string) => {
@@ -42,7 +42,7 @@ async function readFiles(fd: FormData) {
 }
 
 /** Check a band/release/person id belongs to this account. */
-async function inAccount(orgId: string, table: typeof bands | typeof releases | typeof people, id: number | null) {
+async function inAccount(orgId: string, table: typeof bands | typeof releases | typeof people | typeof projects, id: number | null) {
   if (id === null) return;
   const [row] = await db
     .select({ id: table.id })
@@ -74,35 +74,43 @@ export async function saveExpense(_: ExpenseState, fd: FormData): Promise<Expens
     const paidByPersonId = paidByRaw.startsWith("person:") ? Number(paidByRaw.slice(7)) || null : null;
     const paidBy = paidByPersonId ? "person" : paidByRaw === "band_fund" ? "band_fund" : "label";
     const releaseId = optInt(fd, "releaseId");
+    const projectId = optInt(fd, "projectId");
     let bandId = optInt(fd, "bandId");
     await inAccount(orgId, releases, releaseId);
     await inAccount(orgId, bands, bandId);
     await inAccount(orgId, people, paidByPersonId);
+    await inAccount(orgId, projects, projectId);
     if (releaseId) {
       const [r] = await db.select({ bandId: releases.bandId }).from(releases).where(eq(releases.id, releaseId));
       bandId = r.bandId; // a release implies its band
+    } else if (projectId && !bandId) {
+      const [p] = await db.select({ bandId: projects.bandId }).from(projects).where(eq(projects.id, projectId));
+      bandId = p.bandId; // so does a band's project
     }
     const recoup = fd.get("recoup") === "on";
-    if (recoup && !bandId) return { error: "To pay it back from sales, choose the band (or release) whose sales pay for it." };
+    const scope = { bandId, releaseId, projectId };
+    const payingBands = recoup ? await recoupBands(orgId, scope) : [];
+    if (recoup && !payingBands.length) {
+      return { error: "To pay it back from sales, choose the band, release or project (with releases) whose sales pay for it." };
+    }
     if (paidBy === "band_fund" && !bandId) return { error: "Choose which band's fund paid for it." };
     const files = await readFiles(fd);
     const id = optInt(fd, "id");
-    // Keep an existing start when editing, unless the date changed; never reach into paid-out sales.
+    // Keep an existing start when editing, unless what pays it back changed; never reach into
+    // paid-out sales.
     const [current] = id ? await db.select().from(expenses).where(and(eq(expenses.orgId, orgId), eq(expenses.id, id))) : [];
-    const recoupFrom =
-      recoup && bandId
-        ? current?.recoupFrom && current.date === date && current.bandId === bandId
-          ? current.recoupFrom
-          : await recoupStartFor(orgId, date, bandId)
-        : null;
+    const sameScope = current && current.date === date && current.bandId === bandId && current.releaseId === releaseId && current.projectId === projectId;
+    const recoupFrom = recoup ? (sameScope && current.recoupFrom ? current.recoupFrom : await recoupStartFor(orgId, date, payingBands)) : null;
     const values = {
       date,
       description,
       vendor: str(fd, "vendor") || null,
+      category: str(fd, "category") || null,
       amountCents,
       currency: (str(fd, "currency") || "USD").toUpperCase(),
       bandId,
       releaseId,
+      projectId,
       paidBy: paidBy as "label" | "band_fund" | "person",
       paidByPersonId,
       recoup,
@@ -155,6 +163,23 @@ export async function submitReceipt(_: ExpenseState, fd: FormData): Promise<Expe
         .where(and(eq(bandMemberships.orgId, orgId), eq(bandMemberships.bandId, bandId), eq(bandMemberships.personId, person.id)));
       if (!m) return { error: "You can only submit receipts for your own bands." };
     }
+    // A project of one of their bands.
+    const projectId = optInt(fd, "projectId");
+    if (projectId !== null) {
+      const [p] = await db
+        .select({ bandId: projects.bandId })
+        .from(projects)
+        .where(and(eq(projects.orgId, orgId), eq(projects.id, projectId)));
+      const theirs =
+        p?.bandId != null &&
+        (
+          await db
+            .select({ id: bandMemberships.id })
+            .from(bandMemberships)
+            .where(and(eq(bandMemberships.orgId, orgId), eq(bandMemberships.bandId, p.bandId), eq(bandMemberships.personId, person.id)))
+        ).length > 0;
+      if (!theirs) return { error: "You can only submit receipts for your own bands' projects." };
+    }
     await db.transaction(async (tx) => {
       const [{ id }] = await tx
         .insert(expenses)
@@ -163,6 +188,8 @@ export async function submitReceipt(_: ExpenseState, fd: FormData): Promise<Expe
           date,
           description,
           vendor: str(fd, "vendor") || null,
+          category: str(fd, "category") || null,
+          projectId,
           amountCents,
           currency: (str(fd, "currency") || "USD").toUpperCase(),
           bandId,
@@ -191,13 +218,16 @@ export async function reviewExpense(fd: FormData) {
     .from(expenses)
     .where(and(eq(expenses.orgId, orgId), eq(expenses.id, Number(str(fd, "id")))));
   if (!e) return;
-  if (approve && recoup && !e.bandId) throw new Error("Choose a band for this expense first (edit it), so its sales can pay it back.");
+  const payingBands = approve && recoup ? await recoupBands(orgId, e) : [];
+  if (approve && recoup && !payingBands.length) {
+    throw new Error("Choose a band, release or project for this expense first (edit it), so its sales can pay it back.");
+  }
   await db
     .update(expenses)
     .set({
       status: approve ? "approved" : "rejected",
       recoup: approve ? recoup : e.recoup,
-      recoupFrom: approve && recoup && e.bandId ? await recoupStartFor(orgId, e.date, e.bandId) : e.recoupFrom,
+      recoupFrom: approve && recoup ? await recoupStartFor(orgId, e.date, payingBands) : e.recoupFrom,
       reviewNote: str(fd, "note") || null,
       reviewedAt: now(),
     })

@@ -48,7 +48,8 @@ describe("the Bandcamp sign-in", () => {
     expect(asked.map((a) => a.grant_type)).toEqual(["client_credentials"]);
     const s = await saved(orgId);
     expect(secrets.decryptSecret(s.bandcampRefreshToken!)).toBe("R"); // kept, encrypted
-    expect(s.bandcampAccessToken).not.toContain("A"); // never stored in the clear
+    expect(s.bandcampAccessToken).toMatch(/^v1:/); // encrypted, never stored in the clear
+    expect(secrets.decryptSecret(s.bandcampAccessToken!)).toBe("A");
 
     memory().clear(); // a restart: nothing in memory
     expect(await api.accessToken(orgId, creds)).toBe("A");

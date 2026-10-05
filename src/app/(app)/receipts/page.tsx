@@ -6,19 +6,22 @@ import { Card, Disclosure, MoneyList, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
 import { requireAdmin } from "@/server/context";
 import { accountExpenses, expenseFileList, owedReimbursement } from "@/server/expenses";
+import { accountProjects } from "@/server/projects";
 
 /** Every expense and its receipts: what's waiting for approval first, then everything else. */
 export default async function ReceiptsPage({ searchParams }: PageProps<"/receipts">) {
   await connection();
   const { orgId } = await requireAdmin();
   const bandFilter = Number((await searchParams).band) || undefined;
-  const [all, files, bands, releases, people] = await Promise.all([
+  const [all, files, bands, releases, people, projects] = await Promise.all([
     accountExpenses(orgId, bandFilter ? { bandId: bandFilter } : undefined),
     expenseFileList(orgId),
     db.select().from(schema.bands).where(eq(schema.bands.orgId, orgId)).orderBy(asc(schema.bands.name)),
     db.select().from(schema.releases).where(eq(schema.releases.orgId, orgId)).orderBy(asc(schema.releases.title)),
     db.select().from(schema.people).where(eq(schema.people.orgId, orgId)).orderBy(asc(schema.people.name)),
+    accountProjects(orgId),
   ]);
+  const projectName = (pid: number) => projects.find((p) => p.id === pid)?.name;
   const personName = (id: number) => people.find((p) => p.id === id)?.name;
   const bandName = (id: number) => bands.find((b) => b.id === id)?.name;
   const pending = all.filter((e) => e.status === "pending");
@@ -26,7 +29,7 @@ export default async function ReceiptsPage({ searchParams }: PageProps<"/receipt
   const owed = all.filter(owedReimbursement);
   const recouping = all.filter((e) => e.status === "approved" && e.recoup);
   const form = (e?: (typeof all)[number]) => (
-    <ExpenseForm expense={e} bands={bands} releases={releases} people={people} bandId={bandFilter} />
+    <ExpenseForm expense={e} bands={bands} releases={releases} people={people} bandId={bandFilter} projects={projects} />
   );
 
   return (
@@ -54,7 +57,7 @@ export default async function ReceiptsPage({ searchParams }: PageProps<"/receipt
 
       {pending.length > 0 && (
         <Card title={`Waiting for approval (${pending.length})`}>
-          <ExpenseTable rows={pending} files={files} personName={personName} bandName={bandName} mode="admin" edit={form} />
+          <ExpenseTable rows={pending} files={files} personName={personName} bandName={bandName} projectName={projectName} mode="admin" edit={form} />
         </Card>
       )}
 
@@ -62,7 +65,7 @@ export default async function ReceiptsPage({ searchParams }: PageProps<"/receipt
         <div className="mb-4">
           <Disclosure summary="+ Add an expense">{form()}</Disclosure>
         </div>
-        <ExpenseTable rows={rest} files={files} personName={personName} bandName={bandName} mode="admin" edit={form} />
+        <ExpenseTable rows={rest} files={files} personName={personName} bandName={bandName} projectName={projectName} mode="admin" edit={form} />
       </Card>
     </>
   );

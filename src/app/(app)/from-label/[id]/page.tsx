@@ -9,6 +9,7 @@ import { STATUS_LABEL, STATUS_TONE } from "@/lib/status";
 import { nameMaps } from "@/server/data";
 import { accountExpenses, expenseFileList } from "@/server/expenses";
 import { requireLinkedView } from "@/server/links";
+import { accountProjects, projectNumbers } from "@/server/projects";
 
 const PAYOUT_STATUS = { pending: "to be paid", paid: "paid", kept: "kept by the label account holder" } as const;
 
@@ -21,7 +22,7 @@ export default async function FromLabelPage({ params, searchParams }: PageProps<
   const linkId = Number((await params).id);
   const v = await requireLinkedView(linkId);
   const { labelOrgId, bandId } = v;
-  const [periods, names, expenses, files] = await Promise.all([
+  const [periods, names, expenses, files, labelProjects, projectTotals] = await Promise.all([
     db
       .select()
       .from(schema.periods)
@@ -30,7 +31,10 @@ export default async function FromLabelPage({ params, searchParams }: PageProps<
     nameMaps(labelOrgId),
     accountExpenses(labelOrgId, { bandId }),
     expenseFileList(labelOrgId),
+    accountProjects(labelOrgId),
+    projectNumbers(labelOrgId),
   ]);
+  const bandProjects = labelProjects.filter((p) => p.bandId === bandId);
   const payoutRows = periods.length
     ? await db
         .select()
@@ -112,6 +116,43 @@ export default async function FromLabelPage({ params, searchParams }: PageProps<
         )}
       </Card>
 
+      {bandProjects.length > 0 && (
+        <Card title="Projects">
+          <table className="data">
+            <thead>
+              <tr>
+                <th>Project</th>
+                <th className="num">Spent</th>
+                <th className="num">Made back</th>
+                <th className="num">Balance</th>
+              </tr>
+            </thead>
+            <tbody>
+              {bandProjects.map((p) => {
+                const t = projectTotals.get(p.id)!;
+                return (
+                  <tr key={p.id}>
+                    <td>
+                      {p.name}
+                      {p.status === "done" && <span className="ml-2 text-xs text-muted">done</span>}
+                    </td>
+                    <td className="num">
+                      <Money cents={t.spent} currency={t.currency} />
+                    </td>
+                    <td className="num">
+                      <Money cents={t.madeBack} currency={t.currency} />
+                    </td>
+                    <td className="num">
+                      <Money cents={t.balance} currency={t.currency} />
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </Card>
+      )}
+
       <Card title="Receipts">
         {approved.length > 0 && (
           <p className="mb-3 text-sm text-muted">
@@ -123,6 +164,7 @@ export default async function FromLabelPage({ params, searchParams }: PageProps<
           files={files}
           personName={(id) => names.person.get(id)}
           bandName={(id) => names.band.get(id)}
+          projectName={(pid) => labelProjects.find((p) => p.id === pid)?.name}
           mode="readonly"
         />
       </Card>

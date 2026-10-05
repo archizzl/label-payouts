@@ -5,7 +5,7 @@ import type { ReleasePackage } from "@/db/schema";
 import type { ItemCategory } from "@/lib/bandcamp-csv";
 import { type Catalog, normalizeId, normalizeText, routeSale } from "@/lib/routing";
 import { computeLedger, type EngineContext, type EngineSale, type SaleResult, summarize } from "@/lib/splits";
-import { expenseDeductions } from "./expenses";
+import { expenseDeductions, projectReleaseMap } from "./expenses";
 
 /*
  * Reads for one account. Every function takes the account's orgId and only ever sees its rows.
@@ -67,7 +67,8 @@ export async function reRouteAll(orgId: string) {
 }
 
 export async function loadEngineContext(orgId: string): Promise<EngineContext> {
-  const [shareRows, memberRows, trackRows, outsideRows, labelBands, ruleRows, deductionRows, releaseRows, expenseRows] = await Promise.all([
+  const [shareRows, memberRows, trackRows, outsideRows, labelBands, ruleRows, deductionRows, releaseRows, expenseRows, projectReleases] =
+    await Promise.all([
     db.select().from(splitShares).where(eq(splitShares.orgId, orgId)),
     db
       .select()
@@ -83,6 +84,7 @@ export async function loadEngineContext(orgId: string): Promise<EngineContext> {
     db.select().from(deductions).where(eq(deductions.orgId, orgId)),
     db.select({ id: releases.id, albumSplitMode: releases.albumSplitMode }).from(releases).where(eq(releases.orgId, orgId)),
     db.select().from(schema.expenses).where(eq(schema.expenses.orgId, orgId)),
+    projectReleaseMap(orgId),
   ]);
   const members = new Map<number, number[]>();
   for (const m of memberRows) members.set(m.bandId, [...(members.get(m.bandId) ?? []), m.personId]);
@@ -107,7 +109,7 @@ export async function loadEngineContext(orgId: string): Promise<EngineContext> {
       shares: shareRows.filter((s) => s.ruleId === r.id).map((s) => ({ personId: s.personId, bps: s.bps })),
     })),
     // Approved receipts being paid back from sales are recoupable costs like any other.
-    deductions: [...deductionRows, ...expenseDeductions(expenseRows)],
+    deductions: [...deductionRows, ...expenseDeductions(expenseRows, projectReleases)],
     releases: releaseRows.map((r) => ({
       id: r.id,
       albumSplitMode: r.albumSplitMode,

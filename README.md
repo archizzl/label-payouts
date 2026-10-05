@@ -50,6 +50,12 @@ The database schema is created and updated automatically when the server starts.
 - Not paid back from sales, and a person paid? The label owes them; mark it reimbursed once you've paid them. Label funds show what the label spent.
 - **Members** submit receipts for things they paid for from *My earnings*; an admin approves (choosing whether sales pay it back) or rejects them. Nothing counts until approved.
 
+### Projects
+
+A project is an album, EP, tour or video: something you spend money on and want to see pay off. Create one under **Projects** (for a band, or the whole label), tick the releases and merch whose sales count toward it, and optionally set a budget. Assign expenses to it (from its page, Receipts or a band page), each with a kind of cost (studio time, session musicians, mixing…).
+
+The project page shows what was spent against what its releases have **made back on Bandcamp** (net, after Bandcamp's share and payment fees, before the label's cut), the balance, budget used, a running-total chart, spending by kind, where the money made back went, and sales per release. An expense on a project can be **paid back from the project's sales** (all its releases), like any other receipt.
+
 ### Linking a band's own account to its label
 
 A band can have its own account (its members, its own sales) and also be on a label. On the band's page in the label account, **Create a link code** and send it to the band; an admin of the band's account enters it under **Settings → Labels**. The band account then gets a read-only *from [label]* page: that band's sales through the label, where the money went, its members' payouts, statements and receipts. Only the label can change anything; either side can unlink.

@@ -10,7 +10,7 @@ import { ItemCosts } from "@/components/item-cost";
 import { PhysicalFormatsTable, costsFor } from "@/components/physical-formats";
 import { LabelDefaultSummary, SplitRules, SharesSummary, currentRule } from "@/components/split-rules";
 import type { PersonOption } from "@/components/split-editor";
-import { Badge, Callout, Card, Disclosure, Empty, Field, LinkButton, MoneyList, PageHeader, RolesList } from "@/components/ui";
+import { Badge, Callout, Card, Disclosure, Empty, Field, LinkButton, Money, MoneyList, PageHeader, RolesList } from "@/components/ui";
 import { db, schema } from "@/db";
 import { ITEM_CATEGORIES } from "@/lib/bandcamp-csv";
 import { payHandlesSummary } from "@/lib/paypal-export";
@@ -21,6 +21,7 @@ import { ExpenseForm, ExpenseTable } from "@/components/receipts";
 import { addMember, deleteBand, removeMember, saveRelease, updateMembership } from "@/server/actions";
 import { requireAdmin } from "@/server/context";
 import { accountExpenses, expenseFileList } from "@/server/expenses";
+import { accountProjects, projectNumbers } from "@/server/projects";
 import { bandAssociatedPeople, bandMembers, computeAllTime, labelHost, nameMaps, ruleFilter, rulesWhere } from "@/server/data";
 
 export default async function BandPage({ params, searchParams }: PageProps<"/bands/[id]">) {
@@ -34,7 +35,7 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
     .where(and(eq(schema.bands.orgId, orgId), eq(schema.bands.id, id)));
   if (!band) notFound();
 
-  const [members, allPeople, releases, allReleases, orgDeductions, names, defaultRules, labelRules, bandPeople, periodRows, { summary }, bandExpenses, expenseFiles] =
+  const [members, allPeople, releases, allReleases, orgDeductions, names, defaultRules, labelRules, bandPeople, periodRows, { summary }, bandExpenses, expenseFiles, allProjects, projectTotals] =
     await Promise.all([
       bandMembers(orgId, id),
       db.select().from(schema.people).where(eq(schema.people.orgId, orgId)).orderBy(asc(schema.people.name)),
@@ -53,7 +54,10 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
       computeAllTime(orgId),
       accountExpenses(orgId, { bandId: id }),
       expenseFileList(orgId),
+      accountProjects(orgId),
+      projectNumbers(orgId),
     ]);
+  const bandProjects = allProjects.filter((p) => p.bandId === id);
   const personOptions: PersonOption[] = [
     ...members.filter((m) => m.active).map((m) => ({ id: m.person.id, name: m.person.name, roles: m.roles, inBand: true })),
     ...allPeople.filter((p) => !members.some((m) => m.active && m.person.id === p.id)).map((p) => ({ id: p.id, name: p.name, inBand: false })),
@@ -246,6 +250,48 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
         )}
       </Card>
 
+      <Card title="Projects" actions={<LinkButton href={`/projects?band=${id}`} size="sm">All projects</LinkButton>}>
+        {bandProjects.length === 0 ? (
+          <p className="text-sm text-muted">
+            No projects yet. A project (an album, a tour…) collects what was spent on it and what its releases made back.{" "}
+            <Link href={`/projects?band=${id}`}>Create one</Link>.
+          </p>
+        ) : (
+          <table className="data">
+            <thead>
+              <tr>
+                <th>Project</th>
+                <th className="num">Spent</th>
+                <th className="num">Made back</th>
+                <th className="num">Balance</th>
+              </tr>
+            </thead>
+            <tbody>
+              {bandProjects.map((p) => {
+                const t = projectTotals.get(p.id)!;
+                return (
+                  <tr key={p.id}>
+                    <td>
+                      <Link href={`/projects/${p.id}`}>{p.name}</Link>
+                      {p.status === "done" && <span className="ml-2 text-xs text-muted">done</span>}
+                    </td>
+                    <td className="num">
+                      <Money cents={t.spent} currency={t.currency} />
+                    </td>
+                    <td className="num">
+                      <Money cents={t.madeBack} currency={t.currency} />
+                    </td>
+                    <td className={`num ${t.balance >= 0 && t.spent > 0 ? "text-good" : ""}`}>
+                      <Money cents={t.balance} currency={t.currency} />
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </Card>
+
       <Card title="Receipts" actions={<LinkButton href={`/receipts?band=${id}`} size="sm">All receipts</LinkButton>}>
         {bandExpenses.length === 0 ? (
           <p className="mb-3 text-sm text-muted">No expenses for {band.name} yet.</p>
@@ -256,12 +302,13 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
               files={expenseFiles}
               personName={(pid) => names.person.get(pid)}
               bandName={(bid) => names.band.get(bid)}
+              projectName={(pid) => allProjects.find((p) => p.id === pid)?.name}
               mode="admin"
             />
           </div>
         )}
         <Disclosure summary="+ Add an expense">
-          <ExpenseForm bands={[band]} releases={releases} people={bandPeople} bandId={id} />
+          <ExpenseForm bands={[band]} releases={releases} people={bandPeople} bandId={id} projects={allProjects} />
         </Disclosure>
       </Card>
 
