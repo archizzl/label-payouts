@@ -7,6 +7,7 @@ import { Badge, Callout, Card, Empty, MoneyList, PageHeader } from "@/components
 import { db, schema } from "@/db";
 import { assignRouting, createReleaseFromSales, deleteImport, syncBandcampSales } from "@/server/actions";
 import { API_SYNC_PREFIX, bandcampCredentials } from "@/server/bandcamp-api";
+import { SyncStatus } from "@/components/sync-status";
 import { requireAdmin } from "@/server/context";
 import { unroutedGroups } from "@/server/data";
 
@@ -128,6 +129,9 @@ export default async function ImportPage({ searchParams }: PageProps<"/import">)
       {bandCount === 0 && <Callout>Tip: add your bands first so sales can be matched automatically. You can still import now and match later.</Callout>}
 
       <Card title="Sync from Bandcamp">
+        <div className="mb-4">
+          <SyncStatus orgId={orgId} />
+        </div>
         {apiReady ? (
           <ActionForm action={syncBandcampSales} className="space-y-3">
             <p className="text-sm text-muted">

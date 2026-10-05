@@ -45,6 +45,14 @@ export const accountSettings = pgTable("account_settings", {
   /** Which Bandcamp accounts the API last reported, and when ("Test connection" or a sync). */
   bandcampConnectedAs: text("bandcamp_connected_as"),
   bandcampCheckedAt: text("bandcamp_checked_at"),
+  /**
+   * Syncing with Bandcamp (artists, releases, merch, sales): when the last one started (also how
+   * only one runs at a time) and finished, what it brought in, and anything that went wrong.
+   */
+  syncStartedAt: text("sync_started_at"),
+  syncFinishedAt: text("sync_finished_at"),
+  syncSummary: text("sync_summary"),
+  syncError: text("sync_error"),
 });
 
 export const bands = pgTable(

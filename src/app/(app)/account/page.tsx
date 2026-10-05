@@ -12,6 +12,7 @@ import {
   setMemberRole,
   testBandcampConnection,
 } from "@/server/account-actions";
+import { SyncStatus } from "@/components/sync-status";
 import { requireAdmin } from "@/server/context";
 import { acceptLinkCode, unlink } from "@/server/link-actions";
 import { labelsForBandAccount } from "@/server/links";
@@ -47,6 +48,9 @@ export default async function AccountPage() {
   return (
     <>
       <PageHeader title="Settings" subtitle={`${ctx.org.name} · ${kind} account`} />
+      <div className="mb-4">
+        <SyncStatus orgId={ctx.orgId} />
+      </div>
 
       <Card title="Account">
         <ActionForm action={saveAccountSettings} className="grid gap-4 sm:grid-cols-2">

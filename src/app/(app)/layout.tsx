@@ -1,4 +1,6 @@
+import { after } from "next/server";
 import { Nav } from "@/components/nav";
+import { syncAccount, syncStatus } from "@/server/auto-sync";
 import { getContext } from "@/server/context";
 import { labelsForBandAccount } from "@/server/links";
 
@@ -7,6 +9,19 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
   const ctx = await getContext();
   // A band account's admins see each label it's linked to.
   const labels = ctx.isAdmin && ctx.org.kind === "band" ? await labelsForBandAccount(ctx.orgId) : [];
+
+  // Opening the app keeps it in step with Bandcamp: at most once an hour, in the background, after
+  // the page has been sent (so it never slows the page down).
+  const sync = await syncStatus(ctx.orgId);
+  const due = !!sync?.due;
+  if (due) {
+    const orgId = ctx.orgId;
+    after(() =>
+      syncAccount(orgId).catch((e) => {
+        console.error(`Background Bandcamp sync failed for ${orgId}:`, e);
+      }),
+    );
+  }
   return (
     <>
       <Nav
@@ -14,6 +29,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
         account={ctx.org}
         accounts={ctx.accounts}
         isAdmin={ctx.isAdmin}
+        syncing={due || !!sync?.running}
         labels={labels.map(({ link, label }) => ({ href: `/from-label/${link.id}`, label: `from ${label.name}` }))}
       />
       <main className="min-w-0 flex-1 px-4 py-8 md:px-8">

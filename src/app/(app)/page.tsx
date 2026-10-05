@@ -5,6 +5,7 @@ import { Badge, Callout, Card, LinkButton, Money, MoneyList, PageHeader } from "
 import { db, schema } from "@/db";
 import { STATUS_LABEL, STATUS_TONE } from "@/lib/status";
 import { outsideArtistRows } from "@/components/outside-artists";
+import { SyncStatus } from "@/components/sync-status";
 import { requireAdmin } from "@/server/context";
 import { computeAllTime, nameMaps } from "@/server/data";
 
@@ -94,6 +95,9 @@ export default async function Dashboard() {
           </>
         }
       />
+      <div className="mb-4">
+        <SyncStatus orgId={orgId} />
+      </div>
 
       {unrouted > 0 && (
         <Callout tone="bad">

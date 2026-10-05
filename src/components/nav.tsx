@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useRef } from "react";
 import { signOut, switchAccount } from "@/server/account-actions";
 import type { Account } from "@/server/context";
+import { SyncIndicator } from "./sync-indicator";
 
 /** A small record, our own mark. */
 export function Mark() {
@@ -73,6 +74,7 @@ export function Nav({
   accounts,
   isAdmin,
   labels = [],
+  syncing = false,
 }: {
   user: { name: string; email: string };
   account: Account;
@@ -80,6 +82,8 @@ export function Nav({
   isAdmin: boolean;
   /** Band accounts: a link to each label they're linked to. */
   labels?: Item[];
+  /** A background sync with Bandcamp is running (or about to). */
+  syncing?: boolean;
 }) {
   const path = usePathname();
   const items = itemsFor(account, isAdmin, labels);
@@ -91,6 +95,7 @@ export function Nav({
           <span className="text-xl font-bold tracking-tight lowercase">labels for bandcamp</span>
         </Link>
         <div className="flex flex-wrap items-center gap-3">
+          <SyncIndicator active={syncing} />
           <AccountSwitcher account={account} accounts={accounts} />
           <span className="hidden text-sm text-muted sm:inline" title={user.email}>
             {user.name}
