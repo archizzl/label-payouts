@@ -6,7 +6,7 @@ import { LabelFunds } from "@/components/label-funds";
 import { Owed } from "@/components/owed";
 import { Badge, Callout, Card, Empty, Field, Money, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
-import { addDays, periodName, previousMonth } from "@/lib/dates";
+import { addDays, periodName } from "@/lib/dates";
 import { STATUS_LABEL, STATUS_TONE } from "@/lib/status";
 import { previewPayout } from "@/server/actions";
 import { bandcampCredentials } from "@/server/bandcamp-api";
@@ -33,12 +33,12 @@ export default async function PeriodsPage({ searchParams }: PageProps<"/periods"
   const lastClosed = periods
     .filter((p) => (forBand ? p.bandId === null || p.bandId === forBand.id : p.bandId === null))
     .reduce<string | undefined>((a, p) => (!a || p.endDate > a ? p.endDate : a), undefined);
-  // Default to the next unpaid stretch: from the day after the last finalized period (or the first
-  // sale), up to the end of last month. With no sales yet, just last month.
-  const today = new Date().toISOString().slice(0, 10);
-  const [lastMonthStart, lastMonthEnd] = previousMonth(today);
-  const defaultStart = lastClosed ? addDays(lastClosed, 1) : (salesRange?.first ?? lastMonthStart);
-  const defaultEnd = lastMonthEnd >= defaultStart ? lastMonthEnd : (salesRange?.last && salesRange.last >= defaultStart ? salesRange.last : today);
+  // Default to everything not paid yet: from the day after the last finalized payout (or the first
+  // sale), up to today. (Local date: the app runs on your machine.)
+  const today = new Date().toLocaleDateString("en-CA");
+  const defaultStart = lastClosed ? addDays(lastClosed, 1) : (salesRange?.first ?? today);
+  // (If the last payout already runs to today or later, start and end on the day after it.)
+  const defaultEnd = defaultStart > today ? defaultStart : today;
 
   return (
     <>
