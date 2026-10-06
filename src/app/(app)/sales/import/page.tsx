@@ -1,14 +1,14 @@
 import { asc, desc, eq } from "drizzle-orm";
 import Link from "next/link";
 import { connection } from "next/server";
-import { ActionForm, SubmitButton } from "@/components/client";
+import { SubmitButton } from "@/components/client";
 import { ImportForm } from "@/components/import-form";
 import { Badge, Callout, Card, Empty, MoneyList, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
-import { assignRouting, createReleaseFromSales, deleteImport, syncBandcampSales } from "@/server/actions";
+import { assignRouting, createReleaseFromSales, deleteImport } from "@/server/actions";
 import { API_SYNC_PREFIX, bandcampCredentials } from "@/server/bandcamp-api";
 import { SalesTabs } from "@/components/sales-tabs";
-import { SyncStatus } from "@/components/sync-status";
+import { SyncFooter } from "@/components/sync-status";
 import { requireAdmin } from "@/server/context";
 import { unroutedGroups } from "@/server/data";
 
@@ -116,7 +116,6 @@ export default async function ImportPage({ searchParams }: PageProps<"/sales/imp
   const history = allImports.filter((h) => !(h.addedCount === 0 && h.filename.startsWith(API_SYNC_PREFIX)));
   const bandCount = bands.length;
   const apiReady = !!creds;
-  const lastSync = allImports.find((h) => h.filename.startsWith(API_SYNC_PREFIX));
 
   return (
     <>
@@ -130,34 +129,14 @@ export default async function ImportPage({ searchParams }: PageProps<"/sales/imp
       )}
       {bandCount === 0 && <Callout>Tip: add your bands first so sales can be matched automatically. You can still import now and match later.</Callout>}
 
-      <Card>
-        <div className="mb-4">
-          <SyncStatus orgId={orgId} />
-        </div>
-        {apiReady ? (
-          <ActionForm action={syncBandcampSales} className="space-y-3">
-            <p className="text-sm text-muted">
-              {/* Fetches the raw sales report for your label and all its artists through the Bandcamp API and imports every sale that
-              isn’t here yet, including refunds. */}
-              {/* {lastSync ? <> Last synced {lastSync.importedAt.replace("T", " ").slice(0, 16)}.</> : " Not synced yet."} */}
-            </p>
-            {/* <div className="flex flex-wrap items-end gap-3">
-              <SubmitButton>Sync sales now</SubmitButton>
-              <details className="text-sm">
-                <summary className="text-muted">only from a date…</summary>
-                <label className="mt-2 flex items-center gap-2">
-                  From <input type="date" name="from" className="!w-44" />
-                </label>
-              </details>
-            </div> */}
-          </ActionForm>
-        ) : (
+      {!apiReady && (
+        <Card>
           <p className="text-sm text-muted">
             To pull sales automatically, add your Bandcamp API access (client ID and secret) under{" "}
             <Link href="/account">Settings</Link>.
           </p>
-        )}
-      </Card>
+        </Card>
+      )}
 
       <Card title={apiReady ? "Or upload a CSV" : "Upload"}>
         <ImportForm />
@@ -245,6 +224,7 @@ export default async function ImportPage({ searchParams }: PageProps<"/sales/imp
           )}
         </Card>
       )}
+      <SyncFooter orgId={orgId} />
     </>
   );
 }

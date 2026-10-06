@@ -4,7 +4,7 @@ import { connection } from "next/server";
 import { BandFields } from "@/components/band-fields";
 import { Card, Disclosure, Empty, MoneyList, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
-import { SyncStatus } from "@/components/sync-status";
+import { SyncFooter } from "@/components/sync-status";
 import { requireAdmin } from "@/server/context";
 import { linkedBandAccounts } from "@/server/links";
 import { computeAllTime, labelHost } from "@/server/data";
@@ -55,9 +55,6 @@ export default async function BandsPage() {
   return (
     <>
       <PageHeader title="Bands" subtitle="Each band's members, how sales are matched to it, and its default splits." />
-      <div className="mb-6">
-        <SyncStatus orgId={orgId} />
-      </div>
       <Card>
         {bands.length === 0 ? (
           <Empty>No bands yet. Add your first one below.</Empty>
@@ -122,6 +119,7 @@ export default async function BandsPage() {
       <Disclosure summary="+ add a band by hand">
         <BandFields />
       </Disclosure>
+      <SyncFooter orgId={orgId} />
     </>
   );
 }
