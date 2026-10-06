@@ -46,9 +46,13 @@ export type SalesFilter = {
   sort: SortKey;
   dir: "asc" | "desc";
   page: number;
+  /** Rows per page. */
+  per: number;
 };
 
-export const PAGE_SIZE = 50;
+/** Rows per page: the choices offered, and the default. Any number from 5 to 500 works in the URL. */
+export const PAGE_SIZES = [10, 25, 50, 100] as const;
+export const DEFAULT_PAGE_SIZE = 25;
 
 const isoDate = (s: unknown) => (typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : undefined);
 const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v)?.trim() || undefined;
@@ -74,6 +78,7 @@ export function parseSalesFilter(sp: Record<string, string | string[] | undefine
     sort: SORTS.find((s) => s === sort) ?? "date",
     dir: one(sp.dir) === "asc" ? "asc" : "desc",
     page: Math.max(1, Number.parseInt(one(sp.page) ?? "1", 10) || 1),
+    per: Math.min(500, Math.max(5, Number.parseInt(one(sp.per) ?? "", 10) || DEFAULT_PAGE_SIZE)),
   };
 }
 
@@ -86,6 +91,7 @@ export function filterQuery(f: SalesFilter, change: Partial<Record<keyof SalesFi
     if (k === "sort" && v === "date") continue;
     if (k === "dir" && v === "desc") continue;
     if (k === "page" && v === 1) continue;
+    if (k === "per" && v === DEFAULT_PAGE_SIZE) continue;
     p.set(k, v === true ? "1" : String(v));
   }
   const s = p.toString();
@@ -200,8 +206,8 @@ export async function browseSales(orgId: string, f: SalesFilter) {
       .where(w)
       // Blanks (no country, no source) go last either way.
       .orderBy(sql`${ORDER[f.sort]} ${sql.raw(f.dir)} nulls last`, by(sales.date), by(sales.id))
-      .limit(PAGE_SIZE)
-      .offset((f.page - 1) * PAGE_SIZE),
+      .limit(f.per)
+      .offset((f.page - 1) * f.per),
     db.select({ n: sql<number>`count(*)::int` }).from(sales).where(w),
   ]);
   return { rows, count: n };

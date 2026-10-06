@@ -126,6 +126,17 @@ describe("browsing sales", () => {
     expect((await browse.browseSales(await newAccount(), f())).count).toBe(0);
   });
 
+  it("pages through sales, as many rows at a time as asked", async () => {
+    const { orgId } = await setup();
+    const page = async (sp: Record<string, string>) => (await browse.browseSales(orgId, f({ sort: "date", dir: "asc", ...sp }))).rows.map((r) => r.itemName);
+    expect(await page({ per: "2" })).toHaveLength(5); // under 5 isn't allowed: it becomes 5
+    expect(f({ per: "2" }).per).toBe(5);
+    expect(f({}).per).toBe(browse.DEFAULT_PAGE_SIZE);
+    expect(await page({ per: "5", page: "1" })).toHaveLength(5);
+    expect(await page({ per: "5", page: "2" })).toEqual([]);
+    expect(browse.filterQuery(f({ per: "10" }), { page: 2 })).toBe("?page=2&per=10");
+  });
+
   it("builds links that keep the other filters", () => {
     const filter = f({ band: "3", sort: "net", dir: "asc", page: "2" });
     expect(browse.filterQuery(filter, { country: "Canada", page: 1 })).toBe("?band=3&country=Canada&sort=net&dir=asc");

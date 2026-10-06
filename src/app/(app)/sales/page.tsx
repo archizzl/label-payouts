@@ -10,7 +10,8 @@ import { requireAdmin } from "@/server/context";
 import {
   browseSales,
   filterQuery,
-  PAGE_SIZE,
+  DEFAULT_PAGE_SIZE,
+  PAGE_SIZES,
   parseSalesFilter,
   type SalesFilter,
   type SortKey,
@@ -49,7 +50,7 @@ export default async function SalesPage({ searchParams }: PageProps<"/sales">) {
     f.buyer
   );
   const main = summary.totals[0];
-  const pages = Math.max(1, Math.ceil(page.count / PAGE_SIZE));
+  const pages = Math.max(1, Math.ceil(page.count / f.per));
   const cur = summary.main;
 
   return (
@@ -203,15 +204,7 @@ export default async function SalesPage({ searchParams }: PageProps<"/sales">) {
                 </tbody>
               </table>
             </div>
-            {pages > 1 && (
-              <nav className="mt-4 flex items-center justify-between text-sm" aria-label="Pages">
-                {f.page > 1 ? <Link href={filterQuery(f, { page: f.page - 1 }) || "/sales"}>← Newer</Link> : <span />}
-                <span className="text-muted">
-                  Page {f.page} of {pages}
-                </span>
-                {f.page < pages ? <Link href={filterQuery(f, { page: f.page + 1 })}>Older →</Link> : <span />}
-              </nav>
-            )}
+            <Pager f={f} count={page.count} pages={pages} />
             <p className="mt-3 text-xs text-muted">Click a sale to see everything Bandcamp reported for it. Click a band, type, country or source to filter by it.</p>
           </>
         )}
@@ -407,7 +400,66 @@ function Filters({ f, options, filtered }: { f: SalesFilter; options: Awaited<Re
       {f.buyer && <input type="hidden" name="buyer" value={f.buyer} />}
       {f.sort !== "date" && <input type="hidden" name="sort" value={f.sort} />}
       {f.dir !== "desc" && <input type="hidden" name="dir" value={f.dir} />}
+      {f.per !== DEFAULT_PAGE_SIZE && <input type="hidden" name="per" value={f.per} />}
     </form>
+  );
+}
+
+/** "Showing 26–50 of 102", page links, and how many rows to show per page. */
+function Pager({ f, count, pages }: { f: SalesFilter; count: number; pages: number }) {
+  const first = (f.page - 1) * f.per + 1;
+  const last = Math.min(count, f.page * f.per);
+  // Page numbers: the first, the last, and two either side of this one.
+  const shown = [...new Set([1, f.page - 2, f.page - 1, f.page, f.page + 1, f.page + 2, pages])].filter((n) => n >= 1 && n <= pages).sort((a, b) => a - b);
+  const href = (change: Partial<Record<keyof SalesFilter, number>>) => filterQuery(f, change) || "/sales";
+  return (
+    <nav className="mt-4 flex flex-wrap items-center justify-between gap-x-6 gap-y-2 text-sm" aria-label="Pages">
+      <span className="text-muted">
+        Showing {first}–{last} of {count.toLocaleString("en-US")}
+      </span>
+      {pages > 1 && (
+        <span className="flex flex-wrap items-center gap-1">
+          {f.page > 1 && (
+            <Link href={href({ page: f.page - 1 })} className="px-1.5">
+              ← Previous
+            </Link>
+          )}
+          {shown.map((n, i) => (
+            <span key={n} className="flex items-center gap-1">
+              {i > 0 && n - shown[i - 1] > 1 && <span className="text-muted">…</span>}
+              {n === f.page ? (
+                <span aria-current="page" className="rounded-sm bg-surface-2 px-2 py-0.5 font-bold">
+                  {n}
+                </span>
+              ) : (
+                <Link href={href({ page: n })} className="px-2 py-0.5">
+                  {n}
+                </Link>
+              )}
+            </span>
+          ))}
+          {f.page < pages && (
+            <Link href={href({ page: f.page + 1 })} className="px-1.5">
+              Next →
+            </Link>
+          )}
+        </span>
+      )}
+      <span className="flex items-center gap-2 text-muted">
+        Rows per page:
+        {PAGE_SIZES.map((n) =>
+          n === f.per ? (
+            <span key={n} className="font-bold text-text">
+              {n}
+            </span>
+          ) : (
+            <Link key={n} href={href({ per: n, page: 1 })}>
+              {n}
+            </Link>
+          ),
+        )}
+      </span>
+    </nav>
   );
 }
 
