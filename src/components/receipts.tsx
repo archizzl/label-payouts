@@ -46,6 +46,7 @@ export const EXPENSE_CATEGORIES = [
   "Travel",
   "Gear & rentals",
   "Shipping",
+  "Packaging",
   "Other",
 ];
 

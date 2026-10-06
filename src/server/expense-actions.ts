@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { db, schema } from "@/db";
 import { parseCents } from "@/lib/money";
 import { getContext, requireAdmin } from "./context";
-import { recoupBands, recoupStartFor } from "./expenses";
+import { readReceiptFiles as readFiles, recoupBands, recoupStartFor } from "./expenses";
 
 /*
  * Receipts. Admins add expenses directly (approved) and review what members submit. Members submit
@@ -23,23 +23,6 @@ const optInt = (fd: FormData, k: string) => {
 };
 const isoDate = (s: string) => (/^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null);
 const now = () => new Date().toISOString();
-
-const MAX_FILE_BYTES = 10 * 1024 * 1024;
-const MAX_FILES = 10;
-const ALLOWED = /^(image\/(jpeg|png|gif|webp|heic|heif)|application\/pdf)$/;
-
-/** Receipt photos and PDFs from a form; refuses anything else, or anything too big. */
-async function readFiles(fd: FormData) {
-  const files = fd.getAll("files").filter((f): f is File => f instanceof File && f.size > 0);
-  if (files.length > MAX_FILES) throw new Error(`Up to ${MAX_FILES} files at a time.`);
-  return Promise.all(
-    files.map(async (f) => {
-      if (!ALLOWED.test(f.type)) throw new Error(`“${f.name}” isn’t a photo or PDF.`);
-      if (f.size > MAX_FILE_BYTES) throw new Error(`“${f.name}” is over 10 MB.`);
-      return { filename: f.name.slice(0, 200), contentType: f.type, size: f.size, data: new Uint8Array(await f.arrayBuffer()) };
-    }),
-  );
-}
 
 /** Check a band/release/person id belongs to this account. */
 async function inAccount(orgId: string, table: typeof bands | typeof releases | typeof people | typeof projects, id: number | null) {

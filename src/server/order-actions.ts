@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { bandcampCredentials, markMerchShipped } from "./bandcamp-api";
 import { requireAdmin } from "./context";
 import { forgetOpenOrders, loadOpenOrders } from "./merch-orders";
+import { readShipmentCosts, recordShipmentCosts } from "./shipment-costs";
 
 export type ShipState = { ok?: string; error?: string } | null;
 
@@ -15,7 +16,7 @@ const str = (fd: FormData, k: string) => String(fd.get(k) ?? "").trim();
  * email them if asked. Only orders that are open for this account can be marked.
  */
 export async function markOrderShipped(_: ShipState, fd: FormData): Promise<ShipState> {
-  const { orgId } = await requireAdmin();
+  const { orgId, user } = await requireAdmin();
   const creds = await bandcampCredentials(orgId);
   if (!creds) return { error: "Add your Bandcamp API access under Settings first." };
   const paymentId = Number(str(fd, "paymentId"));
@@ -23,6 +24,13 @@ export async function markOrderShipped(_: ShipState, fd: FormData): Promise<Ship
   const order = open.status === "ok" ? open.orders.find((o) => o.paymentId === paymentId) : null;
   if (!order) return { error: "That order isn’t open any more. Refresh to see the latest." };
   const notify = fd.get("notify") === "on";
+  // Shipping costs, if entered: checked before anything goes to Bandcamp.
+  let costs;
+  try {
+    costs = await readShipmentCosts(orgId, fd, order);
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
   try {
     await markMerchShipped(orgId, creds, [
       {
@@ -38,8 +46,27 @@ export async function markOrderShipped(_: ShipState, fd: FormData): Promise<Ship
   }
   forgetOpenOrders(orgId);
   revalidatePath("/");
+  // Shipped on Bandcamp; now the costs.
+  let recorded = 0;
+  let costError = "";
+  if (costs) {
+    try {
+      recorded = await recordShipmentCosts(orgId, user.id, order, costs, str(fd, "carrier") || null);
+      revalidatePath("/receipts");
+      revalidatePath("/funds");
+    } catch (e) {
+      costError = (e as Error).message;
+    }
+  }
   // The order leaves the list (and its form with it), so say so at the top of the page.
-  redirect(`/orders?${new URLSearchParams({ shipped: order.buyer.name || "the buyer", ...(notify ? { emailed: "1" } : {}) })}`);
+  redirect(
+    `/orders?${new URLSearchParams({
+      shipped: order.buyer.name || "the buyer",
+      ...(notify ? { emailed: "1" } : {}),
+      ...(recorded ? { costs: String(recorded), currency: order.currency } : {}),
+      ...(costError ? { costError: costError.slice(0, 200) } : {}),
+    })}`,
+  );
 }
 
 /** Fetch the open orders from Bandcamp again now. */

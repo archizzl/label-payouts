@@ -5,6 +5,24 @@ import type { Deduction } from "@/lib/splits";
 
 export type Expense = typeof schema.expenses.$inferSelect;
 
+const MAX_FILE_BYTES = 10 * 1024 * 1024;
+const MAX_FILES = 10;
+const ALLOWED = /^(image\/(jpeg|png|gif|webp|heic|heif)|application\/pdf)$/;
+
+/** Receipt photos and PDFs from a form; refuses anything else, or anything too big. */
+export async function readReceiptFiles(fd: FormData, field = "files") {
+  const files = fd.getAll(field).filter((f): f is File => f instanceof File && f.size > 0);
+  if (files.length > MAX_FILES) throw new Error(`Up to ${MAX_FILES} files at a time.`);
+  return Promise.all(
+    files.map(async (f) => {
+      if (!ALLOWED.test(f.type)) throw new Error(`“${f.name}” isn’t a photo or PDF.`);
+      if (f.size > MAX_FILE_BYTES) throw new Error(`“${f.name}” is over 10 MB.`);
+      return { filename: f.name.slice(0, 200), contentType: f.type, size: f.size, data: new Uint8Array(await f.arrayBuffer()) };
+    }),
+  );
+}
+
+
 /** yyyy-mm-dd plus one day. */
 function nextDay(d: string) {
   const t = new Date(`${d}T00:00:00Z`);

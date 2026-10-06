@@ -19,9 +19,10 @@ export default async function OrdersPage({ searchParams }: PageProps<"/orders">)
   const sp = await searchParams;
   const band = Number(sp.band) || null;
   const shipped = typeof sp.shipped === "string" ? sp.shipped.slice(0, 80) : null;
-  const [open, bands] = await Promise.all([
+  const [open, bands, people] = await Promise.all([
     loadOpenOrders(orgId),
     db.select({ id: schema.bands.id, name: schema.bands.name }).from(schema.bands).where(eq(schema.bands.orgId, orgId)).orderBy(asc(schema.bands.name)),
+    db.select({ id: schema.people.id, name: schema.people.name }).from(schema.people).where(eq(schema.people.orgId, orgId)).orderBy(asc(schema.people.name)),
   ]);
   const bandName = new Map(bands.map((b) => [b.id, b.name]));
 
@@ -77,8 +78,18 @@ export default async function OrdersPage({ searchParams }: PageProps<"/orders">)
 
       {shipped && (
         <Callout tone="good">
-          Marked {shipped}’s order shipped on Bandcamp{sp.emailed ? " and emailed them" : ""}.
+          Marked {shipped}’s order shipped on Bandcamp{sp.emailed ? " and emailed them" : ""}
+          {Number(sp.costs) > 0 && (
+            <>
+              , and added {formatCents(Number(sp.costs), typeof sp.currency === "string" ? sp.currency : "USD")} of shipping costs to{" "}
+              <Link href="/receipts">Receipts</Link>
+            </>
+          )}
+          .
         </Callout>
+      )}
+      {typeof sp.costError === "string" && (
+        <Callout tone="bad">The order was marked shipped, but its shipping costs couldn’t be saved ({sp.costError}). Add them on Receipts.</Callout>
       )}
 
       {bandsWithOrders.length > 1 && (
@@ -135,18 +146,18 @@ export default async function OrdersPage({ searchParams }: PageProps<"/orders">)
           )}
 
           <Card title={`Waiting to ship (${ready.length})`}>
-            {ready.length === 0 ? <Empty>Nothing ready to ship.</Empty> : <OrderList orders={ready} bandName={bandName} slipHref={slipHref} />}
+            {ready.length === 0 ? <Empty>Nothing ready to ship.</Empty> : <OrderList orders={ready} bandName={bandName} slipHref={slipHref} people={people} />}
           </Card>
 
           {preorders.length > 0 && (
             <Card title={`Pre-orders not out yet (${preorders.length})`}>
-              <OrderList orders={preorders} bandName={bandName} slipHref={slipHref} />
+              <OrderList orders={preorders} bandName={bandName} slipHref={slipHref} people={people} />
             </Card>
           )}
           {failed.length > 0 && (
             <Card title={`Payment failed (${failed.length})`}>
               <p className="mb-3 text-sm text-muted">Bandcamp says these payments didn’t go through (e.g. a PayPal eCheck that failed). Don’t ship them.</p>
-              <OrderList orders={failed} bandName={bandName} slipHref={slipHref} />
+              <OrderList orders={failed} bandName={bandName} slipHref={slipHref} people={people} />
             </Card>
           )}
         </>
@@ -159,7 +170,17 @@ export default async function OrdersPage({ searchParams }: PageProps<"/orders">)
   );
 }
 
-function OrderList({ orders, bandName, slipHref }: { orders: MerchOrder[]; bandName: Map<number, string>; slipHref: (ids: number[]) => string }) {
+function OrderList({
+  orders,
+  bandName,
+  slipHref,
+  people,
+}: {
+  orders: MerchOrder[];
+  bandName: Map<number, string>;
+  slipHref: (ids: number[]) => string;
+  people: { id: number; name: string }[];
+}) {
   return (
     <ul className="divide-y divide-border border-y border-border">
       {orders.map((o) => (
@@ -189,7 +210,7 @@ function OrderList({ orders, bandName, slipHref }: { orders: MerchOrder[]; bandN
               ))}
             </ul>
             {o.note && <p className="rounded-sm bg-warn-bg px-2 py-1 text-sm">Note: {o.note}</p>}
-            <div className="flex flex-wrap gap-2 pt-1">
+            <div className="flex flex-wrap items-start gap-2 pt-1">
               <Link href={slipHref([o.paymentId])} className={buttonClass("secondary", "sm")}>
                 Packing slip
               </Link>
@@ -209,6 +230,33 @@ function OrderList({ orders, bandName, slipHref }: { orders: MerchOrder[]; bandN
                     <Field label="Message (optional)" className="sm:col-span-2">
                       <input name="message" placeholder="Thanks so much! Hope you love it." />
                     </Field>
+                    <fieldset className="grid gap-3 border-t border-border pt-3 sm:col-span-2 sm:grid-cols-3">
+                      <legend className="pb-1 text-sm font-medium">
+                        Shipping costs <span className="font-normal text-muted">(optional, added to Receipts)</span>
+                      </legend>
+                      <Field label="Postage">
+                        <input name="postage" inputMode="decimal" placeholder="4.63" />
+                      </Field>
+                      <Field label="Packaging">
+                        <input name="packaging" inputMode="decimal" placeholder="0.85" />
+                      </Field>
+                      <Field label="Paid by">
+                        <select name="costPaidBy" defaultValue="label">
+                          <option value="label">The label</option>
+                          {o.bandIds.length === 1 && <option value="band_fund">{bandName.get(o.bandIds[0])}’s band fund</option>}
+                          <optgroup label="Someone (to pay back)">
+                            {people.map((p) => (
+                              <option key={p.id} value={`person:${p.id}`}>
+                                {p.name}
+                              </option>
+                            ))}
+                          </optgroup>
+                        </select>
+                      </Field>
+                      <Field label="Receipt (optional)" hint="A photo or PDF of the postage label or receipt." className="sm:col-span-3">
+                        <input type="file" name="receipt" accept="image/*,application/pdf" multiple className="text-sm" />
+                      </Field>
+                    </fieldset>
                     <datalist id="carriers">
                       {CARRIERS.map((c) => (
                         <option key={c} value={c} />
