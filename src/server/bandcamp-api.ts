@@ -199,3 +199,79 @@ export async function salesReport(orgId: string, creds: BandcampCredentials, fro
   }
   return { accounts, rows: [...rows.values()] };
 }
+
+/** One item of a merch order, as the Merch Orders API returns it (get_orders v4). */
+export type MerchOrderItem = {
+  sale_item_id: number;
+  payment_id: number;
+  order_date: string;
+  item_name?: string;
+  item_url?: string;
+  artist?: string;
+  option?: string | null;
+  sku?: string | null;
+  quantity?: number;
+  sub_total?: number;
+  shipping?: number;
+  tax?: number;
+  order_total?: number;
+  currency?: string;
+  buyer_name?: string;
+  buyer_email?: string;
+  buyer_phone?: string;
+  buyer_note?: string | null;
+  ship_notes?: string | null;
+  ship_to_name?: string;
+  ship_to_street?: string;
+  ship_to_street_2?: string;
+  ship_to_city?: string;
+  ship_to_state?: string;
+  ship_to_zip?: string;
+  ship_to_country?: string;
+  ship_to_country_code?: string;
+  ship_to_phone?: string;
+  begins_shipping_on?: string | null;
+  ship_date?: string | null;
+  payment_state?: string;
+};
+
+/**
+ * Every merch order not marked shipped yet, for each account the credentials manage (for a label,
+ * all its artists). Buyers' details come straight from Bandcamp and aren't stored.
+ */
+export async function openMerchOrders(orgId: string, creds: BandcampCredentials): Promise<MerchOrderItem[]> {
+  const accounts = await myBands(orgId, creds);
+  const items = new Map<number, MerchOrderItem>();
+  for (const account of accounts) {
+    const { items: found } = await call<{ items: MerchOrderItem[] }>(orgId, creds, "merchorders/4/get_orders", {
+      band_id: account.band_id,
+      unshipped_only: true,
+      start_time: "2000-01-01",
+      format: "json",
+    });
+    for (const it of found ?? []) items.set(it.sale_item_id, it);
+  }
+  return [...items.values()];
+}
+
+/**
+ * Mark whole orders (by payment id) shipped on Bandcamp, with a carrier and tracking number shown to
+ * the buyer, and optionally email them. All or nothing.
+ */
+export async function markMerchShipped(
+  orgId: string,
+  creds: BandcampCredentials,
+  orders: { paymentId: number; carrier?: string; trackingCode?: string; notify: boolean; message?: string }[],
+) {
+  await call(orgId, creds, "merchorders/2/update_shipped", {
+    items: orders.map((o) => ({
+      id: o.paymentId,
+      id_type: "p",
+      shipped: true,
+      notification: o.notify,
+      ...(o.notify && o.message ? { notification_message: o.message } : {}),
+      ...(o.carrier ? { carrier: o.carrier } : {}),
+      ...(o.trackingCode ? { tracking_code: o.trackingCode } : {}),
+    })),
+  });
+}

@@ -1,7 +1,9 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
 import Link from "next/link";
+import { Suspense } from "react";
 import { connection } from "next/server";
 import { ChartBoard } from "@/components/chart-board";
+import { OrdersNotice } from "@/components/orders-notice";
 import { owedChart } from "@/components/owed";
 import { type BoardChart, breakdownChart, seriesChart } from "@/lib/chart-data";
 import { loadLayout } from "@/server/chart-layouts";
@@ -113,6 +115,10 @@ export default async function Dashboard() {
           </>
         }
       />
+
+      <Suspense fallback={null}>
+        <OrdersNotice orgId={orgId} />
+      </Suspense>
 
       {unrouted > 0 && (
         <Callout tone="bad">

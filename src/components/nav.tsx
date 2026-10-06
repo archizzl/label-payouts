@@ -26,6 +26,7 @@ function itemsFor(account: Account, isAdmin: boolean, labels: Item[]): Item[] {
   return [
     { href: "/", label: "dashboard" },
     { href: "/sales", label: "sales" },
+    { href: "/orders", label: "orders" },
     { href: "/periods", label: "payouts" },
     ...(account.kind === "label" ? [{ href: "/funds", label: "label funds" }] : []),
     { href: "/receipts", label: "receipts" },
