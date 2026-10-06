@@ -1,6 +1,7 @@
 import "server-only";
 import { and, eq } from "drizzle-orm";
 import { db, schema } from "@/db";
+import { LABEL_RELEASES_SOURCE, SHIPPING_SOURCE } from "@/lib/label-sources";
 import { parseCents } from "@/lib/money";
 import { computeAllTime, labelFunds } from "./data";
 
@@ -14,8 +15,7 @@ import { computeAllTime, labelFunds } from "./data";
 export type Totals = Map<string, number>;
 const add = (m: Totals, cur: string, cents: number) => m.set(cur, (m.get(cur) ?? 0) + cents);
 
-export const SHIPPING_SOURCE = "Shipping (for postage)";
-export const LABEL_RELEASES_SOURCE = "Label releases (its own share)";
+export { LABEL_RELEASES_SOURCE, SHIPPING_SOURCE } from "@/lib/label-sources";
 
 export async function labelIncome(orgId: string) {
   const [{ results, saleById }, funds, holders, bandRows] = await Promise.all([

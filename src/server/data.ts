@@ -4,6 +4,8 @@ import { db, schema } from "@/db";
 import type { ReleasePackage } from "@/db/schema";
 import type { ItemCategory } from "@/lib/bandcamp-csv";
 import { type Catalog, normalizeId, normalizeText, routeSale } from "@/lib/routing";
+import { LABEL_RELEASES_SOURCE, SHIPPING_SOURCE } from "@/lib/label-sources";
+import { parseCents } from "@/lib/money";
 import { salePartsOf } from "@/lib/sale-parts";
 import { computeLedger, type EngineContext, type EngineSale, type SaleResult, summarize } from "@/lib/splits";
 import { expenseDeductions, projectReleaseMap } from "./expenses";
@@ -424,28 +426,55 @@ export async function labelFunds(orgId: string) {
     db.select().from(schema.expenses).where(and(eq(schema.expenses.orgId, orgId), eq(schema.expenses.status, "approved"))),
   ]);
   const kept: Totals = new Map();
-  const raised = new Map<string, Totals>(); // cause key → kept from its sales
+  // cause key → income source → what the label kept from that cause's sales. A send-out tied to a
+  // source (e.g. "Triple Single Fundraiser") is measured against that source only, not everything
+  // the label kept from the release (its CD costs aren't the fundraiser's).
+  const raisedBy = new Map<string, Map<string, Totals>>();
+  const credit = (key: string, source: string, cur: string, cents: number) => {
+    const bySource = raisedBy.get(key) ?? new Map<string, Totals>();
+    const m = bySource.get(source) ?? new Map();
+    addTo(m, cur, cents);
+    bySource.set(source, m);
+    raisedBy.set(key, bySource);
+  };
   for (const r of results) {
-    const cents = r.deductions.filter((d) => d.destination === "label").reduce((a, d) => a + d.cents, 0);
-    if (!cents) continue;
-    addTo(kept, r.currency, cents);
     const sale = saleById.get(r.saleId);
-    for (const key of [r.bandId && `b${r.bandId}`, sale?.releaseId && `r${sale.releaseId}`]) {
-      if (!key) continue;
-      const m = raised.get(key) ?? new Map();
-      addTo(m, r.currency, cents);
-      raised.set(key, m);
+    const keys = [r.bandId && `b${r.bandId}`, sale?.releaseId && `r${sale.releaseId}`].filter((k): k is string => !!k);
+    for (const d of r.deductions) {
+      if (d.destination !== "label" || !d.cents) continue;
+      addTo(kept, r.currency, d.cents);
+      for (const key of keys) credit(key, d.deductionId === 0 ? LABEL_RELEASES_SOURCE : d.label, r.currency, d.cents);
     }
+    const shipping = sale?.raw.shipping ? Math.abs(parseCents(sale.raw.shipping)) * (Math.sign(r.netCents) || 1) : 0;
+    if (shipping) for (const key of keys) credit(key, SHIPPING_SOURCE, r.currency, shipping);
   }
+  /** What a cause raised for the label: from the given sources only, or (with none) every withholding kept by the label. */
+  const raisedFor = (key: string, sources: Set<string> | null): Totals => {
+    const out: Totals = new Map();
+    for (const [source, t] of raisedBy.get(key) ?? []) {
+      if (sources ? !sources.has(source) : source === SHIPPING_SOURCE) continue;
+      for (const [cur, cents] of t) addTo(out, cur, cents);
+    }
+    return out;
+  };
+  const raised = { get: (key: string) => raisedFor(key, null) };
 
   const transfers = transferRows.sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id);
   const sent: Totals = new Map();
   const causes = new Map<string, FundCause & { raised: Totals; sent: Totals }>();
+  // The sources each cause's send-outs came from (null: some weren't tied to one, so count everything).
+  const causeSources = new Map<string, Set<string> | null>();
+  for (const t of transfers) {
+    const key = causeKey(t);
+    if (!key) continue;
+    const had = causeSources.has(key) ? causeSources.get(key)! : new Set<string>();
+    causeSources.set(key, had && t.source ? had.add(t.source) : null);
+  }
   for (const t of transfers) {
     addTo(sent, t.currency, t.amountCents);
     const key = causeKey(t);
     if (!key) continue;
-    const c = causes.get(key) ?? { bandId: t.bandId, releaseId: t.releaseId, raised: raised.get(key) ?? new Map(), sent: new Map() };
+    const c = causes.get(key) ?? { bandId: t.bandId, releaseId: t.releaseId, raised: raisedFor(key, causeSources.get(key) ?? null), sent: new Map() };
     addTo(c.sent, t.currency, t.amountCents);
     causes.set(key, c);
   }
@@ -467,6 +496,6 @@ export async function labelFunds(orgId: string) {
     balance,
     transfers,
     causes: [...causes.values()],
-    raisedBy: (c: FundCause) => raised.get(causeKey(c)) ?? new Map(),
+    raisedBy: (c: FundCause) => raised.get(causeKey(c)),
   };
 }
