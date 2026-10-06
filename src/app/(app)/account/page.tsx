@@ -13,6 +13,7 @@ import {
   testBandcampConnection,
 } from "@/server/account-actions";
 import { SyncStatus } from "@/components/sync-status";
+import { setSetupHidden } from "@/server/actions";
 import { requireAdmin } from "@/server/context";
 import { acceptLinkCode, unlink } from "@/server/link-actions";
 import { labelsForBandAccount } from "@/server/links";
@@ -102,6 +103,18 @@ export default async function AccountPage() {
           </div>
         )}
       </Card>
+
+      {settings?.setupHidden && (
+        <div className="mb-6 flex flex-wrap items-center gap-2 text-sm text-muted">
+          The dashboard’s getting started checklist is hidden.
+          <form action={setSetupHidden}>
+            <input type="hidden" name="hidden" value="0" />
+            <SubmitButton variant="secondary" size="sm">
+              Show it again
+            </SubmitButton>
+          </form>
+        </div>
+      )}
 
       {kind === "band" && (
         <Card title="Labels">

@@ -64,6 +64,13 @@
       "when": 1791294244431,
       "tag": "0008_setup_hidden",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1791294375056,
+      "tag": "0009_setup_hidden_for_good",
+      "breakpoints": true
     }
   ]
 }

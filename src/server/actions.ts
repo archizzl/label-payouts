@@ -551,14 +551,15 @@ export async function syncBandcampSales(_: ActionState, fd: FormData): Promise<A
   return { ok: `Up to date: all ${result.duplicates} sales from ${result.names} were already imported.` };
 }
 
-/** Hide or bring back the dashboard's "Getting started" checklist. */
+/**
+ * The dashboard's "Getting started" checklist: "1" hides it (with a small link to bring it back),
+ * "forever" hides that link too, "0" shows it again.
+ */
 export async function setSetupHidden(fd: FormData) {
   const { orgId } = await requireAdmin();
-  const hidden = fd.get("hidden") === "1";
-  await db
-    .insert(schema.accountSettings)
-    .values({ orgId, setupHidden: hidden })
-    .onConflictDoUpdate({ target: schema.accountSettings.orgId, set: { setupHidden: hidden } });
+  const v = fd.get("hidden");
+  const set = { setupHidden: v === "1" || v === "forever", setupHiddenForGood: v === "forever" };
+  await db.insert(schema.accountSettings).values({ orgId, ...set }).onConflictDoUpdate({ target: schema.accountSettings.orgId, set });
   done();
 }
 

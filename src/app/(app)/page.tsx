@@ -74,10 +74,11 @@ export default async function Dashboard() {
   const next = saleCount === 0 ? "import" : "payout";
   const setupDone = steps.every((s) => s.done);
   const [settingsRow] = await db
-    .select({ setupHidden: schema.accountSettings.setupHidden })
+    .select({ setupHidden: schema.accountSettings.setupHidden, forGood: schema.accountSettings.setupHiddenForGood })
     .from(schema.accountSettings)
     .where(eq(schema.accountSettings.orgId, orgId));
   const setupHidden = settingsRow?.setupHidden ?? false;
+  const setupGone = settingsRow?.forGood ?? false;
   const stepsLeft = steps.filter((s) => !s.done).length;
 
   const owed = new Map<number, Map<string, number>>();
@@ -226,14 +227,27 @@ export default async function Dashboard() {
         </Card>
       </div>
 
-      {!setupDone && setupHidden && (
-        <form action={setSetupHidden} className="mt-6 text-center text-xs text-muted">
-          <input type="hidden" name="hidden" value="0" />
-          {stepsLeft} setup step{stepsLeft === 1 ? "" : "s"} left.{" "}
-          <button type="submit" className="underline hover:text-text">
-            Show the getting started checklist
-          </button>
-        </form>
+      {!setupDone && setupHidden && !setupGone && (
+        <div className="mt-6 flex items-center justify-center gap-2 text-xs text-muted">
+          <form action={setSetupHidden}>
+            <input type="hidden" name="hidden" value="0" />
+            {stepsLeft} setup step{stepsLeft === 1 ? "" : "s"} left.{" "}
+            <button type="submit" className="underline hover:text-text">
+              Show the getting started checklist
+            </button>
+          </form>
+          <form action={setSetupHidden}>
+            <input type="hidden" name="hidden" value="forever" />
+            <button
+              type="submit"
+              aria-label="Don’t remind me about setup again"
+              title="Don’t remind me again (you can turn the checklist back on in Settings)"
+              className="flex h-5 w-5 items-center justify-center rounded-sm text-base leading-none hover:bg-surface-2 hover:text-text"
+            >
+              ×
+            </button>
+          </form>
+        </div>
       )}
     </>
   );
