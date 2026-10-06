@@ -5,6 +5,7 @@ import { LabelFunds } from "@/components/label-funds";
 import { Card, PageHeader } from "@/components/ui";
 import { formatCents } from "@/lib/money";
 import { requireAdmin } from "@/server/context";
+import { nameMaps } from "@/server/data";
 import { LABEL_RELEASES_SOURCE, labelIncome, SHIPPING_SOURCE, type Totals } from "@/server/label-income";
 
 /** Why each source of label money is there, in a few words. */
@@ -21,7 +22,7 @@ function explain(source: string) {
 export default async function FundsPage() {
   await connection();
   const { orgId } = await requireAdmin();
-  const inc = await labelIncome(orgId);
+  const [inc, names] = await Promise.all([labelIncome(orgId), nameMaps(orgId)]);
   const cur = inc.currencies[0] ?? "USD";
   const v = (m: Totals) => m.get(cur) ?? 0;
   const rows = (m: Map<string, Totals>) =>
@@ -54,7 +55,7 @@ export default async function FundsPage() {
 
   return (
     <>
-      <PageHeader title="Label funds" subtitle="The label’s own money: where it comes from, where it went, and what’s left." />
+      <PageHeader title="Label funds"/>
 
       <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
         <Tile label="Came in to the label" cents={v(inc.income)} currency={cur} />
@@ -119,6 +120,52 @@ export default async function FundsPage() {
       </div>
 
       <LabelFunds showTotals={false} />
+
+      <Card title="Spent on expenses" actions={<Link href="/receipts" className="text-sm">receipts</Link>}>
+        {inc.spending.length === 0 ? (
+          <p className="text-sm text-muted">Nothing yet. Expenses the label pays, and receipts it pays people back for, show up here.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="data">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>For</th>
+                  <th>Paid to</th>
+                  <th className="num">Amount</th>
+                  <th>How</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...inc.spending]
+                  .map((e) => ({ e, when: (e.paidBy === "person" ? e.reimbursedAt?.slice(0, 10) : null) ?? e.date }))
+                  .sort((a, b) => b.when.localeCompare(a.when) || b.e.id - a.e.id)
+                  .map(({ e, when }) => (
+                    <tr key={e.id}>
+                      <td className="whitespace-nowrap text-muted">{when}</td>
+                      <td>
+                        {e.description}
+                        {e.bandId && <div className="text-xs text-muted">{names.band.get(e.bandId)}</div>}
+                      </td>
+                      <td className="text-sm">
+                        {e.paidBy === "person" ? (
+                          <>
+                            {names.person.get(e.paidByPersonId ?? 0) ?? "Someone"}
+                            <div className="text-xs text-muted">paid back for a receipt</div>
+                          </>
+                        ) : (
+                          (e.vendor ?? <span className="text-muted">—</span>)
+                        )}
+                      </td>
+                      <td className="num font-medium">{formatCents(e.amountCents, e.currency)}</td>
+                      <td className="text-xs text-muted">{[e.reimbursedMethod, e.reimbursedReference].filter(Boolean).join(" · ") || "—"}</td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
     </>
   );
 }
@@ -162,7 +209,7 @@ function SourceRows({ rows, max, total, currency }: { rows: SourceRow[]; max: nu
             </span>
             <div className="text-right tabular-nums">
               {formatCents(src.net, currency)}
-              {total > 0 && held > 0 && <div className="text-xs text-muted">{((held / total) * 100).toFixed(1)}% of what the label still holds</div>}
+              {total > 0 && held > 0 && <div className="text-xs text-muted">{((held / total) * 100).toFixed(1)}% of label funds</div>}
               {src.sent > 0 && (
                 <div className="text-xs text-muted">
                   {formatCents(held, currency)} held · {formatCents(src.sent, currency)} sent on

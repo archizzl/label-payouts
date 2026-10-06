@@ -517,6 +517,8 @@ export const expenses = pgTable(
     reviewedAt: text("reviewed_at"),
     reimbursedAt: text("reimbursed_at"),
     reimbursedReference: text("reimbursed_reference"),
+    /** How they were paid back: "Venmo", "PayPal.me", "Cash App"… */
+    reimbursedMethod: text("reimbursed_method"),
     createdAt: text("created_at").notNull().default(now),
   },
   (t) => [index("expenses_org").on(t.orgId), index("expenses_band").on(t.bandId)],

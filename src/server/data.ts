@@ -481,8 +481,12 @@ export async function labelFunds(orgId: string) {
   // Expenses the label paid for (whether or not sales pay it back: that comes in as money kept), and
   // people it has reimbursed for things they paid for.
   const spent: Totals = new Map();
+  const spending: typeof expenseRows = [];
   for (const e of expenseRows) {
-    if (e.paidBy === "label" || (e.paidBy === "person" && !e.recoup && e.reimbursedAt)) addTo(spent, e.currency, e.amountCents);
+    if (e.paidBy === "label" || (e.paidBy === "person" && !e.recoup && e.reimbursedAt)) {
+      addTo(spent, e.currency, e.amountCents);
+      spending.push(e);
+    }
   }
   const balance: Totals = new Map();
   for (const cur of new Set([...kept.keys(), ...sent.keys(), ...spent.keys()])) {
@@ -493,6 +497,8 @@ export async function labelFunds(orgId: string) {
     kept,
     sent,
     spent,
+    /** The expenses behind `spent`: ones the label paid, and receipts it paid people back for. */
+    spending,
     balance,
     transfers,
     causes: [...causes.values()],

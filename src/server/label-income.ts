@@ -82,6 +82,7 @@ export async function labelIncome(orgId: string) {
     income,
     sent: funds.sent,
     spent: funds.spent,
+    spending: funds.spending,
     balance,
     holderShare,
     holderName: holders.length === 1 ? holders[0].name : null,

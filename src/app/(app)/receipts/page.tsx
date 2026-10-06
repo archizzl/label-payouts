@@ -24,6 +24,7 @@ export default async function ReceiptsPage({ searchParams }: PageProps<"/receipt
   const projectName = (pid: number) => projects.find((p) => p.id === pid)?.name;
   const personName = (id: number) => people.find((p) => p.id === id)?.name;
   const bandName = (id: number) => bands.find((b) => b.id === id)?.name;
+  const payees = new Map(people.map((p) => [p.id, p]));
   const pending = all.filter((e) => e.status === "pending");
   const rest = all.filter((e) => e.status !== "pending");
   const owed = all.filter(owedReimbursement);
@@ -57,7 +58,7 @@ export default async function ReceiptsPage({ searchParams }: PageProps<"/receipt
 
       {pending.length > 0 && (
         <Card title={`Waiting for approval (${pending.length})`}>
-          <ExpenseTable rows={pending} files={files} personName={personName} bandName={bandName} projectName={projectName} mode="admin" edit={form} />
+          <ExpenseTable rows={pending} files={files} personName={personName} bandName={bandName} projectName={projectName} mode="admin" edit={form} payees={payees} />
         </Card>
       )}
 
@@ -65,7 +66,7 @@ export default async function ReceiptsPage({ searchParams }: PageProps<"/receipt
         <div className="mb-4">
           <Disclosure summary="+ Add an expense">{form()}</Disclosure>
         </div>
-        <ExpenseTable rows={rest} files={files} personName={personName} bandName={bandName} projectName={projectName} mode="admin" edit={form} />
+        <ExpenseTable rows={rest} files={files} personName={personName} bandName={bandName} projectName={projectName} mode="admin" edit={form} payees={payees} />
       </Card>
     </>
   );

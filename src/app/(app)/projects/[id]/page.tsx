@@ -187,6 +187,7 @@ export default async function ProjectPage({ params }: PageProps<"/projects/[id]"
           bandName={(bid) => names.band.get(bid)}
           mode="admin"
           edit={(e) => <ExpenseForm expense={e} bands={bands} releases={releases} people={people} projects={projects} />}
+          payees={new Map(people.map((p) => [p.id, p]))}
         />
       </Card>
 

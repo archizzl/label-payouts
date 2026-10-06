@@ -1,0 +1,1 @@
+ALTER TABLE "expenses" ADD COLUMN "reimbursed_method" text;

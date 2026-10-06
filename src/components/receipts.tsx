@@ -5,6 +5,8 @@ import type { schema } from "@/db";
 import { centsToDecimal } from "@/lib/money";
 import { deleteExpense, deleteExpenseFile, reviewExpense, saveExpense, setReimbursed, submitReceipt } from "@/server/expense-actions";
 import { coverageText, type Expense, owedReimbursement } from "@/server/expenses";
+import type { Payee } from "./pay-person";
+import { ReimburseButtons } from "./reimburse-buttons";
 
 type Band = Pick<typeof schema.bands.$inferSelect, "id" | "name">;
 type Release = Pick<typeof schema.releases.$inferSelect, "id" | "title" | "bandId">;
@@ -264,6 +266,7 @@ export function ExpenseTable({
   mode,
   edit,
   userId,
+  payees,
 }: {
   rows: Expense[];
   files: Map<number, ReceiptFile[]>;
@@ -275,6 +278,8 @@ export function ExpenseTable({
   /** Admin: the edit form for an expense. */
   edit?: (e: Expense) => React.ReactNode;
   userId?: string;
+  /** Admin: how each person can be paid, for one-click reimbursing. */
+  payees?: Map<number, Payee>;
 }) {
   if (!rows.length) return <Empty>No expenses yet.</Empty>;
   return (
@@ -298,7 +303,12 @@ export function ExpenseTable({
               <Badge tone={STATUS[e.status].tone}>{STATUS[e.status].label}</Badge>
               <span>{coverageText(e, personName)}</span>
               {owedReimbursement(e) && <Badge tone="warn">not reimbursed yet</Badge>}
-              {e.reimbursedAt && <Badge tone="good">reimbursed {e.reimbursedAt.slice(0, 10)}</Badge>}
+              {e.reimbursedAt && (
+                <Badge tone="good">
+                  reimbursed {e.reimbursedAt.slice(0, 10)}
+                  {e.reimbursedMethod ? ` via ${e.reimbursedMethod}` : ""}
+                </Badge>
+              )}
               {e.reviewNote && <span>“{e.reviewNote}”</span>}
             </div>
             <Files files={files.get(e.id) ?? []} admin={mode === "admin"} />
@@ -322,10 +332,29 @@ export function ExpenseTable({
               <form action={setReimbursed} className="flex flex-wrap items-center gap-2 pt-1">
                 <input type="hidden" name="id" value={e.id} />
                 <input type="hidden" name="reimbursed" value={e.reimbursedAt ? "false" : "true"} />
-                {!e.reimbursedAt && <input name="reference" placeholder="PayPal txn ID (optional)" className="!w-48 !py-1 !text-xs" />}
-                <SubmitButton size="sm" variant={e.reimbursedAt ? "ghost" : "secondary"}>
-                  {e.reimbursedAt ? "Undo reimbursed" : `Mark ${personName(e.paidByPersonId ?? 0) ?? "them"} reimbursed`}
-                </SubmitButton>
+                {e.reimbursedAt ? (
+                  <SubmitButton size="sm" variant="ghost">
+                    Undo reimbursed
+                  </SubmitButton>
+                ) : (
+                  <>
+                    <ReimburseButtons
+                      payee={
+                        (e.paidByPersonId && payees?.get(e.paidByPersonId)) || {
+                          id: e.paidByPersonId ?? 0,
+                          name: personName(e.paidByPersonId ?? 0) ?? "them",
+                          paypalMe: null,
+                          venmo: null,
+                          cashtag: null,
+                        }
+                      }
+                      amountCents={e.amountCents}
+                      currency={e.currency}
+                      note={`Reimbursement: ${e.description}`}
+                    />
+                    <input name="reference" placeholder="Transaction ID (optional)" className="!w-44 !py-1 !text-xs" />
+                  </>
+                )}
               </form>
             )}
             {mode === "admin" && edit && (

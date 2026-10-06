@@ -241,7 +241,11 @@ export async function setReimbursed(fd: FormData) {
   const reimbursed = str(fd, "reimbursed") === "true";
   await db
     .update(expenses)
-    .set({ reimbursedAt: reimbursed ? now() : null, reimbursedReference: reimbursed ? str(fd, "reference") || null : null })
+    .set({
+      reimbursedAt: reimbursed ? now() : null,
+      reimbursedReference: reimbursed ? str(fd, "reference") || null : null,
+      reimbursedMethod: reimbursed ? str(fd, "method") || null : null,
+    })
     .where(and(eq(expenses.orgId, orgId), eq(expenses.id, Number(str(fd, "id")))));
   done();
 }

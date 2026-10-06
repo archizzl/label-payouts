@@ -304,6 +304,7 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
               bandName={(bid) => names.band.get(bid)}
               projectName={(pid) => allProjects.find((p) => p.id === pid)?.name}
               mode="admin"
+              payees={new Map(allPeople.map((p) => [p.id, p]))}
             />
           </div>
         )}
