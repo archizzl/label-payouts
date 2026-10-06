@@ -95,7 +95,7 @@ export default async function SalesPage({ searchParams }: PageProps<"/sales">) {
             />
           </div>
           <p className="-mt-3 mb-6 flex flex-wrap gap-x-4 gap-y-1 text-sm">
-            {(["paid", "pending", "none"] as const).map((st) =>
+            {(["paid", "pending"] as const).map((st) =>
               summary.byPayout[st].sales ? (
                 <Link key={st} href={filterQuery(f, { payout: f.payout === st ? undefined : st, page: 1 }) || "/sales"} className="text-text hover:no-underline">
                   <PayoutBadge state={st} /> <span className="tabular-nums">{formatCents(summary.byPayout[st].net, cur)}</span>{" "}
@@ -251,22 +251,23 @@ export default async function SalesPage({ searchParams }: PageProps<"/sales">) {
   );
 }
 
-const PAYOUT_LABEL = { paid: "Paid out", pending: "In a payout, not paid yet", none: "Not in a payout yet" } as const;
-const PAYOUT_TONE = { paid: "good", pending: "warn", none: "neutral" } as const;
+const PAYOUT_LABEL = { paid: "Paid out", pending: "In a payout, not paid yet" } as const;
+const PAYOUT_TONE = { paid: "good", pending: "warn" } as const;
 
 function PayoutBadge({ state }: { state: keyof typeof PAYOUT_LABEL }) {
   return <Badge tone={PAYOUT_TONE[state]}>{PAYOUT_LABEL[state]}</Badge>;
 }
 
-/** Whether a sale's money has gone out: a badge, linking to the payout that covers it. */
-function PayoutCell({ state, periodId }: { state: keyof typeof PAYOUT_LABEL; periodId: number | null }) {
-  const badge = <PayoutBadge state={state === "paid" ? "paid" : state === "pending" ? "pending" : "none"} />;
-  return periodId ? (
+/**
+ * Whether a sale is in a payout: a badge linking to it. Sales in no payout show nothing (their
+ * money may never go out: some or all of it can be the label's, or the label account holder's).
+ */
+function PayoutCell({ state, periodId }: { state: "paid" | "pending" | "none"; periodId: number | null }) {
+  if (state === "none" || !periodId) return <span className="text-muted">–</span>;
+  return (
     <Link href={`/periods/${periodId}`} className="hover:no-underline" title="Open the payout">
-      {badge}
+      <PayoutBadge state={state} />
     </Link>
-  ) : (
-    badge
   );
 }
 
@@ -349,7 +350,7 @@ function Filters({ f, options, filtered }: { f: SalesFilter; options: Awaited<Re
           <option value="">All</option>
           <option value="paid">Paid out</option>
           <option value="pending">In a payout, not paid yet</option>
-          <option value="none">Not in a payout yet</option>
+          <option value="none">Not in any payout</option>
         </select>
       </label>
       <label className="flex items-center gap-2 self-end pb-2 text-sm">
