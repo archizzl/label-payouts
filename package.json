@@ -10,7 +10,8 @@
     "test": "vitest run",
     "import:local": "tsx --conditions=react-server --env-file=.env.local scripts/import-local.mts",
     "users": "tsx --env-file=.env.local scripts/users.mts",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "set-password": "tsx --env-file=.env.local scripts/set-password.mts"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.8",
