@@ -131,7 +131,7 @@ export default async function CatalogPage({ searchParams }: PageProps<"/catalog"
         );
       })}
       {!bandFilter && <OutsideArtists />}
-      {bands.length > 0 && (
+      {/* {bands.length > 0 && (
         <Disclosure summary="+ Add release">
           <form action={saveRelease} className="grid gap-4 sm:grid-cols-2">
             <input type="hidden" name="open" value="true" />
@@ -158,7 +158,7 @@ export default async function CatalogPage({ searchParams }: PageProps<"/catalog"
             </div>
           </form>
         </Disclosure>
-      )}
+      )} */}
       <SyncFooter orgId={orgId} />
     </>
   );

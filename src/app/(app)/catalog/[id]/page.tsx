@@ -155,14 +155,14 @@ export default async function ReleasePage({ params, searchParams }: PageProps<"/
                 view on Bandcamp ↗
               </a>
             )}
-            {release.url && (
+            {/* {release.url && (
               <ActionForm action={refreshReleaseFromBandcamp} className="text-sm">
                 <input type="hidden" name="id" value={id} />
                 <SubmitButton variant="secondary" size="sm">
                   refresh from Bandcamp
                 </SubmitButton>
               </ActionForm>
-            )}
+            )} */}
           </div>
           {release.syncedAt && <p className="mt-2 text-xs text-muted">Last read from Bandcamp {release.syncedAt.slice(0, 10)}.</p>}
         </div>

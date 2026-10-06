@@ -116,11 +116,11 @@ export async function SalesSection({
       {report.saleCount === 0 ? (
         <p className="text-sm text-muted">
           No sales {r.key === "all" ? "yet" : "in this range"}.{" "}
-          {!readOnly && (
+          {/* {!readOnly && (
             <>
               <Link href="/sales/import">Import a sales report</Link> to see them here.
             </>
-          )}
+          )} */}
         </p>
       ) : (
         <div className="space-y-8">
