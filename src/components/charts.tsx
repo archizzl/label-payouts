@@ -426,3 +426,96 @@ export function SpentVsMadeBack({
     </div>
   );
 }
+
+export type OwedBar = {
+  key: string;
+  name: string;
+  href?: string;
+  /** cents per part, in the order of `parts` */
+  values: number[];
+  /** Extra lines for the tooltip, e.g. who in the band it's owed to. */
+  detail?: string[];
+};
+
+/**
+ * Who's owed what: one stacked bar per band (or group) on a shared scale, parts in a fixed colour
+ * order with 2px gaps, the total at the end of each row, a legend above, and a tooltip per part.
+ */
+export function OwedBars({ rows, parts, currency }: { rows: OwedBar[]; parts: { label: string; color: string }[]; currency: string }) {
+  const [tip, setTip] = useState<Tip>(null);
+  const [active, setActive] = useState<string | null>(null);
+  const wrap = useRef<HTMLDivElement>(null);
+  const sum = (r: OwedBar) => r.values.reduce((a, v) => a + Math.max(0, v), 0);
+  const max = Math.max(1, ...rows.map(sum));
+  const used = parts.map((_, i) => rows.some((r) => r.values[i] > 0));
+
+  return (
+    <div ref={wrap} className="relative">
+      <ul className="mb-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted" aria-label="Legend">
+        {parts.map((p, i) =>
+          used[i] ? (
+            <li key={p.label} className="flex items-center gap-1.5">
+              <span className="inline-block h-2.5 w-2.5 rounded-[2px]" style={{ background: p.color }} />
+              {p.label}
+            </li>
+          ) : null,
+        )}
+      </ul>
+      <div className="space-y-1.5">
+        {rows.map((r) => {
+          const t = sum(r);
+          return (
+            <div key={r.key} className="grid grid-cols-[minmax(0,7rem)_1fr_auto] items-center gap-3 text-sm sm:grid-cols-[minmax(0,10rem)_1fr_auto]">
+              <span className="truncate text-muted" title={r.name}>
+                {r.href ? (
+                  <a href={r.href} className="hover:underline">
+                    {r.name}
+                  </a>
+                ) : (
+                  r.name
+                )}
+              </span>
+              <span className="flex h-3 gap-[2px]" style={{ width: `${(t / max) * 100}%`, minWidth: t > 0 ? 3 : 0 }}>
+                {r.values.map((v, i) => {
+                  if (v <= 0) return null;
+                  const id = `${r.key}:${i}`;
+                  const last = r.values.slice(i + 1).every((x) => x <= 0);
+                  const show = (e: { currentTarget: HTMLElement }) => {
+                    const box = wrap.current!.getBoundingClientRect();
+                    const b = e.currentTarget.getBoundingClientRect();
+                    setActive(id);
+                    setTip({
+                      x: b.left - box.left + b.width / 2,
+                      y: b.top - box.top,
+                      title: `${r.name} · ${parts[i].label}`,
+                      lines: [formatCents(v, currency), ...(r.detail ?? [])],
+                    });
+                  };
+                  const hide = () => {
+                    setTip(null);
+                    setActive(null);
+                  };
+                  return (
+                    <span
+                      key={i}
+                      tabIndex={0}
+                      aria-label={`${r.name}, ${parts[i].label}: ${formatCents(v, currency)}`}
+                      onPointerMove={show}
+                      onFocus={show}
+                      onPointerLeave={hide}
+                      onBlur={hide}
+                      className={`block h-full outline-none ${last ? "rounded-r-[4px]" : ""}`}
+                      style={{ width: `${(v / t) * 100}%`, minWidth: 3, background: parts[i].color, opacity: active && active !== id ? 0.55 : 1 }}
+                    />
+                  );
+                })}
+              </span>
+              <span className="text-right font-medium tabular-nums">{formatCents(t, currency)}</span>
+            </div>
+          );
+        })}
+      </div>
+      <Tooltip tip={tip} />
+    </div>
+  );
+}

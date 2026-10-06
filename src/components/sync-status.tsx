@@ -42,7 +42,6 @@ export async function SyncStatus({ orgId }: { orgId: string }) {
         ) : (
           "Not synced with Bandcamp yet."
         )}{" "}
-        It syncs on its own, at most once an hour, when the app is opened.
       </span>
       <SubmitButton size="sm" variant="secondary">
         Sync now
