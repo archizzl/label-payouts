@@ -62,6 +62,15 @@ export async function labelIncome(orgId: string) {
     for (const s of r.shares) if (holderIds.has(s.personId)) add(holderShare, r.currency, s.cents);
   }
 
+  // What's been sent on out of each source.
+  const sentBySource = new Map<string, Totals>();
+  for (const t of funds.transfers) {
+    if (!t.source) continue;
+    const m = sentBySource.get(t.source) ?? new Map();
+    add(m, t.currency, t.amountCents);
+    sentBySource.set(t.source, m);
+  }
+
   const balance: Totals = new Map();
   for (const cur of new Set([...income.keys(), ...funds.sent.keys(), ...funds.spent.keys()])) {
     balance.set(cur, (income.get(cur) ?? 0) - (funds.sent.get(cur) ?? 0) - (funds.spent.get(cur) ?? 0));
@@ -77,7 +86,23 @@ export async function labelIncome(orgId: string) {
     holderShare,
     holderName: holders.length === 1 ? holders[0].name : null,
     bySource,
+    sentBySource,
     byBand,
     byMonth,
   };
+}
+
+/** The sources a send-out can be tied to: every withholding kept by the label, plus shipping and label releases. */
+export async function incomeSources(orgId: string) {
+  const rows = await db
+    .select({ label: schema.deductions.label, bandId: schema.deductions.bandId, releaseId: schema.deductions.releaseId })
+    .from(schema.deductions)
+    .where(and(eq(schema.deductions.orgId, orgId), eq(schema.deductions.destination, "label")));
+  const seen = new Map<string, { label: string; bandId: number | null; releaseId: number | null }>();
+  for (const r of rows) if (!seen.has(r.label)) seen.set(r.label, r);
+  return [
+    ...[...seen.values()].sort((a, b) => a.label.localeCompare(b.label)),
+    { label: LABEL_RELEASES_SOURCE, bandId: null, releaseId: null },
+    { label: SHIPPING_SOURCE, bandId: null, releaseId: null },
+  ];
 }

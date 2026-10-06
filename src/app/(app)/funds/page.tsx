@@ -85,6 +85,12 @@ export default async function FundsPage() {
                   <div className="text-right tabular-nums">
                     {formatCents(src.net, cur)}
                     <div className="text-xs text-muted">{v(inc.income) ? `${((src.net / v(inc.income)) * 100).toFixed(1)}%` : ""}</div>
+                    {(inc.sentBySource.get(src.key)?.get(cur) ?? 0) !== 0 && (
+                      <div className="text-xs text-muted">
+                        {formatCents(inc.sentBySource.get(src.key)!.get(cur)!, cur)} sent on ·{" "}
+                        {formatCents(src.net - inc.sentBySource.get(src.key)!.get(cur)!, cur)} still here
+                      </div>
+                    )}
                   </div>
                 </li>
               );

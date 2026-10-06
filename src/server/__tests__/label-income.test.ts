@@ -32,7 +32,7 @@ describe("where the label's money comes from", () => {
       });
     await sale("cd", band.id, "merch", 935, { shipping: "4.50" }); // −$4 CD costs → $5.35 split 50/50
     await sale("comp", labelBand.id, "album", 700, {}); // label release, no split: the label keeps it
-    await db.insert(labelTransfers).values({ orgId, date: "2026-10-03", recipient: "Aid group", currency: "USD", amountCents: 100 });
+    await db.insert(labelTransfers).values({ orgId, date: "2026-10-03", recipient: "Aid group", currency: "USD", amountCents: 100, source: "CD costs" });
 
     const i = await income.labelIncome(orgId);
     expect(Object.fromEntries([...i.bySource].map(([k, t]) => [k, t.get("USD")]))).toEqual({
@@ -44,5 +44,9 @@ describe("where the label's money comes from", () => {
     expect(i.balance.get("USD")).toBe(1450); // minus the $1 sent on
     expect(i.holderShare.get("USD")).toBe(268); // Archie's half of $5.35, not counted as the label's
     expect(i.holderName).toBe("Archie");
+    expect(i.sentBySource.get("CD costs")?.get("USD")).toBe(100); // sent out of that source
+
+    const sources = (await income.incomeSources(orgId)).map((x) => x.label);
+    expect(sources).toEqual(["CD costs", income.LABEL_RELEASES_SOURCE, income.SHIPPING_SOURCE]);
   });
 });

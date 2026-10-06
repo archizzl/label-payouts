@@ -864,18 +864,28 @@ export async function saveLabelTransfer(_: ActionState, fd: FormData): Promise<A
   if (!date) return { error: "Pick the date it was sent" };
   if (!recipient) return { error: "Who received it?" };
   if (!(amountCents > 0)) return { error: "Enter the amount sent" };
-  const releaseId = optInt(fd, "releaseId");
+  // Tied to an income source: a withholding's band and release fill in "raised by" if left blank.
+  const source = optStr(fd, "source");
+  const [fromSource] = source
+    ? await db
+        .select()
+        .from(deductions)
+        .where(and(eq(deductions.orgId, orgId), eq(deductions.label, source), eq(deductions.destination, "label")))
+        .limit(1)
+    : [];
+  const releaseId = optInt(fd, "releaseId") ?? (optInt(fd, "bandId") ? null : (fromSource?.releaseId ?? null));
   const [release] = releaseId
     ? await db
         .select()
         .from(releases)
         .where(and(eq(releases.orgId, orgId), eq(releases.id, releaseId)))
     : [];
-  const bandId = release?.bandId ?? optInt(fd, "bandId");
+  const bandId = release?.bandId ?? optInt(fd, "bandId") ?? fromSource?.bandId ?? null;
   await owned(orgId, bands, bandId);
   const values = {
     date,
     recipient,
+    source,
     amountCents,
     currency: (str(fd, "currency") || "USD").toUpperCase(),
     releaseId: release?.id ?? null,

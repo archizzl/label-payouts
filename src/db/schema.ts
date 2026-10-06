@@ -418,6 +418,11 @@ export const labelTransfers = pgTable(
     /** What it was for (both optional): the band whose sales raised it, and/or the release. */
     bandId: integer("band_id").references(() => bands.id, { onDelete: "set null" }),
     releaseId: integer("release_id").references(() => releases.id, { onDelete: "set null" }),
+    /**
+     * Which of the label's income sources it came out of: a withholding's name (e.g. "Triple Single
+     * Fundraiser"), or shipping / the label's own releases (see src/server/label-income.ts).
+     */
+    source: text("source"),
     /** How it was sent: PayPal, bank transfer, check… */
     method: text("method"),
     reference: text("reference"),

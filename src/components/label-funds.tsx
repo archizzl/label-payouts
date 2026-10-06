@@ -7,15 +7,19 @@ import { deleteLabelTransfer, saveLabelTransfer } from "@/server/actions";
 import { eq } from "drizzle-orm";
 import { getContext } from "@/server/context";
 import { labelFunds, nameMaps } from "@/server/data";
+import { incomeSources } from "@/server/label-income";
 
 type Transfer = typeof schema.labelTransfers.$inferSelect;
 
 async function TransferForm({ transfer, bandId }: { transfer?: Transfer; bandId?: number }) {
   const { orgId } = await getContext();
-  const [bands, releases] = await Promise.all([
+  const [bands, releases, sources] = await Promise.all([
     db.select().from(schema.bands).where(eq(schema.bands.orgId, orgId)).orderBy(schema.bands.name),
     db.select().from(schema.releases).where(eq(schema.releases.orgId, orgId)).orderBy(schema.releases.title),
+    incomeSources(orgId),
   ]);
+  // Keep a source that's since been renamed or removed selectable when editing.
+  const sourceOptions = transfer?.source && !sources.some((x) => x.label === transfer.source) ? [...sources, { label: transfer.source }] : sources;
   const today = new Date().toLocaleDateString("en-CA"); // local yyyy-mm-dd
   const forBand = transfer?.bandId ?? bandId ?? null;
   return (
@@ -32,6 +36,16 @@ async function TransferForm({ transfer, bandId }: { transfer?: Transfer; bandId?
       </Field>
       <Field label="Date sent">
         <input name="date" type="date" required defaultValue={transfer?.date ?? today} />
+      </Field>
+      <Field label="From (optional)" hint="Which of the label’s money it came out of. A fundraiser fills in its band and release for you.">
+        <select name="source" defaultValue={transfer?.source ?? ""}>
+          <option value="">Not tied to a source</option>
+          {sourceOptions.map((x) => (
+            <option key={x.label} value={x.label}>
+              {x.label}
+            </option>
+          ))}
+        </select>
       </Field>
       <Field label="Raised by (optional)" hint="The band whose sales this money came from.">
         <select name="bandId" defaultValue={forBand ?? ""}>
@@ -167,7 +181,7 @@ export async function LabelFunds({ bandId, showTotals = true }: { bandId?: numbe
               <tr>
                 <th>Date</th>
                 <th>Sent to</th>
-                <th>Raised by</th>
+                <th>From</th>
                 <th className="num">Amount</th>
                 <th>How</th>
                 <th />
@@ -181,7 +195,10 @@ export async function LabelFunds({ bandId, showTotals = true }: { bandId?: numbe
                     <div className="font-medium">{t.recipient}</div>
                     {t.note && <div className="text-xs text-muted">{t.note}</div>}
                   </td>
-                  <td className="text-sm">{causeName(t) || <span className="text-muted">—</span>}</td>
+                  <td className="text-sm">
+                    {t.source ?? (causeName(t) ? null : <span className="text-muted">—</span>)}
+                    {causeName(t) && <div className={t.source ? "text-xs text-muted" : ""}>{causeName(t)}</div>}
+                  </td>
                   <td className="num font-medium">
                     <Money cents={t.amountCents} currency={t.currency} />
                   </td>
