@@ -4,10 +4,10 @@ import { connection } from "next/server";
 import { SubmitButton } from "@/components/client";
 import { PhysicalFormatsTable } from "@/components/physical-formats";
 import { OutsideArtists } from "@/components/outside-artists";
-import { ReleaseImport } from "@/components/release-import";
 import { Card, Disclosure, Empty, Field, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
 import { saveRelease } from "@/server/actions";
+import { SyncStatus } from "@/components/sync-status";
 import { requireAdmin } from "@/server/context";
 
 export default async function CatalogPage({ searchParams }: PageProps<"/catalog">) {
@@ -46,8 +46,9 @@ export default async function CatalogPage({ searchParams }: PageProps<"/catalog"
   return (
     <>
       <PageHeader title="Catalog" subtitle="Releases, tracks and merch. Give any of them its own split, or let them use the band’s splits." />
-      <ReleaseImport />
-      <OutsideArtists />
+      <div className="mb-6">
+        <SyncStatus orgId={orgId} />
+      </div>
       <div className="mb-4 flex flex-wrap gap-2 text-sm">
         <Link href="/catalog" className={`rounded-full px-3 py-1 ${!bandFilter ? "bg-text text-bg" : "bg-surface-2 text-muted"}`}>
           all bands
@@ -57,6 +58,7 @@ export default async function CatalogPage({ searchParams }: PageProps<"/catalog"
             {b.name}
           </Link>
         ))}
+        <OutsideArtists />
       </div>
       {bands.length === 0 && (
         <Card>

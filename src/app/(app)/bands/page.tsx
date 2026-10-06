@@ -2,9 +2,9 @@ import { and, count, eq } from "drizzle-orm";
 import Link from "next/link";
 import { connection } from "next/server";
 import { BandFields } from "@/components/band-fields";
-import { LabelImport } from "@/components/label-import";
 import { Card, Disclosure, Empty, MoneyList, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
+import { SyncStatus } from "@/components/sync-status";
 import { requireAdmin } from "@/server/context";
 import { linkedBandAccounts } from "@/server/links";
 import { computeAllTime, labelHost } from "@/server/data";
@@ -55,7 +55,9 @@ export default async function BandsPage() {
   return (
     <>
       <PageHeader title="Bands" subtitle="Each band's members, how sales are matched to it, and its default splits." />
-      <LabelImport />
+      <div className="mb-6">
+        <SyncStatus orgId={orgId} />
+      </div>
       <Card>
         {bands.length === 0 ? (
           <Empty>No bands yet. Add your first one below.</Empty>

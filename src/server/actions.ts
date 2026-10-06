@@ -13,21 +13,7 @@ import { fetchPage, upsertRelease } from "./bandcamp";
 import { bandcampCredentials } from "./bandcamp-api";
 import { syncAccount } from "./auto-sync";
 import { requireAdmin } from "./context";
-import {
-  addArtists,
-  importReleases,
-  type LabelArtistRow,
-  type LabelLookup,
-  lookupLabelArtists,
-  lookupLabelReleases,
-  outsideArtistsNeedingContact,
-  prepare,
-  type ReleaseImportResult,
-  type ReleaseImportRow,
-  type ReleaseLookup,
-  runSalesSync,
-  saveSales,
-} from "./sync";
+import { prepare, runSalesSync, saveSales } from "./sync";
 import { computePayoutPeriod, reRouteAll } from "./data";
 import { type PayoutScope, payoutName } from "./period-view";
 import { autoMergeByEmail, findExistingPerson, mergePeople } from "./people";
@@ -901,52 +887,6 @@ export async function deleteLabelTransfer(fd: FormData) {
   const { orgId } = await requireAdmin();
   await db.delete(labelTransfers).where(and(eq(labelTransfers.orgId, orgId), eq(labelTransfers.id, int(fd, "id"))));
   done();
-}
-
-// ---------- grab bands, releases and merch from a Bandcamp label page ----------
-
-export type { LabelArtistRow, LabelLookup, LabelReleaseRow, ReleaseImportResult, ReleaseLookup } from "./sync";
-
-export async function findLabelArtists(input: string): Promise<LabelLookup> {
-  const { orgId } = await requireAdmin();
-  const result = await lookupLabelArtists(orgId, input);
-  done();
-  return result;
-}
-
-/** Create the selected bands (or add the Bandcamp URL to ones that already exist by name). */
-export async function addLabelArtists(rows: LabelArtistRow[]): Promise<{ added: number; updated: number }> {
-  const { orgId } = await requireAdmin();
-  const result = await addArtists(orgId, rows);
-  done();
-  return result;
-}
-
-export async function findLabelReleases(input: string): Promise<ReleaseLookup> {
-  const { orgId } = await requireAdmin();
-  return lookupLabelReleases(orgId, input);
-}
-
-/**
- * Fetch a batch of release pages and save them. The client sends small batches one after another
- * (Next.js runs server actions sequentially) so it can show progress, then calls
- * finishReleaseImport() once at the end.
- */
-export async function importBandcampReleases(
-  rows: ReleaseImportRow[],
-  labelHost: string,
-  labelName: string | null = null,
-): Promise<ReleaseImportResult[]> {
-  const { orgId } = await requireAdmin();
-  return importReleases(orgId, rows, labelHost, labelName);
-}
-
-/** After an import: re-match sales, and report how many outside artists still need a contact. */
-export async function finishReleaseImport(): Promise<{ needContacts: number }> {
-  const { orgId } = await requireAdmin();
-  await reRouteAll(orgId);
-  done();
-  return { needContacts: await outsideArtistsNeedingContact(orgId) };
 }
 
 /**

@@ -139,7 +139,7 @@ export default async function ImportPage({ searchParams }: PageProps<"/sales/imp
             <p className="text-sm text-muted">
               {/* Fetches the raw sales report for your label and all its artists through the Bandcamp API and imports every sale that
               isn’t here yet, including refunds. */}
-              {lastSync ? <> Last synced {lastSync.importedAt.replace("T", " ").slice(0, 16)}.</> : " Not synced yet."}
+              {/* {lastSync ? <> Last synced {lastSync.importedAt.replace("T", " ").slice(0, 16)}.</> : " Not synced yet."} */}
             </p>
             {/* <div className="flex flex-wrap items-end gap-3">
               <SubmitButton>Sync sales now</SubmitButton>

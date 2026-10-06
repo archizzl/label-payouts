@@ -491,7 +491,7 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
 
       <Card title="Releases" actions={<LinkButton href={`/catalog?band=${id}`} size="sm">Open in catalog</LinkButton>}>
         {music.length === 0 ? (
-          <Empty>No releases yet. Grab them from Bandcamp on the Catalog page, add them here, or create them from sales on the Import page.</Empty>
+          <Empty>No releases yet. They sync from Bandcamp automatically (see Settings for your Bandcamp address), or add them here, or create them from sales under Sales → Import.</Empty>
         ) : (
           itemTable(music)
         )}
@@ -521,14 +521,14 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
       <Card title="Physical formats">
         <PhysicalFormatsTable
           releases={music}
-          empty="No CDs, vinyl or cassettes. They come in with each release when you grab releases from Bandcamp."
+          empty="No CDs, vinyl or cassettes. They come in with each release when it syncs from Bandcamp."
           costs={itemCosts}
         />
       </Card>
 
       <Card title="Standalone merch">
         {merch.length === 0 ? (
-          <Empty>No shirts, posters or other merch. Grab them from Bandcamp on the Catalog page.</Empty>
+          <Empty>No shirts, posters or other merch. They sync from Bandcamp automatically.</Empty>
         ) : (
           itemTable(merch)
         )}

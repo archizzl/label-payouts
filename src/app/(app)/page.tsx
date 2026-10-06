@@ -60,7 +60,7 @@ export default async function Dashboard() {
       href: "/bands",
       hint: bands.length ? memberHint : "",
     },
-    { done: releaseCount > 0, label: "Grab your releases and merch from Bandcamp (optional, improves matching)", href: "/catalog", hint: "" },
+    { done: releaseCount > 0, label: "Add your Bandcamp address in Settings, so bands, releases and merch sync automatically", href: "/account", hint: "" },
     {
       done: bands.length > 0 && (defaults.some((d) => d.scope === "label_default") || bands.every((b) => defaults.some((d) => d.bandId === b.id))),
       label: "Set a label-wide default split, or one for each band",
