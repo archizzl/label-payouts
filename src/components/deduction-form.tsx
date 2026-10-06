@@ -18,7 +18,7 @@ const KIND_HELP = {
   per_unit: "Taken from every matching item sold (× quantity), e.g. $3.42 per CD, before the profit is split. Never more than the sale; refunds reverse it.",
   fixed: "Taken from matching sales, oldest first, until the total is paid off (e.g. a $300 mastering bill), then it stops.",
   sale_part:
-    "Takes exactly that part of each matching sale, whatever it was, as Bandcamp reported it (you can see it on each sale in the Sales tab). Never more than the sale; refunds reverse it.",
+    "Takes exactly that part of each matching sale, whatever it was, as Bandcamp reported it (you can see it on each sale in the Sales tab). Never more than the sale; refunds reverse it. (Shipping and sales tax are never split, so there’s nothing to withhold for them: shipping stays with the label.)",
 } as const;
 
 /**
@@ -68,7 +68,7 @@ export function DeductionForm({
           <select name="kind" value={kind} onChange={(e) => setKind(e.target.value as Deduction["kind"])}>
             <option value="percent">Percentage of each sale</option>
             <option value="per_unit">Fixed amount per item sold</option>
-            <option value="sale_part">A part of each sale (e.g. its shipping)</option>
+            <option value="sale_part">A part of each sale (e.g. what fans paid above the price)</option>
             <option value="fixed">Fixed total, recouped until paid off</option>
           </select>
         </Field>

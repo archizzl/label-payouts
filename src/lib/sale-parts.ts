@@ -1,14 +1,14 @@
 import { parseCents } from "./money";
 
 /*
- * Parts of a sale as Bandcamp reports it, which a withholding can take exactly (e.g. "the shipping
- * on each CD sale, whatever it was"). The same columns the Sales tab shows for each sale.
+ * Parts of a sale as Bandcamp reports it, which a withholding can take exactly (e.g. "whatever the
+ * fan paid above the price"). Only parts inside Bandcamp's net amount, which is what gets split:
+ * shipping and sales tax are never in it (shipping stays with the label; tax goes to the
+ * government), so they can't be withheld again.
  */
 
 export const SALE_PARTS = [
-  { key: "shipping", label: "Shipping", raw: ["shipping"], hint: "what the fan paid for shipping" },
   { key: "fan_extra", label: "Paid above price", raw: ["additional fan contribution"], hint: "what the fan chose to pay over the price" },
-  { key: "seller_tax", label: "Sales tax you collected", raw: ["seller tax"], hint: "tax collected for you to remit" },
 ] as const;
 
 export type SalePart = (typeof SALE_PARTS)[number]["key"];

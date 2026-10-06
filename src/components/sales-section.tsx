@@ -40,11 +40,20 @@ export async function SalesSection({
   // Everything fans paid, split by where it ended up. Any gap (e.g. a fee column we don't read)
   // shows as its own segment rather than being hidden.
   const accounted =
-    report.toPeople + report.label + report.bandFund + report.costs + report.unallocated + report.bandcampShare + report.processorFee + report.marketplaceTax;
+    report.toPeople +
+    report.label +
+    report.shipping +
+    report.bandFund +
+    report.costs +
+    report.unallocated +
+    report.bandcampShare +
+    report.processorFee +
+    report.marketplaceTax;
   const other = report.gross - accounted;
   const segments: Segment[] = [
     { key: "people", label: "Paid to people", value: report.toPeople, color: "var(--series-1)" },
-    { key: "label", label: "Label", value: report.label, color: "var(--series-2)" },
+    // Shipping isn't split: it stays with the label, for postage.
+    { key: "label", label: report.shipping ? "Label (incl. shipping)" : "Label", value: report.label + report.shipping, color: "var(--series-2)" },
     { key: "fund", label: "Band fund", value: report.bandFund, color: "var(--series-3)" },
     { key: "costs", label: "Costs withheld", value: report.costs, color: "var(--series-4)" },
     { key: "bandcamp", label: "Bandcamp’s share", value: report.bandcampShare, color: "var(--series-5)" },
@@ -156,7 +165,8 @@ export async function SalesSection({
               footer={
                 report.shipping > 0 ? (
                   <p className="mt-2 text-xs text-muted">
-                    Includes {formatCents(report.shipping, cur)} of shipping fans paid, which is part of what was received.
+                    The label’s part includes {formatCents(report.shipping, cur)} of shipping fans paid. Shipping isn’t split: it stays
+                    with the label, for postage.
                   </p>
                 ) : null
               }
@@ -175,7 +185,7 @@ export async function SalesSection({
                       <th className="num">digital</th>
                       <th className="num">physical / merch</th>
                       <th className="num">= fans paid</th>
-                      <th className="num">− fees &amp; tax</th>
+                      <th className="num">− fees, tax &amp; shipping</th>
                       <th className="num">= net</th>
                       <th className="num">to people</th>
                     </tr>
@@ -237,8 +247,9 @@ export async function SalesSection({
                   </tbody>
                 </table>
                 <p className="mt-2 text-xs text-muted">
-                  Digital and physical are what fans paid (physical includes shipping). Fees &amp; tax are Bandcamp’s share, payment
-                  processing and any sales tax Bandcamp collected. To people is net after the label’s cut, band funds and costs.
+                  Digital and physical are what fans paid (physical includes shipping). Fees, tax &amp; shipping are Bandcamp’s share,
+                  payment processing, any sales tax Bandcamp collected, and shipping (which stays with the label, for postage). Net is
+                  what gets split; to people is net after the label’s cut, band funds and costs.
                 </p>
               </div>
             </div>

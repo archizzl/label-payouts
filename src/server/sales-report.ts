@@ -153,13 +153,17 @@ export async function salesReport(orgId: string, scope: SalesScope): Promise<Sal
     const gross = Math.abs(grossRaw) * sign;
     // Bandcamp's share: its own column if the report has one, otherwise what's left over.
     const explicitShare = rawCents(s.raw, RAW.bandcampShare);
+    // Shipping isn't in the net amount either: it stays with the label (for postage), not Bandcamp.
+    const shipping = Math.abs(rawCents(s.raw, RAW.shipping) ?? 0);
     const bandcampShare =
-      explicitShare !== null ? Math.abs(explicitShare) * sign : sign * Math.max(0, Math.abs(gross) - Math.abs(net) - Math.abs(processor) - Math.abs(marketplaceTax));
+      explicitShare !== null
+        ? Math.abs(explicitShare) * sign
+        : sign * Math.max(0, Math.abs(gross) - Math.abs(net) - Math.abs(processor) - Math.abs(marketplaceTax) - shipping);
 
     report.units += units;
     report.gross += gross;
     report.fanExtra += rawCents(s.raw, RAW.fanExtra) ?? 0; // refund rows already carry a negative amount
-    report.shipping += Math.abs(rawCents(s.raw, RAW.shipping) ?? 0) * sign;
+    report.shipping += shipping * sign;
     report.processorFee += processor;
     report.marketplaceTax += marketplaceTax;
     report.bandcampShare += bandcampShare;
