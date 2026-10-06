@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq, inArray, ne } from "drizzle-orm";
+import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import { db, schema } from "@/db";
 import type { ParseResult } from "@/lib/bandcamp-csv";
 import { parseBandcampApiReport } from "@/lib/bandcamp-csv";
@@ -18,6 +18,7 @@ import { parseReleasePage } from "@/lib/bandcamp-release";
 import { normalizeText, routeSale, routingKey } from "@/lib/routing";
 import { allBands, createBandFor, fetchPage, findBandFor, findExistingRelease, hostOf, rememberLabelPhoto, upsertRelease } from "./bandcamp";
 import { API_SYNC_PREFIX, bandcampCredentials, salesReport } from "./bandcamp-api";
+import { emailFingerprint } from "./secrets";
 import { loadCatalog, reRouteAll } from "./data";
 
 /*
@@ -47,6 +48,16 @@ export async function prepare(orgId: string, parsed: ParseResult) {
 }
 
 /** Store the new (not yet imported) sales of a parsed report as one import. */
+/** The buyer's fingerprint: "" when the report has no email, null when it can't be made (no key set up). */
+function buyerKeyOf(email: string): string | null {
+  if (!email) return "";
+  try {
+    return emailFingerprint(email) ?? "";
+  } catch {
+    return null;
+  }
+}
+
 export async function saveSales(orgId: string, filename: string, parsed: ParseResult) {
   const { routed } = await prepare(orgId, parsed);
   const fresh = routed.filter((r) => !r.duplicate);
@@ -80,9 +91,19 @@ export async function saveSales(orgId: string, filename: string, parsed: ParseRe
             trackId: route.trackId,
             routedVia: route.via,
             raw: s.raw,
+            buyerKey: buyerKeyOf(s.buyerEmail),
           })),
         )
         .onConflictDoNothing();
+    }
+    // Sales imported before buyers were fingerprinted get theirs from this report.
+    const known = routed.filter((r) => r.duplicate && r.sale.buyerEmail && buyerKeyOf(r.sale.buyerEmail));
+    for (let i = 0; i < known.length; i += 500) {
+      const rows = known.slice(i, i + 500).map((r) => sql`(${r.sale.dedupeKey}, ${buyerKeyOf(r.sale.buyerEmail)})`);
+      await tx.execute(sql`
+        update ${sales} set buyer_key = v.key
+        from (values ${sql.join(rows, sql`, `)}) as v(dedupe_key, key)
+        where ${sales.orgId} = ${orgId} and ${sales.dedupeKey} = v.dedupe_key and ${sales.buyerKey} is null`);
     }
     return id;
   });

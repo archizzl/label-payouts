@@ -6,9 +6,10 @@ import { SubmitButton } from "@/components/client";
 import { FanImportForm } from "@/components/fan-import-form";
 import { buttonClass, Card, Empty, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
+import { formatCents } from "@/lib/money";
 import { requireAdmin } from "@/server/context";
 import { deleteFans } from "@/server/fan-actions";
-import { type FanFilter, fanStats, listFans } from "@/server/fans";
+import { type FanFilter, fanStats, listFans, type Purchase } from "@/server/fans";
 
 /** The mailing list, from Bandcamp's mailing-list export. Admins only: it's fans' personal data. */
 export default async function FansPage({ searchParams }: PageProps<"/fans">) {
@@ -59,11 +60,43 @@ export default async function FansPage({ searchParams }: PageProps<"/fans">) {
         </Card>
       ) : (
         <>
-          <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-3">
+          <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
             <Tile label="On the list" value={stats.total.toLocaleString("en-US")} />
             <Tile label="Signed up in the last 30 days" value={stats.last30.toLocaleString("en-US")} />
             <Tile label="Countries" value={String(stats.byCountry.filter((c) => c.country).length)} />
+            <Tile
+              label={stats.buyers.known ? `of ${stats.buyers.known.toLocaleString("en-US")} buyers are on the list` : "Buyers on the list"}
+              value={stats.buyers.known ? stats.buyers.onList.toLocaleString("en-US") : "–"}
+            />
           </div>
+          {stats.buyers.known === 0 && (
+            <p className="-mt-3 mb-6 text-sm text-muted">
+              Purchases show up here once sales are synced from Bandcamp again (or a sales report CSV is imported): fans are matched to what
+              they bought by email.
+            </p>
+          )}
+
+          {stats.top.length > 0 && (
+            <Card title="Biggest supporters on the list">
+              <table className="data">
+                <tbody>
+                  {stats.top.map((t) => (
+                    <tr key={`${t.fanId}-${t.currency}`}>
+                      <td>
+                        {t.name ?? t.email}
+                        {t.name && <div className="text-xs text-muted">{t.email}</div>}
+                      </td>
+                      <td className="num text-muted">
+                        {t.items} item{t.items === 1 ? "" : "s"}
+                      </td>
+                      <td className="num font-medium">{formatCents(t.cents, t.currency)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="mt-2 text-xs text-muted">What reached you from their purchases (Bandcamp’s net amount).</p>
+            </Card>
+          )}
 
           {stats.byMonth.length > 1 && (
             <Card title="Sign-ups by month">
@@ -150,6 +183,7 @@ export default async function FansPage({ searchParams }: PageProps<"/fans">) {
                         <th>Country</th>
                         <th>Signed up</th>
                         {!isBand && <th>Lists</th>}
+                        <th>Bought</th>
                         <th />
                       </tr>
                     </thead>
@@ -168,6 +202,9 @@ export default async function FansPage({ searchParams }: PageProps<"/fans">) {
                               {f.bandIds.length ? f.bandIds.map((b) => bandName.get(b)).join(", ") : <span className="text-muted">{ownList}</span>}
                             </td>
                           )}
+                          <td className="text-sm">
+                            <Bought purchases={f.purchases} bandName={bandName} />
+                          </td>
                           <td className="text-right">
                             <form action={deleteFans}>
                               <input type="hidden" name="id" value={f.id} />
@@ -211,6 +248,29 @@ export default async function FansPage({ searchParams }: PageProps<"/fans">) {
         </>
       )}
     </>
+  );
+}
+
+/** "3 · $24.00", opening to the items they bought. */
+function Bought({ purchases, bandName }: { purchases: Purchase[]; bandName: Map<number, string> }) {
+  if (!purchases.length) return <span className="text-muted">–</span>;
+  const totals = new Map<string, number>();
+  for (const p of purchases) totals.set(p.currency, (totals.get(p.currency) ?? 0) + p.netCents);
+  return (
+    <details>
+      <summary className="cursor-pointer whitespace-nowrap">
+        {purchases.length} · {[...totals].map(([c, v]) => formatCents(v, c)).join(" + ")}
+      </summary>
+      <ul className="mt-1 space-y-0.5 text-xs text-muted">
+        {purchases.slice(0, 20).map((p, i) => (
+          <li key={i}>
+            {p.date} · {p.itemName}
+            {p.bandId ? ` (${bandName.get(p.bandId) ?? p.artist})` : p.artist ? ` (${p.artist})` : ""} · {formatCents(p.netCents, p.currency)}
+          </li>
+        ))}
+        {purchases.length > 20 && <li>…and {purchases.length - 20} more</li>}
+      </ul>
+    </details>
   );
 }
 

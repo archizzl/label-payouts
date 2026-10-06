@@ -319,8 +319,17 @@ export const sales = pgTable(
     trackId: integer("track_id").references(() => tracks.id, { onDelete: "set null" }),
     routedVia: text("routed_via"),
     raw: jsonb("raw").$type<Record<string, string>>().notNull(),
+    /**
+     * A fingerprint of the buyer's email (see emailFingerprint), to match purchases to fans on the
+     * mailing list. The email itself isn't stored. "" when the report had none.
+     */
+    buyerKey: text("buyer_key"),
   },
-  (t) => [uniqueIndex("sales_org_dedupe").on(t.orgId, t.dedupeKey), index("sales_org_date").on(t.orgId, t.date)],
+  (t) => [
+    uniqueIndex("sales_org_dedupe").on(t.orgId, t.dedupeKey),
+    index("sales_org_date").on(t.orgId, t.date),
+    index("sales_org_buyer").on(t.orgId, t.buyerKey),
+  ],
 );
 
 export const periods = pgTable(
@@ -571,9 +580,11 @@ export const fans = pgTable(
     /** Columns we don't otherwise use, kept as exported. */
     extra: jsonb("extra").$type<Record<string, string>>().notNull().default({}),
     firstImportId: integer("first_import_id").references(() => fanImports.id, { onDelete: "set null" }),
+    /** Fingerprint of the email, to find their purchases (sales.buyerKey). */
+    emailKey: text("email_key"),
     createdAt: text("created_at").notNull().default(now),
   },
-  (t) => [index("fans_org").on(t.orgId), uniqueIndex("fans_org_email").on(t.orgId, t.email)],
+  (t) => [index("fans_org").on(t.orgId), uniqueIndex("fans_org_email").on(t.orgId, t.email), index("fans_org_key").on(t.orgId, t.emailKey)],
 );
 
 /** Which bands' lists a fan is on (none: the label's own list). */

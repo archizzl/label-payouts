@@ -1,5 +1,5 @@
 import "server-only";
-import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes } from "node:crypto";
 
 /*
  * Encryption for secrets stored in the database (e.g. an account's Bandcamp API client secret), so a
@@ -26,4 +26,16 @@ export function decryptSecret(stored: string): string {
   const decipher = createDecipheriv("aes-256-gcm", key(), Buffer.from(iv, "base64"));
   decipher.setAuthTag(Buffer.from(tag, "base64"));
   return Buffer.concat([decipher.update(Buffer.from(data, "base64")), decipher.final()]).toString("utf8");
+}
+
+/**
+ * A fingerprint of an email address: the same address always gives the same fingerprint, but the
+ * address can't be read back from it. Lets a fan on the mailing list be matched to their purchases
+ * without storing every buyer's email. Keyed (HMAC), so it can't be reversed by guessing addresses
+ * without APP_ENCRYPTION_KEY.
+ */
+export function emailFingerprint(email: string): string | null {
+  const e = email.trim().toLowerCase();
+  if (!e.includes("@")) return null;
+  return createHmac("sha256", key()).update(`email:${e}`).digest("base64url").slice(0, 32);
 }

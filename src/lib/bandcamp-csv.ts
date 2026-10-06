@@ -20,6 +20,8 @@ export type ParsedSale = {
   netCents: number;
   transactionId: string;
   raw: Record<string, string>;
+  /** The buyer's email, only so it can be fingerprinted on import (never stored). */
+  buyerEmail: string;
 };
 
 export type ItemCategory = "album" | "track" | "merch" | "other";
@@ -166,6 +168,7 @@ function parseBandcampTable(headerRow: string[], body: string[][]): ParseResult 
   const missingColumns = REQUIRED.filter((f) => index[f] === undefined);
   if (missingColumns.length) return { sales: [], skipped: [], headers, missingColumns };
 
+  const buyerEmailCol = headers.indexOf("buyer email");
   const get = (row: string[], f: Field) => {
     const i = index[f];
     return i === undefined ? "" : (row[i] ?? "").trim();
@@ -232,6 +235,7 @@ function parseBandcampTable(headerRow: string[], body: string[][]): ParseResult 
       netCents,
       transactionId,
       raw,
+      buyerEmail: buyerEmailCol >= 0 ? (row[buyerEmailCol] ?? "").trim().toLowerCase() : "",
     });
   }
 

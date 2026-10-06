@@ -3,13 +3,34 @@ import { and, asc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import { db, schema } from "@/db";
 import type { ParsedFan } from "@/lib/fan-csv";
 import { normalizeText } from "@/lib/routing";
+import { emailFingerprint } from "./secrets";
 
 /*
  * The mailing list: fans brought in from Bandcamp's mailing-list export. One row per email per
  * account; a fan can be on several bands' lists (or just the label's).
  */
 
-const { fans, fanBands, fanImports, bands } = schema;
+const { fans, fanBands, fanImports, bands, sales } = schema;
+
+const fingerprint = (email: string) => {
+  try {
+    return emailFingerprint(email);
+  } catch {
+    return null; // no APP_ENCRYPTION_KEY: fans just aren't matched to purchases
+  }
+};
+
+/** Give fans added before purchases were matched their fingerprint. */
+async function fillFanKeys(orgId: string) {
+  const missing = await db
+    .select({ id: fans.id, email: fans.email })
+    .from(fans)
+    .where(and(eq(fans.orgId, orgId), sql`${fans.emailKey} is null`));
+  for (const f of missing) {
+    const key = fingerprint(f.email);
+    if (key) await db.update(fans).set({ emailKey: key }).where(eq(fans.id, f.id));
+  }
+}
 
 export type FanImportPlan = {
   total: number;
@@ -80,6 +101,7 @@ export async function importFans(
             addedOn: f.addedOn ?? today,
             extra: f.extra,
             firstImportId: imp.id,
+            emailKey: fingerprint(f.email),
           })),
         )
         .onConflictDoUpdate({
@@ -89,6 +111,7 @@ export async function importFans(
             country: sql`coalesce(${fans.country}, excluded.country)`,
             postalCode: sql`coalesce(${fans.postalCode}, excluded.postal_code)`,
             addedOn: sql`least(${fans.addedOn}, excluded.added_on)`,
+            emailKey: sql`coalesce(${fans.emailKey}, excluded.email_key)`,
           },
         })
         // xmax = 0 only for rows this statement inserted.
@@ -122,6 +145,7 @@ function fanWhere(orgId: string, { q, bandId }: FanFilter) {
 
 /** Fans matching a search, newest sign-ups first, each with the bands whose lists they're on. */
 export async function listFans(orgId: string, filter: FanFilter, limit = 200) {
+  await fillFanKeys(orgId);
   const where = fanWhere(orgId, filter);
   const [rows, [{ n }]] = await Promise.all([
     db
@@ -145,7 +169,35 @@ export async function listFans(orgId: string, filter: FanFilter, limit = 200) {
     : [];
   const bandsOf = new Map<number, number[]>();
   for (const l of links) bandsOf.set(l.fanId, [...(bandsOf.get(l.fanId) ?? []), l.bandId]);
-  return { rows: rows.map((r) => ({ ...r, bandIds: bandsOf.get(r.id) ?? [] })), count: n };
+  const bought = await purchasesOf(orgId, rows);
+  return { rows: rows.map((r) => ({ ...r, bandIds: bandsOf.get(r.id) ?? [], purchases: bought.get(r.id) ?? [] })), count: n };
+}
+
+export type Purchase = { date: string; itemName: string; artist: string; bandId: number | null; currency: string; netCents: number };
+
+/** What each of these fans has bought, newest first (matched by email fingerprint). */
+async function purchasesOf(orgId: string, rows: { id: number; emailKey: string | null }[]) {
+  const byKey = new Map(rows.filter((r) => r.emailKey).map((r) => [r.emailKey!, r.id]));
+  const out = new Map<number, Purchase[]>();
+  if (!byKey.size) return out;
+  const found = await db
+    .select({
+      buyerKey: sales.buyerKey,
+      date: sales.date,
+      itemName: sales.itemName,
+      artist: sales.artist,
+      bandId: sales.bandId,
+      currency: sales.currency,
+      netCents: sales.netCents,
+    })
+    .from(sales)
+    .where(and(eq(sales.orgId, orgId), inArray(sales.buyerKey, [...byKey.keys()])))
+    .orderBy(sql`${sales.date} desc`);
+  for (const { buyerKey, ...p } of found) {
+    const id = byKey.get(buyerKey!)!;
+    out.set(id, [...(out.get(id) ?? []), p]);
+  }
+  return out;
 }
 
 /** Everything for the export: every matching fan (no limit). */
@@ -155,7 +207,9 @@ export async function allFans(orgId: string, filter: FanFilter) {
 
 /** Totals for the page: list size, sign-ups by month, per band, top countries. */
 export async function fanStats(orgId: string) {
-  const [[totals], byMonth, byBand, byCountry, imports] = await Promise.all([
+  await fillFanKeys(orgId);
+  const onList = sql`exists (select 1 from ${fans} where ${fans.orgId} = ${orgId} and ${fans.emailKey} = ${sales.buyerKey})`;
+  const [[totals], byMonth, byBand, byCountry, imports, [buyers], top] = await Promise.all([
     db
       .select({
         total: sql<number>`count(*)::int`,
@@ -187,8 +241,42 @@ export async function fanStats(orgId: string) {
       .where(eq(fanImports.orgId, orgId))
       .orderBy(sql`${fanImports.id} desc`)
       .limit(10),
+    // Buyers (distinct fingerprints), and how many of them are on the list.
+    db
+      .select({
+        known: sql<number>`count(distinct ${sales.buyerKey}) filter (where ${sales.buyerKey} <> '')::int`,
+        onList: sql<number>`count(distinct ${sales.buyerKey}) filter (where ${sales.buyerKey} <> '' and ${onList})::int`,
+        unchecked: sql<number>`count(*) filter (where ${sales.buyerKey} is null)::int`,
+      })
+      .from(sales)
+      .where(eq(sales.orgId, orgId)),
+    // The biggest supporters on the list.
+    db
+      .select({
+        fanId: fans.id,
+        email: fans.email,
+        name: fans.name,
+        currency: sales.currency,
+        cents: sql<number>`sum(${sales.netCents})::int`,
+        items: sql<number>`count(*)::int`,
+      })
+      .from(fans)
+      .innerJoin(sales, and(eq(sales.orgId, fans.orgId), eq(sales.buyerKey, fans.emailKey)))
+      .where(eq(fans.orgId, orgId))
+      .groupBy(fans.id, fans.email, fans.name, sales.currency)
+      .orderBy(sql`sum(${sales.netCents}) desc`)
+      .limit(10),
   ]);
-  return { total: totals?.total ?? 0, last30: totals?.last30 ?? 0, byMonth: fillMonths(byMonth), byBand, byCountry, imports };
+  return {
+    total: totals?.total ?? 0,
+    last30: totals?.last30 ?? 0,
+    byMonth: fillMonths(byMonth),
+    byBand,
+    byCountry,
+    imports,
+    buyers: { known: buyers?.known ?? 0, onList: buyers?.onList ?? 0, unchecked: buyers?.unchecked ?? 0 },
+    top,
+  };
 }
 
 /** Every month from the first sign-up to now, so quiet months show as zero. */
