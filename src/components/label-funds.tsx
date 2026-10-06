@@ -7,19 +7,22 @@ import { deleteLabelTransfer, saveLabelTransfer } from "@/server/actions";
 import { eq } from "drizzle-orm";
 import { getContext } from "@/server/context";
 import { labelFunds, nameMaps } from "@/server/data";
-import { incomeSources } from "@/server/label-income";
+import { incomeSources, labelIncome } from "@/server/label-income";
+import { type SourceInfo, SourceSelect } from "./source-select";
 
 type Transfer = typeof schema.labelTransfers.$inferSelect;
 
-async function TransferForm({ transfer, bandId }: { transfer?: Transfer; bandId?: number }) {
+async function TransferForm({ transfer, bandId, sources }: { transfer?: Transfer; bandId?: number; sources: SourceInfo[] }) {
   const { orgId } = await getContext();
-  const [bands, releases, sources] = await Promise.all([
+  const [bands, releases] = await Promise.all([
     db.select().from(schema.bands).where(eq(schema.bands.orgId, orgId)).orderBy(schema.bands.name),
     db.select().from(schema.releases).where(eq(schema.releases.orgId, orgId)).orderBy(schema.releases.title),
-    incomeSources(orgId),
   ]);
   // Keep a source that's since been renamed or removed selectable when editing.
-  const sourceOptions = transfer?.source && !sources.some((x) => x.label === transfer.source) ? [...sources, { label: transfer.source }] : sources;
+  const sourceOptions: SourceInfo[] =
+    transfer?.source && !sources.some((x) => x.label === transfer.source)
+      ? [...sources, { label: transfer.source, bandId: null, releaseId: null, remainingCents: null, currency: null, lastRecipient: null, lastMethod: null }]
+      : sources;
   const today = new Date().toLocaleDateString("en-CA"); // local yyyy-mm-dd
   const forBand = transfer?.bandId ?? bandId ?? null;
   return (
@@ -38,14 +41,7 @@ async function TransferForm({ transfer, bandId }: { transfer?: Transfer; bandId?
         <input name="date" type="date" required defaultValue={transfer?.date ?? today} />
       </Field>
       <Field label="From (optional)" hint="Which of the label’s money it came out of. A fundraiser fills in its band and release for you.">
-        <select name="source" defaultValue={transfer?.source ?? ""}>
-          <option value="">Not tied to a source</option>
-          {sourceOptions.map((x) => (
-            <option key={x.label} value={x.label}>
-              {x.label}
-            </option>
-          ))}
-        </select>
+        <SourceSelect sources={sourceOptions} defaultValue={transfer?.source ?? ""} />
       </Field>
       <Field label="Raised by (optional)" hint="The band whose sales this money came from.">
         <select name="bandId" defaultValue={forBand ?? ""}>
@@ -98,13 +94,36 @@ async function TransferForm({ transfer, bandId }: { transfer?: Transfer; bandId?
   );
 }
 
+/** Each income source, with what picking it can fill in: what's still there, and who it went to last time. */
+async function sourceDetails(orgId: string): Promise<SourceInfo[]> {
+  const [sources, income, transfers] = await Promise.all([
+    incomeSources(orgId),
+    labelIncome(orgId),
+    db.select().from(schema.labelTransfers).where(eq(schema.labelTransfers.orgId, orgId)),
+  ]);
+  const cur = income.currencies[0] ?? "USD";
+  const latest = [...transfers].sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id);
+  return sources.map((s) => {
+    const last = latest.find((t) => t.source === s.label);
+    const came = income.bySource.get(s.label)?.get(cur) ?? 0;
+    const sent = income.sentBySource.get(s.label)?.get(cur) ?? 0;
+    return {
+      ...s,
+      remainingCents: came ? came - sent : null,
+      currency: cur,
+      lastRecipient: last?.recipient ?? null,
+      lastMethod: last?.method ?? null,
+    };
+  });
+}
+
 /**
  * The label's own money and where it went: kept from sales, sent on to others (fundraisers,
  * donations), and what's left. With `bandId`, only transfers raised by that band.
  */
 export async function LabelFunds({ bandId, showTotals = true }: { bandId?: number; showTotals?: boolean }) {
   const { orgId } = await getContext();
-  const [funds, names] = await Promise.all([labelFunds(orgId), nameMaps(orgId)]);
+  const [funds, names, sources] = await Promise.all([labelFunds(orgId), nameMaps(orgId), sourceDetails(orgId)]);
   const transfers = bandId ? funds.transfers.filter((t) => t.bandId === bandId) : funds.transfers;
   const causes = bandId ? funds.causes.filter((c) => c.bandId === bandId) : funds.causes;
   const causeName = (c: { bandId: number | null; releaseId: number | null }) =>
@@ -206,7 +225,7 @@ export async function LabelFunds({ bandId, showTotals = true }: { bandId?: numbe
                   <td className="text-right">
                     <div className="flex items-start justify-end gap-2">
                       <Disclosure summary="Edit">
-                        <TransferForm transfer={t} />
+                        <TransferForm transfer={t} sources={sources} />
                         <form action={deleteLabelTransfer} className="mt-3 border-t border-border pt-3">
                           <input type="hidden" name="id" value={t.id} />
                           <SubmitButton variant="danger" size="sm" confirm={`Delete the ${centsToDecimal(t.amountCents)} ${t.currency} sent to ${t.recipient}?`}>
@@ -224,7 +243,7 @@ export async function LabelFunds({ bandId, showTotals = true }: { bandId?: numbe
       )}
       <div className="mt-4">
         <Disclosure summary="+ Record money sent out">
-          <TransferForm bandId={bandId} />
+          <TransferForm bandId={bandId} sources={sources} />
         </Disclosure>
       </div>
     </Card>
