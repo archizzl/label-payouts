@@ -1,4 +1,5 @@
 import "server-only";
+import { buildTrend, type Trend } from "@/lib/chart-data";
 import { eq } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { parseCents } from "@/lib/money";
@@ -79,6 +80,8 @@ export type SalesReport = {
   byMonth: { month: string; net: number; units: number }[];
   byFormat: { key: string; net: number; units: number }[];
   bySource: { key: string; net: number; units: number }[];
+  /** Month by month for the biggest few formats and sources: their trend lines. */
+  trends: { format: Trend; source: Trend };
   items: SalesItem[];
 };
 
@@ -133,11 +136,14 @@ export async function salesReport(orgId: string, scope: SalesScope): Promise<Sal
     byMonth: [],
     byFormat: [],
     bySource: [],
+    trends: { format: { months: [], series: [] }, source: { months: [], series: [] } },
     items: [],
   };
   const months = new Map<string, { net: number; units: number }>();
   const formats = new Map<string, { net: number; units: number }>();
   const sources = new Map<string, { net: number; units: number }>();
+  const formatMonths: { month: string; key: string; value: number }[] = [];
+  const sourceMonths: { month: string; key: string; value: number }[] = [];
   const items = new Map<string, SalesItem>();
 
   for (const r of rows) {
@@ -185,8 +191,12 @@ export async function salesReport(orgId: string, scope: SalesScope): Promise<Sal
     };
     const release = s.releaseId ? releases.get(s.releaseId) : undefined;
     bump(months, s.date.slice(0, 7));
-    bump(formats, formatOf(s, release?.packages ?? []));
-    bump(sources, describeSource(s.raw));
+    const format = formatOf(s, release?.packages ?? []);
+    const source = describeSource(s.raw);
+    bump(formats, format);
+    bump(sources, source);
+    formatMonths.push({ month: s.date.slice(0, 7), key: format, value: net });
+    sourceMonths.push({ month: s.date.slice(0, 7), key: source, value: net });
 
     const key = release ? `r${release.id}` : `u:${s.itemName}`;
     const item = items.get(key) ?? {
@@ -232,6 +242,7 @@ export async function salesReport(orgId: string, scope: SalesScope): Promise<Sal
     [...m].map(([key, v]) => ({ key, ...v })).sort((a, b) => b.net - a.net);
   report.byFormat = sorted(formats);
   report.bySource = sorted(sources);
+  report.trends = { format: buildTrend(formatMonths), source: buildTrend(sourceMonths) };
   report.items = [...items.values()].sort((a, b) => b.net - a.net);
   return report;
 }

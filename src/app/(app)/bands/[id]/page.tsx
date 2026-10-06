@@ -208,7 +208,7 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
         }
       />
 
-      <SalesSection scope={{ bandId: id }} range={(await searchParams).range as string | undefined} basePath={`/bands/${id}`} showItems />
+      <SalesSection boardId="band-sales" scope={{ bandId: id }} range={(await searchParams).range as string | undefined} basePath={`/bands/${id}`} showItems />
 
       <Card
         title="Payouts"

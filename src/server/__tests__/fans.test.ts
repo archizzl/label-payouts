@@ -44,6 +44,13 @@ describe("the mailing list", () => {
     const stats = await fans.fanStats(orgId);
     expect(stats.total).toBe(3);
     expect(stats.byBand.find((b) => b.bandId === flagDay.id)?.n).toBe(3);
+    // Sign-ups month by month per band and country, for trend lines.
+    expect(stats.bandMonths.filter((r) => r.bandId === flagDay.id).map((r) => [r.month, r.n]).sort()).toEqual([
+      ["2023-01", 1],
+      ["2024-06", 1],
+      ["2024-07", 1],
+    ]);
+    expect(stats.countryMonths.find((r) => r.country === "Canada")).toMatchObject({ month: "2024-06", n: 1 });
 
     // Another account sees none of them.
     expect((await fans.listFans(await newAccount(), {})).count).toBe(0);

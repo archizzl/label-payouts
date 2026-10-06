@@ -2,6 +2,7 @@ import "server-only";
 import { and, asc, desc, eq, gte, ilike, isNull, lt, lte, or, type SQL, sql } from "drizzle-orm";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { db, schema } from "@/db";
+import { buildTrend, type Trend } from "@/lib/chart-data";
 import { emailFingerprint } from "./secrets";
 
 /*
@@ -240,7 +241,24 @@ export async function summarizeSales(orgId: string, f: SalesFilter) {
       .groupBy(sales.currency, sql`2`)
       .orderBy(sql`3 desc`)
       .limit(limit * 4);
-  const [totals, byMonth, byItem, byCountry, bySource, byType, byBand, byPayout] = await Promise.all([
+  // Month by month per key, for a breakdown's trend line.
+  const monthly = (key: SQL<string>) =>
+    db
+      .select({ currency: sales.currency, month: sql<string>`substr(${sales.date}, 1, 7)`, key, value: net })
+      .from(sales)
+      .leftJoin(bands, eq(bands.id, sales.bandId))
+      .where(w)
+      .groupBy(sales.currency, sql`2`, sql`3`);
+  const keys = {
+    item: sql<string>`${sales.itemName}`,
+    country: sql<string>`case when ${country} = '' then 'Not given' else ${country} end`,
+    source: sql<string>`case when ${source} = '' then 'Direct / unknown' else ${source} end`,
+    type: sql<string>`${sales.category}`,
+    band: sql<string>`coalesce(${bands.name}, 'Not matched to a band')`,
+  };
+  const [trendRows, [totals, byMonth, byItem, byCountry, bySource, byType, byBand, byPayout]] = await Promise.all([
+    Promise.all(Object.values(keys).map(monthly)),
+    Promise.all([
     db
       .select({
         currency: sales.currency,
@@ -262,16 +280,17 @@ export async function summarizeSales(orgId: string, f: SalesFilter) {
       .where(w)
       .groupBy(sales.currency, sql`2`)
       .orderBy(sql`2`),
-    group(sql<string>`${sales.itemName}`),
-    group(sql<string>`case when ${country} = '' then 'Not given' else ${country} end`),
-    group(sql<string>`case when ${source} = '' then 'Direct / unknown' else ${source} end`),
-    group(sql<string>`${sales.category}`),
-    group(sql<string>`coalesce(${bands.name}, 'Not matched to a band')`),
+    group(keys.item),
+    group(keys.country),
+    group(keys.source),
+    group(keys.type),
+    group(keys.band),
     db
       .select({ currency: sales.currency, state: payoutState, net, sales: sql<number>`count(*)::int` })
       .from(sales)
       .where(w)
       .groupBy(sales.currency, sql`2`),
+    ]),
   ]);
 
   const currencies = totals.map((t) => t.currency);
@@ -290,6 +309,10 @@ export async function summarizeSales(orgId: string, f: SalesFilter) {
     bySource: pick(bySource),
     byType: pick(byType),
     byBand: pick(byBand),
+    /** Month by month for the biggest few of each breakdown (main currency): their trend lines. */
+    trends: Object.fromEntries(
+      Object.keys(keys).map((k, i) => [k, buildTrend(trendRows[i].filter((r) => r.currency === main))]),
+    ) as Record<keyof typeof keys, Trend>,
     byPayout: Object.fromEntries(
       PAYOUT_STATES.map((st) => {
         const r = byPayout.find((p) => p.currency === main && p.state === st);

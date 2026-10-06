@@ -1,11 +1,14 @@
 import { and, eq, isNull } from "drizzle-orm";
 import Link from "next/link";
 import { connection } from "next/server";
-import { BarList, MonthlyColumns } from "@/components/charts";
+import { ChartBoard } from "@/components/chart-board";
 import { SalesTabs } from "@/components/sales-tabs";
 import { Badge, buttonClass, Card, Empty, Money, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
+import { type BoardChart, breakdownChart, seriesChart } from "@/lib/chart-data";
+import type { ChartFormat } from "@/lib/chart-layout";
 import { formatCents } from "@/lib/money";
+import { loadLayout } from "@/server/chart-layouts";
 import { requireAdmin } from "@/server/context";
 import {
   browseSales,
@@ -52,6 +55,36 @@ export default async function SalesPage({ searchParams }: PageProps<"/sales">) {
   const main = summary.totals[0];
   const pages = Math.max(1, Math.ceil(page.count / f.per));
   const cur = summary.main;
+
+  // The customizable charts under the list: what's available, and what's shown until someone changes it.
+  const net = main?.net ?? 0;
+  const typeLabel = (k: string) => TYPE_LABEL[k] ?? k;
+  const charts: BoardChart[] = [
+    seriesChart("month", "Net received by month", summary.byMonth.map((m) => ({ month: m.month, value: m.net, units: m.units })), { currency: cur }),
+    breakdownChart("item", "Top items", summary.byItem, {
+      currency: cur,
+      total: net,
+      trend: summary.trends.item,
+      links: summary.byItem.slice(0, 3).map((r) => ({ label: r.key, href: filterQuery(f, { q: r.key, page: 1 }) || "/sales" })),
+    }),
+    breakdownChart("band", "By band", summary.byBand, { currency: cur, total: net, trend: summary.trends.band }),
+    breakdownChart("type", "By type", summary.byType.map((r) => ({ ...r, key: typeLabel(r.key) })), {
+      currency: cur,
+      total: net,
+      trend: { ...summary.trends.type, series: summary.trends.type.series.map((x) => ({ ...x, key: typeLabel(x.key) })) },
+    }),
+    breakdownChart("country", "By country", summary.byCountry, { currency: cur, total: net, trend: summary.trends.country }),
+    breakdownChart("source", "Where fans came from", summary.bySource, { currency: cur, total: net, trend: summary.trends.source }),
+  ];
+  const defaults: [string, ChartFormat?][] = [
+    ...(summary.byMonth.length > 1 ? [["month"] as [string]] : []),
+    ["item"],
+    ...(!f.band ? [["band"] as [string]] : []),
+    ...(!f.type ? [["type"] as [string]] : []),
+    ...(f.country === undefined ? [["country"] as [string]] : []),
+    ...(f.source === undefined && summary.bySource.some((x) => x.key !== "Direct / unknown") ? [["source"] as [string]] : []),
+  ];
+  const saved = await loadLayout("sales");
 
   return (
     <>
@@ -222,30 +255,7 @@ export default async function SalesPage({ searchParams }: PageProps<"/sales">) {
             </p>
           )}
 
-          <div>
-            {summary.byMonth.length > 1 && (
-              <Card title="Net received by month">
-                <MonthlyColumns data={summary.byMonth} currency={cur} />
-              </Card>
-            )}
-            <div className="grid gap-6 md:grid-cols-2">
-              <Breakdown title="Top items" rows={summary.byItem} currency={cur} total={main.net} param={(k) => filterQuery(f, { q: k, page: 1 })} />
-              {!f.band && <Breakdown title="By band" rows={summary.byBand} currency={cur} total={main.net} />}
-              {!f.type && (
-                <Breakdown
-                  title="By type"
-                  rows={summary.byType.map((r) => ({ ...r, key: TYPE_LABEL[r.key] ?? r.key }))}
-                  currency={cur}
-                  total={main.net}
-                />
-              )}
-              {f.country === undefined && <Breakdown title="By country" rows={summary.byCountry} currency={cur} total={main.net} />}
-              {f.source === undefined && summary.bySource.some((s) => s.key !== "Direct / unknown") && (
-                <Breakdown title="Where fans came from" rows={summary.bySource} currency={cur} total={main.net} />
-              )}
-            </div>
-          </div>
-
+          <ChartBoard boardId="sales" charts={charts} defaults={defaults} saved={saved} />
         </>
       )}
     </>
@@ -463,39 +473,6 @@ function SortHeader({ f, k, label, num = false }: { f: SalesFilter; k: SortKey; 
         </span>
       </Link>
     </th>
-  );
-}
-
-function Breakdown({
-  title,
-  rows,
-  currency,
-  total,
-  param,
-}: {
-  title: string;
-  rows: { key: string; net: number; units: number }[];
-  currency: string;
-  total: number;
-  param?: (key: string) => string;
-}) {
-  if (!rows.length) return null;
-  return (
-    <Card title={title}>
-      <BarList data={rows} currency={currency} total={total} />
-      {param && (
-        <p className="mt-2 text-xs text-muted">
-          See the sales for{" "}
-          {rows.slice(0, 3).map((r, i) => (
-            <span key={r.key}>
-              {i > 0 && ", "}
-              <Link href={param(r.key)}>{r.key}</Link>
-            </span>
-          ))}
-          .
-        </p>
-      )}
-    </Card>
   );
 }
 

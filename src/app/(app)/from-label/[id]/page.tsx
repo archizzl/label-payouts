@@ -65,6 +65,7 @@ export default async function FromLabelPage({ params, searchParams }: PageProps<
       </Callout>
 
       <SalesSection
+        boardId="label-sales"
         orgId={labelOrgId}
         scope={{ bandId }}
         range={(await searchParams).range as string | undefined}

@@ -209,7 +209,20 @@ export async function allFans(orgId: string, filter: FanFilter) {
 export async function fanStats(orgId: string) {
   await fillFanKeys(orgId);
   const onList = sql`exists (select 1 from ${fans} where ${fans.orgId} = ${orgId} and ${fans.emailKey} = ${sales.buyerKey})`;
-  const [[totals], byMonth, byBand, byCountry, imports, [buyers], top] = await Promise.all([
+  const [bandMonths, countryMonths, [[totals], byMonth, byBand, byCountry, imports, [buyers], top]] = await Promise.all([
+    // Sign-ups month by month per band and per country, for trend lines.
+    db
+      .select({ month: sql<string>`substr(${fans.addedOn}, 1, 7)`, bandId: fanBands.bandId, n: sql<number>`count(*)::int` })
+      .from(fanBands)
+      .innerJoin(fans, eq(fans.id, fanBands.fanId))
+      .where(eq(fans.orgId, orgId))
+      .groupBy(sql`1`, fanBands.bandId),
+    db
+      .select({ month: sql<string>`substr(${fans.addedOn}, 1, 7)`, country: sql<string>`coalesce(nullif(${fans.country}, ''), 'Not given')`, n: sql<number>`count(*)::int` })
+      .from(fans)
+      .where(eq(fans.orgId, orgId))
+      .groupBy(sql`1`, sql`2`),
+    Promise.all([
     db
       .select({
         total: sql<number>`count(*)::int`,
@@ -266,8 +279,11 @@ export async function fanStats(orgId: string) {
       .groupBy(fans.id, fans.email, fans.name, sales.currency)
       .orderBy(sql`sum(${sales.netCents}) desc`)
       .limit(10),
+    ]),
   ]);
   return {
+    bandMonths,
+    countryMonths,
     total: totals?.total ?? 0,
     last30: totals?.last30 ?? 0,
     byMonth: fillMonths(byMonth),

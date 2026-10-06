@@ -63,6 +63,14 @@ describe("browsing sales", () => {
     expect(all.totals[0]).toMatchObject({ currency: "USD", sales: 5, net: 2390, refunds: 1, refundCents: -900, units: 3 });
     expect(all.byMonth.map((m) => m.month)).toEqual(["2026-01", "2026-02", "2026-03"]);
     expect(all.byCountry[0]).toEqual({ key: "United States", net: 1800, units: 1 });
+    expect(all.trends.type).toEqual({
+      months: ["2026-01", "2026-02", "2026-03"],
+      series: [
+        { key: "merch", values: [0, 0, 1800] },
+        { key: "album", values: [900, 0, -400] },
+        { key: "track", values: [0, 90, 0] },
+      ],
+    });
     const us = await browse.summarizeSales(orgId, f({ country: "United States" }));
     expect(us.totals[0]).toMatchObject({ sales: 3, net: 1800 });
   });

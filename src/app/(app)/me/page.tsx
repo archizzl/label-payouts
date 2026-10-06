@@ -188,7 +188,7 @@ export default async function MyEarningsPage({ searchParams }: PageProps<"/me">)
       </Card>
 
       {myBands.map(({ band }) => (
-        <SalesSection key={band.id} scope={{ bandId: band.id }} range={range} basePath="/me" readOnly title={`${band.name} sales`} />
+        <SalesSection key={band.id} boardId="member-sales" scope={{ bandId: band.id }} range={range} basePath="/me" readOnly title={`${band.name} sales`} />
       ))}
     </>
   );

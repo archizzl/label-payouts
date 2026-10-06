@@ -44,6 +44,11 @@ describe("where the label's money comes from", () => {
     expect(i.balance.get("USD")).toBe(1450); // minus the $1 sent on
     expect(i.holderShare.get("USD")).toBe(268); // Archie's half of $5.35, not counted as the label's
     expect(i.holderName).toBe("Archie");
+    expect(i.trends.source.series.map((x) => [x.key, x.values])).toEqual([
+      [income.LABEL_RELEASES_SOURCE, [700]],
+      [income.SHIPPING_SOURCE, [450]],
+      ["CD costs", [400]],
+    ]);
     expect(i.sentBySource.get("CD costs")?.get("USD")).toBe(100); // sent out of that source
 
     const sources = (await income.incomeSources(orgId)).map((x) => x.label);

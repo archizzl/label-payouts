@@ -1,7 +1,11 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
 import Link from "next/link";
 import { connection } from "next/server";
-import { Owed } from "@/components/owed";
+import { ChartBoard } from "@/components/chart-board";
+import { owedChart } from "@/components/owed";
+import { type BoardChart, breakdownChart, seriesChart } from "@/lib/chart-data";
+import { loadLayout } from "@/server/chart-layouts";
+import { parseSalesFilter, summarizeSales } from "@/server/sales-browse";
 import { Badge, Callout, Card, LinkButton, Money, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
 import { STATUS_LABEL, STATUS_TONE } from "@/lib/status";
@@ -9,12 +13,12 @@ import { outsideArtistRows } from "@/components/outside-artists";
 import { SyncFooter } from "@/components/sync-status";
 import { setSetupHidden } from "@/server/actions";
 import { requireAdmin } from "@/server/context";
-import { computeAllTime, nameMaps } from "@/server/data";
+import { computeAllTime } from "@/server/data";
 
 export default async function Dashboard() {
   await connection();
   const { orgId } = await requireAdmin();
-  const [bands, memberships, defaults, saleRows, periods, names, outside, { summary }, people, releaseRows, fundExpenses] = await Promise.all([
+  const [bands, memberships, defaults, saleRows, periods, outside, { summary }, people, releaseRows, fundExpenses] = await Promise.all([
     db.select().from(schema.bands).where(eq(schema.bands.orgId, orgId)),
     db.select().from(schema.bandMemberships).where(eq(schema.bandMemberships.orgId, orgId)),
     db
@@ -23,7 +27,6 @@ export default async function Dashboard() {
       .where(and(eq(schema.splitRules.orgId, orgId), inArray(schema.splitRules.scope, ["band_default", "label_default"]))),
     db.select({ bandId: schema.sales.bandId }).from(schema.sales).where(eq(schema.sales.orgId, orgId)),
     db.select().from(schema.periods).where(eq(schema.periods.orgId, orgId)).orderBy(desc(schema.periods.startDate)).limit(5),
-    nameMaps(orgId),
     outsideArtistRows(orgId),
     computeAllTime(orgId),
     db.select().from(schema.people).where(eq(schema.people.orgId, orgId)),
@@ -77,6 +80,23 @@ export default async function Dashboard() {
   const setupHidden = settingsRow?.setupHidden ?? false;
   const setupGone = settingsRow?.forGood ?? false;
   const stepsLeft = steps.filter((s) => !s.done).length;
+
+  // The customizable charts: net sales by band and who's owed what, with more to add.
+  const [all, owed, saved] = await Promise.all([summarizeSales(orgId, parseSalesFilter({})), owedChart(orgId), loadLayout("dashboard")]);
+  const net = all.totals[0]?.net ?? 0;
+  const typeLabel = (k: string) => ({ album: "Album", track: "Track", merch: "Merch", other: "Other" })[k] ?? k;
+  const charts: BoardChart[] = [
+    breakdownChart("band", "Net sales by band", all.byBand, { currency: all.main, total: net, trend: all.trends.band }),
+    owed,
+    seriesChart("month", "Net received by month", all.byMonth.map((m) => ({ month: m.month, value: m.net, units: m.units })), { currency: all.main }),
+    breakdownChart("type", "By type", all.byType.map((r) => ({ ...r, key: typeLabel(r.key) })), {
+      currency: all.main,
+      total: net,
+      trend: { ...all.trends.type, series: all.trends.type.series.map((x) => ({ ...x, key: typeLabel(x.key) })) },
+    }),
+    breakdownChart("item", "Top items", all.byItem, { currency: all.main, total: net, trend: all.trends.item }),
+    breakdownChart("country", "By country", all.byCountry, { currency: all.main, total: net, trend: all.trends.country }),
+  ];
 
   return (
     <>
@@ -147,8 +167,6 @@ export default async function Dashboard() {
       {summary.currencies.map((cur) => {
         const s = summary.byCurrency[cur];
         const dest = (k: string) => [...s.byDestination].filter(([key]) => key === k || key.startsWith(`${k}:`)).reduce((a, [, v]) => a + v, 0);
-        const bandsSorted = [...s.byBand].sort((a, b) => b[1] - a[1]);
-        const max = Math.max(1, ...bandsSorted.map(([, v]) => Math.abs(v)));
         return (
           <Card key={cur} title={`All-time${summary.currencies.length > 1 ? ` (${cur})` : ""}`}>
             <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -161,24 +179,13 @@ export default async function Dashboard() {
               />
               <Figure label="Earned by people" cents={[...s.byPerson.values()].reduce((a, p) => a + p.total, 0)} currency={cur} />
             </div>
-            <h3 className="mb-2 text-sm font-medium text-muted">Net sales by band</h3>
-            <ul className="space-y-2">
-              {bandsSorted.map(([bandId, cents]) => (
-                <li key={String(bandId)} className="grid grid-cols-[minmax(0,10rem)_1fr_auto] items-center gap-3 text-sm">
-                  <span className="truncate">{bandId === null ? <span className="text-bad">Unrouted</span> : <Link href={`/bands/${bandId}`} className="hover:underline">{names.band.get(bandId)}</Link>}</span>
-                  <span className="h-2 rounded-full bg-surface-2">
-                    <span className="block h-2 rounded-full bg-accent" style={{ width: `${(Math.abs(cents) / max) * 100}%` }} />
-                  </span>
-                  <Money cents={cents} currency={cur} className="text-right" />
-                </li>
-              ))}
-            </ul>
           </Card>
         );
       })}
 
-      <div className="grid gap-6 md:grid-cols-2">
-        <Owed orgId={orgId} />
+      <ChartBoard boardId="dashboard" charts={charts} defaults={[["band"], ["owed"]]} saved={saved} />
+
+      <div>
         <Card title="Recent payout periods" actions={<LinkButton href="/periods" size="sm">All</LinkButton>}>
           {periods.length === 0 ? (
             <p className="text-sm text-muted">None yet.</p>

@@ -1,6 +1,7 @@
 import "server-only";
 import { and, eq } from "drizzle-orm";
 import { db, schema } from "@/db";
+import { buildTrend } from "@/lib/chart-data";
 import { LABEL_RELEASES_SOURCE, SHIPPING_SOURCE } from "@/lib/label-sources";
 import { parseCents } from "@/lib/money";
 import { computeAllTime, labelFunds } from "./data";
@@ -35,6 +36,7 @@ export async function labelIncome(orgId: string) {
   const byMonth = new Map<string, Totals>(); // "2026-05" → label money that month
   const income: Totals = new Map();
   const holderShare: Totals = new Map();
+  const monthly: { month: string; source: string; band: string; cur: string; value: number }[] = [];
 
   const credit = (source: string, cur: string, cents: number, bandId: number | null, date: string) => {
     if (!cents) return;
@@ -49,6 +51,7 @@ export async function labelIncome(orgId: string) {
     add(m, cur, cents);
     byMonth.set(date.slice(0, 7), m);
     add(income, cur, cents);
+    monthly.push({ month: date.slice(0, 7), source, band: bandKey, cur, value: cents });
   };
 
   for (const r of results) {
@@ -77,8 +80,15 @@ export async function labelIncome(orgId: string) {
   }
   const currencies = [...new Set([...income.keys(), ...balance.keys()])].sort((a, b) => Math.abs(income.get(b) ?? 0) - Math.abs(income.get(a) ?? 0));
 
+  const main = currencies[0] ?? "USD";
+  const inMain = monthly.filter((m) => m.cur === main);
   return {
     currencies,
+    /** Month by month for the biggest few sources and bands (main currency): their trend lines. */
+    trends: {
+      source: buildTrend(inMain.map((m) => ({ month: m.month, key: m.source, value: m.value }))),
+      band: buildTrend(inMain.map((m) => ({ month: m.month, key: m.band, value: m.value }))),
+    },
     income,
     sent: funds.sent,
     spent: funds.spent,

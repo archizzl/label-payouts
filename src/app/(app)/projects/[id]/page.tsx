@@ -2,13 +2,16 @@ import { and, asc, eq } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
-import { BarList, SpentVsMadeBack } from "@/components/charts";
+import { ChartBoard } from "@/components/chart-board";
 import { SubmitButton } from "@/components/client";
 import { ProjectForm } from "@/components/project-form";
 import { ExpenseForm, ExpenseTable } from "@/components/receipts";
 import { Badge, Callout, Card, Disclosure, Empty, Money, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
+import { type BoardChart, breakdownChart } from "@/lib/chart-data";
+import type { ChartFormat } from "@/lib/chart-layout";
 import { formatCents } from "@/lib/money";
+import { loadLayout } from "@/server/chart-layouts";
 import { requireAdmin } from "@/server/context";
 import { nameMaps } from "@/server/data";
 import { expenseFileList } from "@/server/expenses";
@@ -43,6 +46,22 @@ export default async function ProjectPage({ params }: PageProps<"/projects/[id]"
   ]);
   const n = numbers.get(id)!;
   const cur = n.currency;
+
+  // The customizable charts.
+  const charts: BoardChart[] = [
+    {
+      spec: { kind: "spent-made", title: "Spent vs made back over time", shape: "spent-made", wide: true },
+      data: { shape: "spent-made", currency: cur, points: n.monthly, budget: project.budgetCents },
+    },
+    breakdownChart(
+      "category",
+      "Where the money went",
+      n.byCategory.map((c) => ({ key: c.category, net: c.cents })),
+      { currency: cur, total: n.spent, share: "of spending", showUnits: false },
+    ),
+  ];
+  const defaults: [string, ChartFormat?][] = [...(n.monthly.length > 1 ? [["spent-made"] as [string]] : []), ["category"]];
+  const saved = await loadLayout(`project`);
   const pct = n.spent ? Math.round((n.madeBack / n.spent) * 100) : null;
   const budgetPct = project.budgetCents ? Math.round((n.spent / project.budgetCents) * 100) : null;
   const releaseIds = links.map((l) => l.releaseId);
@@ -100,26 +119,9 @@ export default async function ProjectPage({ params }: PageProps<"/projects/[id]"
         </Callout>
       )}
 
-      {n.monthly.length > 1 && (
-        <Card title="Spent vs made back over time">
-          <SpentVsMadeBack data={n.monthly} currency={cur} budget={project.budgetCents} />
-        </Card>
-      )}
+      <ChartBoard boardId="project" charts={charts} defaults={defaults} saved={saved} />
 
       <div className="grid gap-x-8 md:grid-cols-2">
-        <Card title="Where the money went">
-          {n.byCategory.length === 0 ? (
-            <Empty>No approved expenses yet.</Empty>
-          ) : (
-            <BarList
-              data={n.byCategory.map((c) => ({ key: c.category, net: c.cents, units: 0 }))}
-              currency={cur}
-              total={n.spent}
-              share="of spending"
-              showUnits={false}
-            />
-          )}
-        </Card>
         <Card title="Where the money made back went">
           {n.madeBack === 0 ? (
             <Empty>No sales yet.</Empty>

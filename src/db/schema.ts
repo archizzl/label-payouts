@@ -635,3 +635,18 @@ export const fanBands = pgTable(
   },
   (t) => [uniqueIndex("fan_bands_pk").on(t.fanId, t.bandId), index("fan_bands_band").on(t.bandId)],
 );
+
+/** Each person's layout of a chart area ("board"): which charts they show, in what order and format. */
+export const chartLayouts = pgTable(
+  "chart_layouts",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    orgId: orgId(),
+    boardId: text("board_id").notNull(),
+    layout: jsonb("layout").$type<{ uid: string; kind: string; format: string }[]>().notNull(),
+    updatedAt: text("updated_at").notNull().default(now),
+  },
+  (t) => [uniqueIndex("chart_layouts_pk").on(t.userId, t.orgId, t.boardId)],
+);

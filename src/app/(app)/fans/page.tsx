@@ -1,12 +1,15 @@
 import { asc, eq } from "drizzle-orm";
 import Link from "next/link";
 import { connection } from "next/server";
-import { MonthlyColumns } from "@/components/charts";
+import { ChartBoard } from "@/components/chart-board";
 import { SubmitButton } from "@/components/client";
 import { FanImportForm } from "@/components/fan-import-form";
 import { buttonClass, Card, Empty, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
+import { type BoardChart, breakdownChart, buildTrend, seriesChart } from "@/lib/chart-data";
+import type { ChartFormat } from "@/lib/chart-layout";
 import { formatCents } from "@/lib/money";
+import { loadLayout } from "@/server/chart-layouts";
 import { requireAdmin } from "@/server/context";
 import { deleteFans } from "@/server/fan-actions";
 import { type FanFilter, fanStats, listFans, type Purchase } from "@/server/fans";
@@ -28,6 +31,41 @@ export default async function FansPage({ searchParams }: PageProps<"/fans">) {
   ]);
   const bandName = new Map(bands.map((b) => [b.id, b.name]));
   const isBand = ctx.org.kind === "band";
+
+  // The customizable charts.
+  const bandRows = stats.byBand.map((b) => ({ key: bandName.get(b.bandId) ?? `#${b.bandId}`, net: b.n, bandId: b.bandId })).sort((a, b) => b.net - a.net);
+  const countryRows = stats.byCountry.map((c) => ({ key: c.country || "Not given", net: c.n }));
+  const charts: BoardChart[] = [
+    seriesChart("month", "Sign-ups by month", stats.byMonth.map((m) => ({ month: m.month, value: m.n })), { currency: "USD", unit: "count" }),
+    ...(isBand
+      ? []
+      : [
+          breakdownChart("band", "By band", bandRows, {
+            currency: "USD",
+            unit: "count",
+            total: stats.total,
+            share: "of the list",
+            showUnits: false,
+            trend: buildTrend(stats.bandMonths.map((r) => ({ month: r.month, key: bandName.get(r.bandId) ?? `#${r.bandId}`, value: r.n }))),
+            links: bandRows.slice(0, 3).map((b) => ({ label: b.key, href: `/fans?band=${b.bandId}` })),
+            linksLabel: "See the fans on the list for",
+          }),
+        ]),
+    breakdownChart("country", "Top countries", countryRows, {
+      currency: "USD",
+      unit: "count",
+      total: stats.total,
+      share: "of the list",
+      showUnits: false,
+      trend: buildTrend(stats.countryMonths.map((r) => ({ month: r.month, key: r.country, value: r.n }))),
+    }),
+  ];
+  const defaults: [string, ChartFormat?][] = [
+    ...(stats.byMonth.length > 1 ? [["month"] as [string]] : []),
+    ...(isBand ? [] : [["band", "table"] as [string, ChartFormat]]),
+    ["country", "table"],
+  ];
+  const saved = await loadLayout("fans");
   const ownList = isBand ? "band’s own list" : "label’s own list";
   const exportQuery = new URLSearchParams({ ...(q && { q }), ...(bandParam && { band: bandParam }) }).toString();
 
@@ -98,48 +136,7 @@ export default async function FansPage({ searchParams }: PageProps<"/fans">) {
             </Card>
           )}
 
-          {stats.byMonth.length > 1 && (
-            <Card title="Sign-ups by month">
-              <MonthlyColumns data={stats.byMonth.map((m) => ({ month: m.month, net: m.n, units: m.n }))} unit="count" label="Fan sign-ups by month" />
-            </Card>
-          )}
-
-          <div className="grid gap-6 md:grid-cols-2">
-            {!isBand && (
-              <Card title="By band">
-                <table className="data">
-                  <tbody>
-                    {stats.byBand
-                      .map((b) => ({ ...b, name: bandName.get(b.bandId) ?? `#${b.bandId}` }))
-                      .sort((a, b) => b.n - a.n)
-                      .map((b) => (
-                        <tr key={b.bandId}>
-                          <td>
-                            <Link href={`/fans?band=${b.bandId}`} className="hover:underline">
-                              {b.name}
-                            </Link>
-                          </td>
-                          <td className="num">{b.n.toLocaleString("en-US")}</td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
-                {stats.byBand.length === 0 && <p className="text-sm text-muted">Everyone is on the label’s own list.</p>}
-              </Card>
-            )}
-            <Card title="Top countries">
-              <table className="data">
-                <tbody>
-                  {stats.byCountry.slice(0, 10).map((c) => (
-                    <tr key={c.country}>
-                      <td className={c.country ? "" : "text-muted"}>{c.country || "Not given"}</td>
-                      <td className="num">{c.n.toLocaleString("en-US")}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </Card>
-          </div>
+          <ChartBoard boardId="fans" charts={charts} defaults={defaults} saved={saved} />
 
           <Card title="Everyone on the list">
             <form className="mb-4 flex flex-wrap items-end gap-3" action="/fans">

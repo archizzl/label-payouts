@@ -152,6 +152,7 @@ export function BarList({
   total,
   share = "of net",
   showUnits = true,
+  unit = "money",
 }: {
   data: { key: string; net: number; units: number }[];
   currency: string;
@@ -159,7 +160,10 @@ export function BarList({
   /** What the percentage in the tooltip is of. */
   share?: string;
   showUnits?: boolean;
+  /** "count": plain numbers (e.g. fans), not money. */
+  unit?: "money" | "count";
 }) {
+  const fmt = (v: number) => (unit === "count" ? v.toLocaleString("en-US") : formatCents(v, currency));
   const [tip, setTip] = useState<Tip>(null);
   const wrap = useRef<HTMLDivElement>(null);
   const max = Math.max(1, ...data.map((d) => d.net));
@@ -180,7 +184,7 @@ export function BarList({
             x: r.left - box.left + r.width / 2,
             y: r.top - box.top,
             title: `${d.key}${showUnits ? ` · ${d.units} item${d.units === 1 ? "" : "s"}` : ""} · ${pct}% ${share}`,
-            lines: [formatCents(d.net, currency)],
+            lines: [fmt(d.net)],
           });
         };
         return (
@@ -200,7 +204,7 @@ export function BarList({
                 style={{ width: `${Math.max(0, (d.net / max) * 100)}%`, minWidth: d.net > 0 ? 2 : 0 }}
               />
             </span>
-            <span className="text-right tabular-nums">{formatCents(d.net, currency)}</span>
+            <span className="text-right tabular-nums">{fmt(d.net)}</span>
           </div>
         );
       })}
@@ -413,29 +417,6 @@ export function SpentVsMadeBack({
           />
         )}
       </div>
-      <details className="mt-2 text-xs">
-        <summary className="text-muted">show as a table</summary>
-        <table className="data mt-2">
-          <thead>
-            <tr>
-              <th>Month</th>
-              <th className="num">Spent so far</th>
-              <th className="num">Made back so far</th>
-              <th className="num">Difference</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.map((d) => (
-              <tr key={d.month}>
-                <td>{label(d.month)}</td>
-                <td className="num">{formatCents(d.spent, currency)}</td>
-                <td className="num">{formatCents(d.madeBack, currency)}</td>
-                <td className="num">{formatCents(d.madeBack - d.spent, currency)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </details>
     </div>
   );
 }
@@ -530,5 +511,364 @@ export function OwedBars({ rows, parts, currency }: { rows: OwedBar[]; parts: { 
       </div>
       <Tooltip tip={tip} />
     </div>
+  );
+}
+
+/** Colours for several series in a fixed order; "Other" is always muted. */
+export const seriesColor = (key: string, i: number) => (key === "Other" ? "var(--muted)" : `var(--series-${(i % 5) + 1})`);
+
+function fmtValue(v: number, unit: "money" | "count", currency: string) {
+  return unit === "count" ? v.toLocaleString("en-US") : formatCents(v, currency);
+}
+
+/**
+ * Lines over months: one series, or several (a breakdown's trend: the biggest few and Other). Thin
+ * lines on one axis, a crosshair tooltip with every series' value, a legend, and labels at the ends.
+ */
+export function LineChart({
+  months,
+  series,
+  unit = "money",
+  currency = "USD",
+  label = "Over time",
+}: {
+  months: string[];
+  series: { key: string; values: number[] }[];
+  unit?: "money" | "count";
+  currency?: string;
+  label?: string;
+}) {
+  const [hover, setHover] = useState<number | null>(null);
+  const wrap = useRef<HTMLDivElement>(null);
+  const multi = series.length > 1;
+  const W = 640;
+  const H = 200;
+  const pad = { l: 44, r: 16, t: 10, b: 24 };
+  const all = series.flatMap((s) => s.values);
+  const max = Math.max(0, ...all);
+  const min = Math.min(0, ...all);
+  const t = ticks(max);
+  const top = t[t.length - 1] || 1;
+  const bottom = min < 0 ? -ticks(-min)[ticks(-min).length - 1] : 0;
+  const n = Math.max(1, months.length - 1);
+  const y = (v: number) => pad.t + (H - pad.t - pad.b) * (1 - (v - bottom) / (top - bottom || 1));
+  const every = Math.ceil(months.length / 8);
+  const axis = (v: number) => (unit === "count" ? String(Math.round(v)) : compact(v, currency));
+  if (!months.length) return <p className="text-sm text-muted">Nothing to show yet.</p>;
+
+  // End labels, nudged apart so they don't overlap.
+  const ends = series
+    .map((s, i) => ({ key: s.key, i, y: y(s.values[s.values.length - 1] ?? 0) }))
+    .sort((a, b) => a.y - b.y);
+  for (let k = 1; k < ends.length; k++) if (ends[k].y - ends[k - 1].y < 12) ends[k].y = ends[k - 1].y + 12;
+  // Label the line ends only when they fit inside the plot without crowding; the legend always names them.
+  const labelEnds = multi && ends.length <= 6 && (ends[ends.length - 1]?.y ?? 0) <= H - pad.b + 2;
+  // Room on the right for the end labels, only when they're shown.
+  if (labelEnds) pad.r = 120;
+  const x = (i: number) => pad.l + ((W - pad.l - pad.r) * i) / n;
+
+  const pointer = (clientX: number) => {
+    const box = wrap.current!.getBoundingClientRect();
+    const px = ((clientX - box.left) / box.width) * W;
+    setHover(Math.max(0, Math.min(months.length - 1, Math.round(((px - pad.l) / (W - pad.l - pad.r)) * n))));
+  };
+  const monthLabel = (m: string) => {
+    const [yy, mm] = m.split("-").map(Number);
+    return `${MONTHS[mm - 1]} ${yy}`;
+  };
+
+  return (
+    <div ref={wrap} className="relative">
+      {multi && (
+        <ul className="mb-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted" aria-label="Legend">
+          {series.map((s, i) => (
+            <li key={s.key} className="flex items-center gap-1.5">
+              <span className="inline-block h-0.5 w-3" style={{ background: seriesColor(s.key, i) }} />
+              {s.key}
+            </li>
+          ))}
+        </ul>
+      )}
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        className="block h-auto w-full touch-none"
+        role="img"
+        aria-label={label}
+        tabIndex={0}
+        onPointerMove={(e) => pointer(e.clientX)}
+        onPointerLeave={() => setHover(null)}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowRight") setHover((h) => Math.min(months.length - 1, (h ?? -1) + 1));
+          if (e.key === "ArrowLeft") setHover((h) => Math.max(0, (h ?? months.length) - 1));
+        }}
+        onBlur={() => setHover(null)}
+      >
+        {[...(bottom < 0 ? ticks(-bottom).slice(1).map((v) => -v) : []), ...t].map((v) => (
+          <g key={v}>
+            <line x1={pad.l} x2={W - pad.r} y1={y(v)} y2={y(v)} stroke={v === 0 ? "var(--chart-baseline)" : "var(--chart-grid)"} strokeWidth={1} />
+            <text x={pad.l - 6} y={y(v)} dy="0.32em" textAnchor="end" fontSize={10} fill="var(--muted)" className="tabular-nums">
+              {axis(v)}
+            </text>
+          </g>
+        ))}
+        {months.map((m, i) =>
+          i % every === 0 ? (
+            <text key={m} x={x(i)} y={H - 8} textAnchor="middle" fontSize={10} fill="var(--muted)">
+              {(() => {
+                const [yy, mm] = m.split("-").map(Number);
+                return mm === 1 || i === 0 ? `${MONTHS[mm - 1]} ’${String(yy).slice(2)}` : MONTHS[mm - 1];
+              })()}
+            </text>
+          ) : null,
+        )}
+        {hover !== null && <line x1={x(hover)} x2={x(hover)} y1={pad.t} y2={H - pad.b} stroke="var(--chart-baseline)" strokeWidth={1} />}
+        {series.map((s, i) => (
+          <g key={s.key}>
+            <polyline
+              points={s.values.map((v, k) => `${x(k)},${y(v)}`).join(" ")}
+              fill="none"
+              stroke={multi ? seriesColor(s.key, i) : "var(--chart-accent)"}
+              strokeWidth={2}
+              strokeLinejoin="round"
+              strokeLinecap="round"
+            />
+            {hover !== null && (
+              <circle cx={x(hover)} cy={y(s.values[hover])} r={4} fill={multi ? seriesColor(s.key, i) : "var(--chart-accent)"} stroke="var(--bg)" strokeWidth={2} />
+            )}
+          </g>
+        ))}
+        {labelEnds &&
+          ends.map((e) => (
+            <text key={e.key} x={W - pad.r + 6} y={e.y} dy="0.32em" fontSize={10} fill="var(--muted)">
+              {e.key.length > 16 ? `${e.key.slice(0, 15)}…` : e.key}
+            </text>
+          ))}
+      </svg>
+      {hover !== null && (
+        <div
+          role="status"
+          className="pointer-events-none absolute top-0 z-10 rounded-sm border border-border bg-surface px-2.5 py-1.5 text-xs whitespace-nowrap shadow-sm"
+          style={{ left: `${(x(hover) / W) * 100}%`, transform: x(hover) > W / 2 ? "translateX(calc(-100% - 8px))" : "translateX(8px)" }}
+        >
+          <div className="font-bold text-text">{monthLabel(months[hover])}</div>
+          {series
+            .map((s, i) => ({ s, i, v: s.values[hover] }))
+            .sort((a, b) => b.v - a.v)
+            .map(({ s, i, v }) => (
+              <div key={s.key} className="flex items-center gap-1.5 text-muted">
+                {multi && <span className="inline-block h-2 w-2 rounded-[2px]" style={{ background: seriesColor(s.key, i) }} />}
+                {multi && <span>{s.key}</span>}
+                <span className="ml-auto pl-3 text-text tabular-nums">{fmtValue(v, unit, currency)}</span>
+              </div>
+            ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Part-to-whole as a donut: at most 6 slices (the biggest five, then Other), 2px gaps, a legend
+ * with each value and share, and a tooltip on hover or focus.
+ */
+export function DonutChart({
+  rows,
+  unit = "money",
+  currency = "USD",
+  label = "Share",
+}: {
+  rows: { key: string; value: number; color?: string }[];
+  unit?: "money" | "count";
+  currency?: string;
+  label?: string;
+}) {
+  const [active, setActive] = useState<string | null>(null);
+  const positive = rows.filter((r) => r.value > 0).sort((a, b) => b.value - a.value);
+  const slices =
+    positive.length > 6
+      ? [...positive.slice(0, 5), { key: "Other", value: positive.slice(5).reduce((a, r) => a + r.value, 0), color: "var(--muted)" }]
+      : positive;
+  const total = slices.reduce((a, r) => a + r.value, 0);
+  if (total <= 0) return <p className="text-sm text-muted">Nothing to show yet.</p>;
+  const R = 64;
+  const r0 = 40;
+  const cx = 80;
+  const cy = 80;
+  // Where each slice starts: the running total of the ones before it.
+  const starts = slices.map((_, i) => slices.slice(0, i).reduce((a, r) => a + r.value, 0));
+  const arcs = slices.map((s, i) => {
+    const a0 = -Math.PI / 2 + (starts[i] / total) * Math.PI * 2;
+    const a1 = a0 + (s.value / total) * Math.PI * 2;
+    const large = a1 - a0 > Math.PI ? 1 : 0;
+    const p = (rad: number, r: number) => `${cx + r * Math.cos(rad)},${cy + r * Math.sin(rad)}`;
+    const full = slices.length === 1;
+    const d = full
+      ? `M${cx - R},${cy} a${R},${R} 0 1,0 ${R * 2},0 a${R},${R} 0 1,0 ${-R * 2},0 M${cx - r0},${cy} a${r0},${r0} 0 1,1 ${r0 * 2},0 a${r0},${r0} 0 1,1 ${-r0 * 2},0`
+      : `M${p(a0, R)} A${R},${R} 0 ${large} 1 ${p(a1, R)} L${p(a1, r0)} A${r0},${r0} 0 ${large} 0 ${p(a0, r0)} Z`;
+    return { ...s, d, color: s.color ?? seriesColor(s.key, i) };
+  });
+  const shown = active ? arcs.find((a) => a.key === active) : null;
+  return (
+    <div className="flex flex-wrap items-center gap-6">
+      <svg viewBox="0 0 160 160" className="h-40 w-40 shrink-0" role="img" aria-label={label}>
+        {arcs.map((a) => (
+          <path
+            key={a.key}
+            d={a.d}
+            fill={a.color}
+            fillRule="evenodd"
+            stroke="var(--bg)"
+            strokeWidth={2}
+            opacity={active && active !== a.key ? 0.5 : 1}
+            tabIndex={0}
+            aria-label={`${a.key}: ${fmtValue(a.value, unit, currency)} (${((a.value / total) * 100).toFixed(1)}%)`}
+            onPointerEnter={() => setActive(a.key)}
+            onPointerLeave={() => setActive(null)}
+            onFocus={() => setActive(a.key)}
+            onBlur={() => setActive(null)}
+            className="outline-none"
+          />
+        ))}
+        <text x={cx} y={cy - 4} textAnchor="middle" fontSize={11} fill="var(--muted)">
+          {shown ? (shown.key.length > 12 ? `${shown.key.slice(0, 11)}…` : shown.key) : "Total"}
+        </text>
+        <text x={cx} y={cy + 12} textAnchor="middle" fontSize={13} fontWeight={700} fill="var(--text)" className="tabular-nums">
+          {unit === "count" ? (shown ?? { value: total }).value.toLocaleString("en-US") : compact((shown ?? { value: total }).value, currency)}
+        </text>
+      </svg>
+      <ul className="min-w-0 max-w-md flex-1 basis-56 space-y-1 text-sm">
+        {arcs.map((a) => (
+          <li
+            key={a.key}
+            className={`flex items-baseline gap-2 ${active && active !== a.key ? "opacity-60" : ""}`}
+            onPointerEnter={() => setActive(a.key)}
+            onPointerLeave={() => setActive(null)}
+          >
+            <span className="inline-block h-2.5 w-2.5 shrink-0 translate-y-[1px] rounded-[2px]" style={{ background: a.color }} />
+            <span className="truncate text-muted">{a.key}</span>
+            <span className="ml-auto tabular-nums">{fmtValue(a.value, unit, currency)}</span>
+            <span className="w-12 text-right text-xs text-muted tabular-nums">{((a.value / total) * 100).toFixed(1)}%</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/** Any chart's numbers as a plain table: the accessible, exact view. */
+export function DataTable({ columns, rows }: { columns: { label: string; num?: boolean }[]; rows: (string | number)[][] }) {
+  if (!rows.length) return <p className="text-sm text-muted">Nothing to show yet.</p>;
+  return (
+    <div className="max-h-96 overflow-auto">
+      <table className="data">
+        <thead>
+          <tr>
+            {columns.map((c) => (
+              <th key={c.label} className={c.num ? "num" : ""}>
+                {c.label}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r, i) => (
+            <tr key={i}>
+              {r.map((v, k) => (
+                <td key={k} className={columns[k]?.num ? "num" : ""}>
+                  {v}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+const HELD = "var(--series-1)";
+const SENT = "var(--series-2)";
+
+/** The label's income sources: a bar each, split into still held and sent on, on a shared scale. */
+export function HeldSentBars({
+  rows,
+  currency,
+  total,
+}: {
+  rows: { key: string; explain: string; net: number; sent: number; held: number }[];
+  currency: string;
+  total: number;
+}) {
+  const done = rows.filter((r) => r.sent > 0 && r.held <= 0);
+  const open = rows.filter((r) => !done.includes(r));
+  const max = Math.max(1, ...rows.map((x) => Math.max(x.net, x.sent)));
+  const list = (items: typeof rows) => (
+    <ul className="space-y-3">
+      {items.map((src) => {
+        const held = Math.max(0, src.held);
+        return (
+          <li key={src.key} className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 text-sm sm:grid-cols-[minmax(0,16rem)_1fr_auto]">
+            <div>
+              <div className="font-medium">{src.key}</div>
+              <div className="text-xs text-muted">{src.explain}</div>
+            </div>
+            <span
+              className="order-last col-span-2 mt-1 flex h-3 gap-[2px] sm:order-none sm:col-span-1"
+              role="img"
+              aria-label={`${src.key}: ${formatCents(held, currency)} still held, ${formatCents(src.sent, currency)} sent on`}
+            >
+              {held > 0 && (
+                <span
+                  className={`block h-3 ${src.sent > 0 ? "" : "rounded-r-[4px]"}`}
+                  style={{ width: `${(held / max) * 100}%`, minWidth: 2, background: HELD }}
+                  title={`Still held: ${formatCents(held, currency)}`}
+                />
+              )}
+              {src.sent > 0 && (
+                <span
+                  className="block h-3 rounded-r-[4px]"
+                  style={{ width: `${(src.sent / max) * 100}%`, minWidth: 2, background: SENT }}
+                  title={`Sent on: ${formatCents(src.sent, currency)}`}
+                />
+              )}
+            </span>
+            <div className="text-right tabular-nums">
+              {formatCents(src.net, currency)}
+              {total > 0 && held > 0 && <div className="text-xs text-muted">{((held / total) * 100).toFixed(1)}% of what the label still holds</div>}
+              {src.sent > 0 && (
+                <div className="text-xs text-muted">
+                  {formatCents(held, currency)} held · {formatCents(src.sent, currency)} sent on
+                  {src.held < 0 && ` (${formatCents(-src.held, currency)} more than it brought in)`}
+                </div>
+              )}
+            </div>
+          </li>
+        );
+      })}
+    </ul>
+  );
+  if (!rows.length) return <p className="text-sm text-muted">Nothing yet.</p>;
+  return (
+    <>
+      <ul className="mb-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted" aria-label="Legend">
+        <li className="flex items-center gap-1.5">
+          <span className="inline-block h-2.5 w-2.5 rounded-[2px]" style={{ background: HELD }} />
+          Still held by the label
+        </li>
+        <li className="flex items-center gap-1.5">
+          <span className="inline-block h-2.5 w-2.5 rounded-[2px]" style={{ background: SENT }} />
+          Sent on
+        </li>
+      </ul>
+      {list(open)}
+      {done.length > 0 && (
+        <details className="mt-4">
+          <summary className="cursor-pointer text-sm text-link">
+            {done.length} source{done.length === 1 ? "" : "s"} fully sent on
+          </summary>
+          <div className="mt-3">{list(done)}</div>
+        </details>
+      )}
+    </>
   );
 }

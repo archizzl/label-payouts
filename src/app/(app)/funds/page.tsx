@@ -1,9 +1,12 @@
 import Link from "next/link";
 import { connection } from "next/server";
-import { BarList, MonthlyColumns } from "@/components/charts";
+import { ChartBoard } from "@/components/chart-board";
 import { LabelFunds } from "@/components/label-funds";
 import { Card, PageHeader } from "@/components/ui";
+import { type BoardChart, breakdownChart, seriesChart } from "@/lib/chart-data";
+import type { ChartFormat } from "@/lib/chart-layout";
 import { formatCents } from "@/lib/money";
+import { loadLayout } from "@/server/chart-layouts";
 import { requireAdmin } from "@/server/context";
 import { nameMaps } from "@/server/data";
 import { LABEL_RELEASES_SOURCE, labelIncome, SHIPPING_SOURCE, type Totals } from "@/server/label-income";
@@ -32,26 +35,32 @@ export default async function FundsPage() {
       .sort((a, b) => b.net - a.net);
   const sources = rows(inc.bySource).map((r) => {
     const sent = Math.max(0, inc.sentBySource.get(r.key)?.get(cur) ?? 0);
-    return { ...r, sent, held: r.net - sent };
+    return { key: r.key, explain: explain(r.key), net: r.net, sent, held: r.net - sent };
   });
-  // Sources whose money has all been sent on are tucked away.
-  const done = sources.filter((r) => r.sent > 0 && r.held <= 0);
-  const open = sources.filter((r) => !done.includes(r));
-  const max = Math.max(1, ...sources.map((x) => Math.max(x.net, x.sent)));
   // Shares are of what the label still holds: money already sent on doesn't count.
   const totalHeld = sources.reduce((a, x) => a + Math.max(0, x.held), 0);
   const bands = rows(inc.byBand);
-  const months = [...inc.byMonth.keys()].sort();
-  const byMonth: { month: string; net: number; units: number }[] = [];
-  if (months.length) {
-    let [y, m] = months[0].split("-").map(Number);
-    for (let k = months[0]; k <= months[months.length - 1]; ) {
-      byMonth.push({ month: k, net: inc.byMonth.get(k)?.get(cur) ?? 0, units: 0 });
-      m++;
-      if (m > 12) [y, m] = [y + 1, 1];
-      k = `${y}-${String(m).padStart(2, "0")}`;
-    }
-  }
+  const byMonth = inc.trends.source.months.map((month) => ({ month, value: inc.byMonth.get(month)?.get(cur) ?? 0 }));
+
+  // The customizable charts.
+  const charts: BoardChart[] = [
+    {
+      spec: { kind: "sources", title: "Where the label’s money comes from", shape: "held-sent", wide: true },
+      data: { shape: "held-sent", currency: cur, total: totalHeld, rows: sources },
+    },
+    seriesChart("month", "By month", byMonth, { currency: cur }),
+    breakdownChart("band", "By band", bands, { currency: cur, total: v(inc.income), share: "of the label’s money", showUnits: false, trend: inc.trends.band }),
+    breakdownChart(
+      "source-trend",
+      "Sources over time",
+      sources.map((x) => ({ key: x.key, net: x.net })),
+      { currency: cur, total: v(inc.income), share: "of the label’s money", showUnits: false, trend: inc.trends.source },
+    ),
+  ];
+  // "Sources over time" starts out as a line chart.
+  charts[3].spec.formats = ["line", ...(charts[3].spec.formats ?? []).filter((f) => f !== "line")];
+  const defaults: [string, ChartFormat?][] = [["sources"], ...(byMonth.length > 1 ? [["month"] as [string]] : []), ...(bands.length ? [["band"] as [string]] : [])];
+  const saved = await loadLayout("funds");
 
   return (
     <>
@@ -76,48 +85,7 @@ export default async function FundsPage() {
         </p>
       )}
 
-      <Card title="Where the label’s money comes from">
-        {sources.length === 0 ? (
-          <p className="text-sm text-muted">Nothing yet.</p>
-        ) : (
-          <>
-            <ul className="mb-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted" aria-label="Legend">
-              <li className="flex items-center gap-1.5">
-                <span className="inline-block h-2.5 w-2.5 rounded-[2px]" style={{ background: HELD }} />
-                Still held by the label
-              </li>
-              <li className="flex items-center gap-1.5">
-                <span className="inline-block h-2.5 w-2.5 rounded-[2px]" style={{ background: SENT }} />
-                Sent on
-              </li>
-            </ul>
-            <SourceRows rows={open} max={max} total={totalHeld} currency={cur} />
-            {done.length > 0 && (
-              <details className="mt-4">
-                <summary className="cursor-pointer text-sm text-link">
-                  {done.length} source{done.length === 1 ? "" : "s"} fully sent on
-                </summary>
-                <div className="mt-3">
-                  <SourceRows rows={done} max={max} total={totalHeld} currency={cur} />
-                </div>
-              </details>
-            )}
-          </>
-        )}
-      </Card>
-
-      <div className="grid gap-6 md:grid-cols-2">
-        {byMonth.length > 1 && (
-          <Card title="By month">
-            <MonthlyColumns data={byMonth} currency={cur} label="The label’s money by month" />
-          </Card>
-        )}
-        {bands.length > 0 && (
-          <Card title="By band">
-            <BarList data={bands} currency={cur} total={v(inc.income)} share="of the label’s money" showUnits={false} />
-          </Card>
-        )}
-      </div>
+      <ChartBoard boardId="funds" charts={charts} defaults={defaults} saved={saved} />
 
       <LabelFunds showTotals={false} />
 
@@ -167,60 +135,6 @@ export default async function FundsPage() {
         )}
       </Card>
     </>
-  );
-}
-
-const HELD = "var(--series-1)";
-const SENT = "var(--series-2)";
-
-type SourceRow = { key: string; net: number; sent: number; held: number };
-
-/** One row per source: a bar split into still held and sent on, on a shared scale. */
-function SourceRows({ rows, max, total, currency }: { rows: SourceRow[]; max: number; total: number; currency: string }) {
-  return (
-    <ul className="space-y-3">
-      {rows.map((src) => {
-        const held = Math.max(0, src.held);
-        return (
-          <li key={src.key} className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 text-sm sm:grid-cols-[minmax(0,16rem)_1fr_auto]">
-            <div>
-              <div className="font-medium">{src.key}</div>
-              <div className="text-xs text-muted">{explain(src.key)}</div>
-            </div>
-            <span
-              className="order-last col-span-2 mt-1 flex h-3 gap-[2px] sm:order-none sm:col-span-1"
-              role="img"
-              aria-label={`${src.key}: ${formatCents(held, currency)} still held, ${formatCents(src.sent, currency)} sent on`}
-            >
-              {held > 0 && (
-                <span
-                  className={`block h-3 ${src.sent > 0 ? "" : "rounded-r-[4px]"}`}
-                  style={{ width: `${(held / max) * 100}%`, minWidth: 2, background: HELD }}
-                  title={`Still held: ${formatCents(held, currency)}`}
-                />
-              )}
-              {src.sent > 0 && (
-                <span
-                  className="block h-3 rounded-r-[4px]"
-                  style={{ width: `${(src.sent / max) * 100}%`, minWidth: 2, background: SENT }}
-                  title={`Sent on: ${formatCents(src.sent, currency)}`}
-                />
-              )}
-            </span>
-            <div className="text-right tabular-nums">
-              {formatCents(src.net, currency)}
-              {total > 0 && held > 0 && <div className="text-xs text-muted">{((held / total) * 100).toFixed(1)}% of label funds</div>}
-              {src.sent > 0 && (
-                <div className="text-xs text-muted">
-                  {formatCents(held, currency)} held · {formatCents(src.sent, currency)} sent on
-                  {src.held < 0 && ` (${formatCents(-src.held, currency)} more than it brought in)`}
-                </div>
-              )}
-            </div>
-          </li>
-        );
-      })}
-    </ul>
   );
 }
 

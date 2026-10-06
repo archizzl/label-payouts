@@ -172,7 +172,7 @@ export default async function ReleasePage({ params, searchParams }: PageProps<"/
         )}
       </div>
 
-      <SalesSection scope={{ releaseId: id }} range={(await searchParams).range as string | undefined} basePath={`/catalog/${id}`} />
+      <SalesSection boardId="release-sales" scope={{ releaseId: id }} range={(await searchParams).range as string | undefined} basePath={`/catalog/${id}`} />
 
       <Card title={isMerch ? "Split" : "Release split"}>
         <p className="mb-3 text-sm text-muted">

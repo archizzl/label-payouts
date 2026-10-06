@@ -2,7 +2,9 @@ import { asc, desc, eq, max, min } from "drizzle-orm";
 import Link from "next/link";
 import { connection } from "next/server";
 import { ActionForm, SubmitButton } from "@/components/client";
-import { Owed } from "@/components/owed";
+import { ChartBoard } from "@/components/chart-board";
+import { owedChart } from "@/components/owed";
+import { loadLayout } from "@/server/chart-layouts";
 import { Badge, Callout, Card, Empty, Field, Money, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
 import { periodName } from "@/lib/dates";
@@ -24,6 +26,7 @@ export default async function PeriodsPage({ searchParams }: PageProps<"/periods"
       .where(eq(schema.sales.orgId, orgId)),
     bandcampCredentials(orgId),
   ]);
+  const [owed, owedLayout] = await Promise.all([owedChart(orgId), loadLayout("payouts")]);
   const bandName = new Map(bands.map((b) => [b.id, b.name]));
   // Who this payout is for: the whole label, or one band (?band=ID).
   const bandParam = Number((await searchParams).band);
@@ -48,7 +51,7 @@ export default async function PeriodsPage({ searchParams }: PageProps<"/periods"
           No sales imported yet. <Link href="/sales/import">Import a Bandcamp sales report</Link> first, then create a payout for it.
         </Callout>
       )}
-      <Owed orgId={orgId} />
+      <ChartBoard boardId="payouts" charts={[owed]} defaults={[["owed"]]} saved={owedLayout} />
 
       <Card title="New payout">
         <nav className="mb-4 flex flex-wrap gap-x-5 gap-y-2 text-sm" aria-label="Who to pay">

@@ -3,7 +3,11 @@ import { SALES_RANGES, salesRangeDates } from "@/lib/dates";
 import { formatCents } from "@/lib/money";
 import { getContext } from "@/server/context";
 import { salesReport } from "@/server/sales-report";
-import { BarList, MonthlyColumns, type Segment, StackedBar } from "./charts";
+import { type BoardChart, breakdownChart, seriesChart } from "@/lib/chart-data";
+import type { ChartFormat } from "@/lib/chart-layout";
+import { loadLayout } from "@/server/chart-layouts";
+import { ChartBoard } from "./chart-board";
+import type { Segment } from "./charts";
 import { Card, Money } from "./ui";
 
 /**
@@ -19,6 +23,7 @@ export async function SalesSection({
   readOnly = false,
   title = "Sales",
   orgId: fromOrg,
+  boardId,
 }: {
   scope: { bandId?: number; releaseId?: number };
   range?: string;
@@ -30,6 +35,8 @@ export async function SalesSection({
   title?: string;
   /** Read another account's books (a label linked to this band account). Callers check access. */
   orgId?: string;
+  /** Which chart layout this is (each person arranges a band page's charts separately from a release page's…). */
+  boardId: string;
 }) {
   const today = new Date().toISOString().slice(0, 10);
   const r = salesRangeDates(range, today);
@@ -63,6 +70,30 @@ export async function SalesSection({
     ...(Math.abs(other) > 1 ? [{ key: "other", label: "Other / rounding", value: other, color: "var(--muted)" }] : []),
   ];
   const hasSources = report.bySource.some((s) => s.key !== "Direct / unknown");
+
+  // The charts, customizable per person.
+  const charts: BoardChart[] = [
+    seriesChart("month", "Net received by month", report.byMonth.map((m) => ({ month: m.month, value: m.net, units: m.units })), { currency: cur }),
+    breakdownChart("format", "By format", report.byFormat, { currency: cur, total: report.net, trend: report.trends.format }),
+    breakdownChart("source", "By source", report.bySource, { currency: cur, total: report.net, trend: report.trends.source }),
+    {
+      spec: { kind: "money-went", title: "Where the money went", shape: "parts", wide: true },
+      data: {
+        shape: "parts",
+        currency: cur,
+        segments,
+        caption: `Of the ${formatCents(report.gross, cur)} fans paid.`,
+        note: report.shipping > 0 ? `The label’s part includes ${formatCents(report.shipping, cur)} of shipping fans paid. Shipping isn’t split: it stays with the label, for postage.` : undefined,
+      },
+    },
+  ];
+  const defaults: [string, ChartFormat?][] = [
+    ...(report.byMonth.length > 1 ? [["month"] as [string]] : []),
+    ["format"],
+    ...(hasSources ? [["source"] as [string]] : []),
+    ["money-went"],
+  ];
+  const saved = await loadLayout(boardId);
 
   return (
     <Card
@@ -112,66 +143,7 @@ export async function SalesSection({
             </p>
           )}
 
-          {report.byMonth.length > 1 && (
-            <div>
-              <h3 className="mb-2 text-sm font-bold">net received by month</h3>
-              <MonthlyColumns data={report.byMonth} currency={cur} />
-              <details className="mt-1 text-xs">
-                <summary className="text-link">show as a table</summary>
-                <table className="data mt-2">
-                  <thead>
-                    <tr>
-                      <th>month</th>
-                      <th className="num">items</th>
-                      <th className="num">net</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {report.byMonth.map((m) => (
-                      <tr key={m.month}>
-                        <td>{m.month}</td>
-                        <td className="num">{m.units}</td>
-                        <td className="num">
-                          <Money cents={m.net} currency={cur} />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </details>
-            </div>
-          )}
-
-          <div className={`grid gap-8 ${hasSources ? "md:grid-cols-2" : ""}`}>
-            <div>
-              <h3 className="mb-2 text-sm font-bold">by format</h3>
-              <BarList data={report.byFormat} currency={cur} total={report.net} />
-            </div>
-            {hasSources ? (
-              <div>
-                <h3 className="mb-2 text-sm font-bold">by source</h3>
-                <BarList data={report.bySource} currency={cur} total={report.net} />
-              </div>
-            ) : null}
-          </div>
-          {!hasSources && <p className="-mt-6 text-xs text-muted">Your sales reports don’t say where fans came from, so there’s no breakdown by source.</p>}
-
-          <div>
-            <h3 className="mb-1 text-sm font-bold">where the money went</h3>
-            <p className="mb-3 text-xs text-muted">Of the {formatCents(report.gross, cur)} fans paid.</p>
-            <StackedBar
-              segments={segments}
-              currency={cur}
-              footer={
-                report.shipping > 0 ? (
-                  <p className="mt-2 text-xs text-muted">
-                    The label’s part includes {formatCents(report.shipping, cur)} of shipping fans paid. Shipping isn’t split: it stays
-                    with the label, for postage.
-                  </p>
-                ) : null
-              }
-            />
-          </div>
+          <ChartBoard boardId={boardId} charts={charts} defaults={defaults} saved={saved} plain />
 
           {showItems && report.items.length > 0 && (
             <div>
