@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "import:local": "tsx --conditions=react-server --env-file=.env.local scripts/import-local.mts"
+    "import:local": "tsx --conditions=react-server --env-file=.env.local scripts/import-local.mts",
+    "users": "tsx --env-file=.env.local scripts/users.mts",
+    "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.8",
