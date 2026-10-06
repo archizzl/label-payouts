@@ -52,7 +52,20 @@ const compact = (cents: number, currency: string) => {
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 /** Net sales per month: one series, columns on a baseline. */
-export function MonthlyColumns({ data, currency }: { data: { month: string; net: number; units: number }[]; currency: string }) {
+export function MonthlyColumns({
+  data,
+  currency = "USD",
+  unit = "money",
+  label = "Net sales by month",
+}: {
+  data: { month: string; net: number; units: number }[];
+  currency?: string;
+  /** "count": plain numbers (e.g. sign-ups), not money. */
+  unit?: "money" | "count";
+  label?: string;
+}) {
+  const fmt = (v: number) => (unit === "count" ? v.toLocaleString("en-US") : formatCents(v, currency));
+  const axis = (v: number) => (unit === "count" ? (v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(Math.round(v))) : compact(v, currency));
   const [tip, setTip] = useState<Tip>(null);
   const wrap = useRef<HTMLDivElement>(null);
   const W = 640;
@@ -73,19 +86,19 @@ export function MonthlyColumns({ data, currency }: { data: { month: string; net:
     setTip({
       x: r.left - box.left + r.width / 2,
       y: r.top - box.top,
-      title: `${MONTHS[mm - 1]} ${yy} · ${d.units} item${d.units === 1 ? "" : "s"}`,
-      lines: [formatCents(d.net, currency)],
+      title: unit === "count" ? `${MONTHS[mm - 1]} ${yy}` : `${MONTHS[mm - 1]} ${yy} · ${d.units} item${d.units === 1 ? "" : "s"}`,
+      lines: [fmt(d.net)],
     });
   };
 
   return (
     <div ref={wrap} className="relative">
-      <svg viewBox={`0 0 ${W} ${H}`} className="block h-auto w-full" role="img" aria-label="Net sales by month">
+      <svg viewBox={`0 0 ${W} ${H}`} className="block h-auto w-full" role="img" aria-label={label}>
         {t.map((v) => (
           <g key={v}>
             <line x1={pad.l} x2={W - pad.r} y1={y(v)} y2={y(v)} stroke={v === 0 ? "var(--chart-baseline)" : "var(--chart-grid)"} strokeWidth={1} />
             <text x={pad.l - 6} y={y(v)} dy="0.32em" textAnchor="end" fontSize={10} fill="var(--muted)" className="tabular-nums">
-              {compact(v, currency)}
+              {axis(v)}
             </text>
           </g>
         ))}
@@ -103,7 +116,7 @@ export function MonthlyColumns({ data, currency }: { data: { month: string; net:
                 height={H - pad.t - pad.b}
                 fill="transparent"
                 tabIndex={0}
-                aria-label={`${MONTHS[mm - 1]} ${yy}: ${formatCents(d.net, currency)}`}
+                aria-label={`${MONTHS[mm - 1]} ${yy}: ${fmt(d.net)}`}
                 onPointerMove={(e) => show(e, d)}
                 onFocus={(e) => show(e, d)}
                 onPointerLeave={() => setTip(null)}

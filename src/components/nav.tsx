@@ -31,6 +31,7 @@ function itemsFor(account: Account, isAdmin: boolean, labels: Item[]): Item[] {
     { href: "/projects", label: "projects" },
     { href: "/bands", label: account.kind === "band" ? "band" : "bands" },
     { href: "/people", label: "people" },
+    { href: "/fans", label: "fans" },
     { href: "/catalog", label: "catalog" },
     { href: "/rules", label: account.kind === "band" ? "rules" : "label rules" },
     { href: "/me", label: "my earnings" },

@@ -534,3 +534,58 @@ export type PeriodSnapshot = {
   }[];
   saleCount: number;
 };
+
+/** A mailing-list file brought in from Bandcamp (Tools → Mailing list → export). */
+export const fanImports = pgTable(
+  "fan_imports",
+  {
+    id: id(),
+    orgId: orgId(),
+    filename: text("filename").notNull(),
+    /** The band the list was exported from, when the file doesn't say per row. Null: label-wide. */
+    bandId: integer("band_id").references(() => bands.id, { onDelete: "set null" }),
+    rowCount: integer("row_count").notNull(),
+    addedCount: integer("added_count").notNull(),
+    importedByUserId: text("imported_by_user_id").references(() => user.id, { onDelete: "set null" }),
+    createdAt: text("created_at").notNull().default(now),
+  },
+  (t) => [index("fan_imports_org").on(t.orgId)],
+);
+
+/**
+ * Someone on the mailing list: one row per email per account, however many lists they're on.
+ * Personal data: admins only, and deletable on request.
+ */
+export const fans = pgTable(
+  "fans",
+  {
+    id: id(),
+    orgId: orgId(),
+    /** Lower-cased. */
+    email: text("email").notNull(),
+    name: text("name"),
+    country: text("country"),
+    postalCode: text("postal_code"),
+    /** When they first signed up, as Bandcamp reports it (yyyy-mm-dd), or when first imported. */
+    addedOn: text("added_on").notNull(),
+    /** Columns we don't otherwise use, kept as exported. */
+    extra: jsonb("extra").$type<Record<string, string>>().notNull().default({}),
+    firstImportId: integer("first_import_id").references(() => fanImports.id, { onDelete: "set null" }),
+    createdAt: text("created_at").notNull().default(now),
+  },
+  (t) => [index("fans_org").on(t.orgId), uniqueIndex("fans_org_email").on(t.orgId, t.email)],
+);
+
+/** Which bands' lists a fan is on (none: the label's own list). */
+export const fanBands = pgTable(
+  "fan_bands",
+  {
+    fanId: integer("fan_id")
+      .notNull()
+      .references(() => fans.id, { onDelete: "cascade" }),
+    bandId: integer("band_id")
+      .notNull()
+      .references(() => bands.id, { onDelete: "cascade" }),
+  },
+  (t) => [uniqueIndex("fan_bands_pk").on(t.fanId, t.bandId), index("fan_bands_band").on(t.bandId)],
+);
