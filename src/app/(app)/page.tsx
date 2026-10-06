@@ -1,7 +1,8 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
 import Link from "next/link";
 import { connection } from "next/server";
-import { Badge, Callout, Card, LinkButton, Money, MoneyList, PageHeader } from "@/components/ui";
+import { Owed } from "@/components/owed";
+import { Badge, Callout, Card, LinkButton, Money, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
 import { STATUS_LABEL, STATUS_TONE } from "@/lib/status";
 import { outsideArtistRows } from "@/components/outside-artists";
@@ -13,7 +14,7 @@ import { computeAllTime, nameMaps } from "@/server/data";
 export default async function Dashboard() {
   await connection();
   const { orgId } = await requireAdmin();
-  const [bands, memberships, defaults, saleRows, periods, pending, names, outside, { summary }, people, releaseRows, fundExpenses] = await Promise.all([
+  const [bands, memberships, defaults, saleRows, periods, names, outside, { summary }, people, releaseRows, fundExpenses] = await Promise.all([
     db.select().from(schema.bands).where(eq(schema.bands.orgId, orgId)),
     db.select().from(schema.bandMemberships).where(eq(schema.bandMemberships.orgId, orgId)),
     db
@@ -22,10 +23,6 @@ export default async function Dashboard() {
       .where(and(eq(schema.splitRules.orgId, orgId), inArray(schema.splitRules.scope, ["band_default", "label_default"]))),
     db.select({ bandId: schema.sales.bandId }).from(schema.sales).where(eq(schema.sales.orgId, orgId)),
     db.select().from(schema.periods).where(eq(schema.periods.orgId, orgId)).orderBy(desc(schema.periods.startDate)).limit(5),
-    db
-      .select()
-      .from(schema.payouts)
-      .where(and(eq(schema.payouts.orgId, orgId), eq(schema.payouts.status, "pending"))),
     nameMaps(orgId),
     outsideArtistRows(orgId),
     computeAllTime(orgId),
@@ -80,13 +77,6 @@ export default async function Dashboard() {
   const setupHidden = settingsRow?.setupHidden ?? false;
   const setupGone = settingsRow?.forGood ?? false;
   const stepsLeft = steps.filter((s) => !s.done).length;
-
-  const owed = new Map<number, Map<string, number>>();
-  for (const p of pending) {
-    const m = owed.get(p.personId) ?? new Map<string, number>();
-    m.set(p.currency, (m.get(p.currency) ?? 0) + p.amountCents);
-    owed.set(p.personId, m);
-  }
 
   return (
     <>
@@ -188,24 +178,7 @@ export default async function Dashboard() {
       })}
 
       <div className="grid gap-6 md:grid-cols-2">
-        <Card title="Waiting to be paid">
-          {owed.size === 0 ? (
-            <p className="text-sm text-muted">No one is waiting on a finalized payout.</p>
-          ) : (
-            <table className="data">
-              <tbody>
-                {[...owed].map(([pid, totals]) => (
-                  <tr key={pid}>
-                    <td>{names.person.get(pid)}</td>
-                    <td className="num">
-                      <MoneyList totals={totals} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </Card>
+        <Owed orgId={orgId} />
         <Card title="Recent payout periods" actions={<LinkButton href="/periods" size="sm">All</LinkButton>}>
           {periods.length === 0 ? (
             <p className="text-sm text-muted">None yet.</p>
