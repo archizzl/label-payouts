@@ -8,15 +8,21 @@ import { eq } from "drizzle-orm";
 import { getContext } from "@/server/context";
 import { labelFunds, nameMaps } from "@/server/data";
 import { incomeSources, labelIncome } from "@/server/label-income";
+import { PayPerson } from "./pay-person";
 import { type SourceInfo, SourceSelect } from "./source-select";
 
 type Transfer = typeof schema.labelTransfers.$inferSelect;
 
 async function TransferForm({ transfer, bandId, sources }: { transfer?: Transfer; bandId?: number; sources: SourceInfo[] }) {
   const { orgId } = await getContext();
-  const [bands, releases] = await Promise.all([
+  const [bands, releases, payees] = await Promise.all([
     db.select().from(schema.bands).where(eq(schema.bands.orgId, orgId)).orderBy(schema.bands.name),
     db.select().from(schema.releases).where(eq(schema.releases.orgId, orgId)).orderBy(schema.releases.title),
+    db
+      .select({ id: schema.people.id, name: schema.people.name, paypalMe: schema.people.paypalMe, venmo: schema.people.venmo, cashtag: schema.people.cashtag })
+      .from(schema.people)
+      .where(eq(schema.people.orgId, orgId))
+      .orderBy(schema.people.name),
   ]);
   // Keep a source that's since been renamed or removed selectable when editing.
   const sourceOptions: SourceInfo[] =
@@ -28,7 +34,7 @@ async function TransferForm({ transfer, bandId, sources }: { transfer?: Transfer
   return (
     <ActionForm action={saveLabelTransfer} className="grid gap-4 sm:grid-cols-3">
       {transfer && <input type="hidden" name="id" value={transfer.id} />}
-      <Field label="Sent to" hint="A charity, aid group, venue, anyone outside the label.">
+      <Field label="Sent to" hint="A charity, aid group, venue, or a person.">
         <input name="recipient" required defaultValue={transfer?.recipient} placeholder="Mutual Aid NYC" />
       </Field>
       <Field label="Amount">
@@ -87,6 +93,7 @@ async function TransferForm({ transfer, bandId, sources }: { transfer?: Transfer
         <option value="Venmo" />
         <option value="Cash" />
       </datalist>
+      <PayPerson people={payees} defaultPersonId={transfer?.personId ?? null} />
       <div className="sm:col-span-3">
         <SubmitButton>{transfer ? "Save" : "Record it"}</SubmitButton>
       </div>
@@ -184,9 +191,9 @@ export async function LabelFunds({ bandId, showTotals = true }: { bandId?: numbe
             </tbody>
           </table>
           <p className="mt-2 text-xs text-muted">
-            “Kept by the label” counts every sale where money went to the label: its cut, or all of it if a release is set up that way
+            {/* “Kept by the label” counts every sale where money went to the label: its cut, or all of it if a release is set up that way
             (a 100% “kept by the label” deduction on the band page). A negative “still holding” means the label sent more than those
-            sales brought in.
+            sales brought in. */}
           </p>
         </div>
       )}

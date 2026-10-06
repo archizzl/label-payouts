@@ -882,10 +882,13 @@ export async function saveLabelTransfer(_: ActionState, fd: FormData): Promise<A
     : [];
   const bandId = release?.bandId ?? optInt(fd, "bandId") ?? fromSource?.bandId ?? null;
   await owned(orgId, bands, bandId);
+  const personId = optInt(fd, "personId");
+  await owned(orgId, people, personId);
   const values = {
     date,
     recipient,
     source,
+    personId,
     amountCents,
     currency: (str(fd, "currency") || "USD").toUpperCase(),
     releaseId: release?.id ?? null,
