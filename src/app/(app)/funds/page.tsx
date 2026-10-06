@@ -37,6 +37,8 @@ export default async function FundsPage() {
   const done = sources.filter((r) => r.sent > 0 && r.held <= 0);
   const open = sources.filter((r) => !done.includes(r));
   const max = Math.max(1, ...sources.map((x) => Math.max(x.net, x.sent)));
+  // Shares are of what the label still holds: money already sent on doesn't count.
+  const totalHeld = sources.reduce((a, x) => a + Math.max(0, x.held), 0);
   const bands = rows(inc.byBand);
   const months = [...inc.byMonth.keys()].sort();
   const byMonth: { month: string; net: number; units: number }[] = [];
@@ -62,8 +64,8 @@ export default async function FundsPage() {
       </div>
       {v(inc.holderShare) !== 0 && (
         <p className="-mt-3 mb-6 text-sm text-muted">
-          The account also holds {formatCents(v(inc.holderShare), cur)} that’s {inc.holderName ? `${inc.holderName}’s` : "the account holder’s"} own share
-          of sales, kept there instead of being paid out. It isn’t counted as the label’s.
+          {/* The account also holds {formatCents(v(inc.holderShare), cur)} that’s {inc.holderName ? `${inc.holderName}’s` : "the account holder’s"} own share
+          of sales, kept there instead of being paid out. It isn’t counted as the label’s. */}
         </p>
       )}
       {inc.currencies.length > 1 && (
@@ -88,14 +90,14 @@ export default async function FundsPage() {
                 Sent on
               </li>
             </ul>
-            <SourceRows rows={open} max={max} total={v(inc.income)} currency={cur} />
+            <SourceRows rows={open} max={max} total={totalHeld} currency={cur} />
             {done.length > 0 && (
               <details className="mt-4">
                 <summary className="cursor-pointer text-sm text-link">
                   {done.length} source{done.length === 1 ? "" : "s"} fully sent on
                 </summary>
                 <div className="mt-3">
-                  <SourceRows rows={done} max={max} total={v(inc.income)} currency={cur} />
+                  <SourceRows rows={done} max={max} total={totalHeld} currency={cur} />
                 </div>
               </details>
             )}
@@ -160,7 +162,7 @@ function SourceRows({ rows, max, total, currency }: { rows: SourceRow[]; max: nu
             </span>
             <div className="text-right tabular-nums">
               {formatCents(src.net, currency)}
-              <div className="text-xs text-muted">{total ? `${((src.net / total) * 100).toFixed(1)}% of the label’s money` : ""}</div>
+              {total > 0 && held > 0 && <div className="text-xs text-muted">{((held / total) * 100).toFixed(1)}% of what the label still holds</div>}
               {src.sent > 0 && (
                 <div className="text-xs text-muted">
                   {formatCents(held, currency)} held · {formatCents(src.sent, currency)} sent on
