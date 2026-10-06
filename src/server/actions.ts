@@ -551,6 +551,17 @@ export async function syncBandcampSales(_: ActionState, fd: FormData): Promise<A
   return { ok: `Up to date: all ${result.duplicates} sales from ${result.names} were already imported.` };
 }
 
+/** Hide or bring back the dashboard's "Getting started" checklist. */
+export async function setSetupHidden(fd: FormData) {
+  const { orgId } = await requireAdmin();
+  const hidden = fd.get("hidden") === "1";
+  await db
+    .insert(schema.accountSettings)
+    .values({ orgId, setupHidden: hidden })
+    .onConflictDoUpdate({ target: schema.accountSettings.orgId, set: { setupHidden: hidden } });
+  done();
+}
+
 /** "Sync with Bandcamp now": artists, releases, merch and sales, right away (not waiting for the hour). */
 export async function syncWithBandcamp(): Promise<ActionState> {
   const { orgId } = await requireAdmin();

@@ -1,0 +1,1 @@
+ALTER TABLE "account_settings" ADD COLUMN "setup_hidden" boolean DEFAULT false NOT NULL;

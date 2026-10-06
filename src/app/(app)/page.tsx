@@ -6,6 +6,7 @@ import { db, schema } from "@/db";
 import { STATUS_LABEL, STATUS_TONE } from "@/lib/status";
 import { outsideArtistRows } from "@/components/outside-artists";
 import { SyncStatus } from "@/components/sync-status";
+import { setSetupHidden } from "@/server/actions";
 import { requireAdmin } from "@/server/context";
 import { computeAllTime, nameMaps } from "@/server/data";
 
@@ -72,6 +73,12 @@ export default async function Dashboard() {
   // The header's highlighted button is whatever should happen next.
   const next = saleCount === 0 ? "import" : "payout";
   const setupDone = steps.every((s) => s.done);
+  const [settingsRow] = await db
+    .select({ setupHidden: schema.accountSettings.setupHidden })
+    .from(schema.accountSettings)
+    .where(eq(schema.accountSettings.orgId, orgId));
+  const setupHidden = settingsRow?.setupHidden ?? false;
+  const stepsLeft = steps.filter((s) => !s.done).length;
 
   const owed = new Map<number, Map<string, number>>();
   for (const p of pending) {
@@ -114,8 +121,23 @@ export default async function Dashboard() {
         </Callout>
       )}
 
-      {!setupDone && (
-        <Card title="Getting started">
+      {!setupDone && !setupHidden && (
+        <Card
+          title="Getting started"
+          actions={
+            <form action={setSetupHidden}>
+              <input type="hidden" name="hidden" value="1" />
+              <button
+                type="submit"
+                aria-label="Hide the getting started checklist"
+                title="Hide (you can bring it back at the bottom of this page)"
+                className="flex h-7 w-7 items-center justify-center rounded-sm text-lg leading-none text-muted hover:bg-surface-2 hover:text-text"
+              >
+                ×
+              </button>
+            </form>
+          }
+        >
           <ol className="space-y-2">
             {steps.map((s, i) => (
               <li key={s.label} className="flex items-start gap-3 text-sm">
@@ -203,6 +225,16 @@ export default async function Dashboard() {
           )}
         </Card>
       </div>
+
+      {!setupDone && setupHidden && (
+        <form action={setSetupHidden} className="mt-6 text-center text-xs text-muted">
+          <input type="hidden" name="hidden" value="0" />
+          {stepsLeft} setup step{stepsLeft === 1 ? "" : "s"} left.{" "}
+          <button type="submit" className="underline hover:text-text">
+            Show the getting started checklist
+          </button>
+        </form>
+      )}
     </>
   );
 }

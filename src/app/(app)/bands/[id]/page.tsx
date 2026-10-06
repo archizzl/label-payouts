@@ -535,7 +535,7 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
       </Card>
 
       <Card title="Band deductions">
-        <p className="mb-3 text-sm text-muted">Taken after any label-wide deductions (set those under label rules).</p>
+        <p className="mb-3 text-sm text-muted">Taken after any label-wide deductions.</p>
         <DeductionList
           people={bandPeople}
           items={bandDeductions}

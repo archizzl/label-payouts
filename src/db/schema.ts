@@ -53,6 +53,8 @@ export const accountSettings = pgTable("account_settings", {
   syncFinishedAt: text("sync_finished_at"),
   syncSummary: text("sync_summary"),
   syncError: text("sync_error"),
+  /** An admin closed the dashboard's "Getting started" checklist (it can be brought back). */
+  setupHidden: boolean("setup_hidden").notNull().default(false),
 });
 
 export const bands = pgTable(
