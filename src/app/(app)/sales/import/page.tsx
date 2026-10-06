@@ -7,6 +7,7 @@ import { Badge, Callout, Card, Empty, MoneyList, PageHeader } from "@/components
 import { db, schema } from "@/db";
 import { assignRouting, createReleaseFromSales, deleteImport, syncBandcampSales } from "@/server/actions";
 import { API_SYNC_PREFIX, bandcampCredentials } from "@/server/bandcamp-api";
+import { SalesTabs } from "@/components/sales-tabs";
 import { SyncStatus } from "@/components/sync-status";
 import { requireAdmin } from "@/server/context";
 import { unroutedGroups } from "@/server/data";
@@ -96,7 +97,7 @@ function Group({ g, mode, catalog }: { g: Awaited<ReturnType<typeof unroutedGrou
   );
 }
 
-export default async function ImportPage({ searchParams }: PageProps<"/import">) {
+export default async function ImportPage({ searchParams }: PageProps<"/sales/import">) {
   await connection();
   const { orgId } = await requireAdmin();
   const importedId = Number((await searchParams).imported) || null;
@@ -119,7 +120,8 @@ export default async function ImportPage({ searchParams }: PageProps<"/import">)
 
   return (
     <>
-      <PageHeader title="Import sales" subtitle="Pull the label-wide sales report from Bandcamp, or upload it as a CSV. Overlapping reports are safe: sales already imported are skipped." />
+      <PageHeader title="Sales" subtitle="Pull the label-wide sales report from Bandcamp, or upload it as a CSV. Overlapping reports are safe: sales already imported are skipped." />
+      <SalesTabs active="import" />
       {justImported && (
         <Callout tone="good">
           Imported {justImported.addedCount} new sales from {justImported.filename}
@@ -128,18 +130,18 @@ export default async function ImportPage({ searchParams }: PageProps<"/import">)
       )}
       {bandCount === 0 && <Callout>Tip: add your bands first so sales can be matched automatically. You can still import now and match later.</Callout>}
 
-      <Card title="Sync from Bandcamp">
+      <Card>
         <div className="mb-4">
           <SyncStatus orgId={orgId} />
         </div>
         {apiReady ? (
           <ActionForm action={syncBandcampSales} className="space-y-3">
             <p className="text-sm text-muted">
-              Fetches the raw sales report for your label and all its artists through the Bandcamp API and imports every sale that
-              isn’t here yet, including refunds.
+              {/* Fetches the raw sales report for your label and all its artists through the Bandcamp API and imports every sale that
+              isn’t here yet, including refunds. */}
               {lastSync ? <> Last synced {lastSync.importedAt.replace("T", " ").slice(0, 16)}.</> : " Not synced yet."}
             </p>
-            <div className="flex flex-wrap items-end gap-3">
+            {/* <div className="flex flex-wrap items-end gap-3">
               <SubmitButton>Sync sales now</SubmitButton>
               <details className="text-sm">
                 <summary className="text-muted">only from a date…</summary>
@@ -147,7 +149,7 @@ export default async function ImportPage({ searchParams }: PageProps<"/import">)
                   From <input type="date" name="from" className="!w-44" />
                 </label>
               </details>
-            </div>
+            </div> */}
           </ActionForm>
         ) : (
           <p className="text-sm text-muted">

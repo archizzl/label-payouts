@@ -78,7 +78,7 @@ export async function SalesSection({
           No sales {r.key === "all" ? "yet" : "in this range"}.{" "}
           {!readOnly && (
             <>
-              <Link href="/import">Import a sales report</Link> to see them here.
+              <Link href="/sales/import">Import a sales report</Link> to see them here.
             </>
           )}
         </p>

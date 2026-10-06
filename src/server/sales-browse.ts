@@ -1,0 +1,271 @@
+import "server-only";
+import { and, asc, desc, eq, gte, ilike, isNull, lt, lte, or, type SQL, sql } from "drizzle-orm";
+import type { AnyPgColumn } from "drizzle-orm/pg-core";
+import { db, schema } from "@/db";
+
+/*
+ * The Sales tab: every imported sale, filtered and sorted from the URL, with totals and breakdowns
+ * of exactly what's filtered. Everything is computed in the database, so it stays quick with years
+ * of sales.
+ */
+
+const { sales, bands, releases } = schema;
+
+const CATEGORIES = ["album", "track", "merch", "other"] as const;
+export const SORTS = ["date", "item", "band", "type", "country", "source", "qty", "net"] as const;
+export type SortKey = (typeof SORTS)[number];
+
+export type SalesFilter = {
+  q?: string;
+  from?: string;
+  to?: string;
+  /** A band id, or "none" for sales not matched to a band. */
+  band?: number | "none";
+  release?: number;
+  type?: (typeof CATEGORIES)[number];
+  country?: string;
+  source?: string;
+  currency?: string;
+  refunds?: boolean;
+  sort: SortKey;
+  dir: "asc" | "desc";
+  page: number;
+};
+
+export const PAGE_SIZE = 50;
+
+const isoDate = (s: unknown) => (typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : undefined);
+const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v)?.trim() || undefined;
+
+/** Read the filters from the page's search params (anything unrecognised is ignored). */
+export function parseSalesFilter(sp: Record<string, string | string[] | undefined>): SalesFilter {
+  const band = one(sp.band);
+  const type = one(sp.type);
+  const sort = one(sp.sort);
+  return {
+    q: one(sp.q),
+    from: isoDate(one(sp.from)),
+    to: isoDate(one(sp.to)),
+    band: band === "none" ? "none" : Number(band) || undefined,
+    release: Number(one(sp.release)) || undefined,
+    type: CATEGORIES.find((c) => c === type),
+    country: one(sp.country),
+    source: one(sp.source),
+    currency: one(sp.currency)?.toUpperCase(),
+    refunds: one(sp.refunds) === "1",
+    sort: SORTS.find((s) => s === sort) ?? "date",
+    dir: one(sp.dir) === "asc" ? "asc" : "desc",
+    page: Math.max(1, Number.parseInt(one(sp.page) ?? "1", 10) || 1),
+  };
+}
+
+/** The same filters as URL params, minus the defaults, with some changed. */
+export function filterQuery(f: SalesFilter, change: Partial<Record<keyof SalesFilter, string | number | boolean | undefined>> = {}) {
+  const merged: Record<string, unknown> = { ...f, ...change };
+  const p = new URLSearchParams();
+  for (const [k, v] of Object.entries(merged)) {
+    if (v === undefined || v === "" || v === false) continue;
+    if (k === "sort" && v === "date") continue;
+    if (k === "dir" && v === "desc") continue;
+    if (k === "page" && v === 1) continue;
+    p.set(k, v === true ? "1" : String(v));
+  }
+  const s = p.toString();
+  return s ? `?${s}` : "";
+}
+
+const country = sql<string>`coalesce(nullif(${sales.raw}->>'country', ''), '')`;
+const source = sql<string>`coalesce(nullif(${sales.raw}->>'referer', ''), nullif(${sales.raw}->>'referrer', ''), nullif(${sales.raw}->>'source', ''), '')`;
+const like = (s: string) => `%${s.replace(/[%_\\]/g, (c) => `\\${c}`)}%`;
+
+function where(orgId: string, f: SalesFilter): SQL {
+  const c: (SQL | undefined)[] = [eq(sales.orgId, orgId)];
+  if (f.q) {
+    const l = like(f.q);
+    c.push(or(ilike(sales.itemName, l), ilike(sales.artist, l), ilike(sales.packageName, l), ilike(sales.transactionId, l), ilike(sales.itemUrl, l)));
+  }
+  if (f.from) c.push(gte(sales.date, f.from));
+  if (f.to) c.push(lte(sales.date, f.to));
+  if (f.band === "none") c.push(isNull(sales.bandId));
+  else if (f.band) c.push(eq(sales.bandId, f.band));
+  if (f.release) c.push(eq(sales.releaseId, f.release));
+  if (f.type) c.push(eq(sales.category, f.type));
+  if (f.country !== undefined) c.push(sql`${country} = ${f.country === "(none)" ? "" : f.country}`);
+  if (f.source !== undefined) c.push(sql`${source} = ${f.source === "(direct)" ? "" : f.source}`);
+  if (f.currency) c.push(eq(sales.currency, f.currency));
+  if (f.refunds) c.push(lt(sales.netCents, 0));
+  return and(...c)!;
+}
+
+const ORDER: Record<SortKey, SQL | AnyPgColumn> = {
+  date: sales.date,
+  item: sql`lower(${sales.itemName})`,
+  band: sql`lower(coalesce(${bands.name}, ${sales.artist}))`,
+  type: sales.category,
+  country: sql`nullif(${country}, '')`,
+  source: sql`nullif(${source}, '')`,
+  qty: sales.quantity,
+  net: sales.netCents,
+};
+
+export type SaleRow = Awaited<ReturnType<typeof browseSales>>["rows"][number];
+
+/** One page of sales, sorted. */
+export async function browseSales(orgId: string, f: SalesFilter) {
+  const w = where(orgId, f);
+  const by = f.dir === "asc" ? asc : desc;
+  const [rows, [{ n }]] = await Promise.all([
+    db
+      .select({
+        id: sales.id,
+        date: sales.date,
+        itemName: sales.itemName,
+        itemType: sales.itemType,
+        category: sales.category,
+        artist: sales.artist,
+        packageName: sales.packageName,
+        itemUrl: sales.itemUrl,
+        quantity: sales.quantity,
+        currency: sales.currency,
+        netCents: sales.netCents,
+        transactionId: sales.transactionId,
+        bandId: sales.bandId,
+        bandName: bands.name,
+        releaseId: sales.releaseId,
+        releaseTitle: releases.title,
+        country,
+        source,
+        raw: sales.raw,
+      })
+      .from(sales)
+      .leftJoin(bands, eq(bands.id, sales.bandId))
+      .leftJoin(releases, eq(releases.id, sales.releaseId))
+      .where(w)
+      // Blanks (no country, no source) go last either way.
+      .orderBy(sql`${ORDER[f.sort]} ${sql.raw(f.dir)} nulls last`, by(sales.date), by(sales.id))
+      .limit(PAGE_SIZE)
+      .offset((f.page - 1) * PAGE_SIZE),
+    db.select({ n: sql<number>`count(*)::int` }).from(sales).where(w),
+  ]);
+  return { rows, count: n };
+}
+
+/** Every matching sale (for the CSV export). */
+export async function allMatchingSales(orgId: string, f: SalesFilter) {
+  return db
+    .select({ sale: sales, bandName: bands.name, releaseTitle: releases.title })
+    .from(sales)
+    .leftJoin(bands, eq(bands.id, sales.bandId))
+    .leftJoin(releases, eq(releases.id, sales.releaseId))
+    .where(where(orgId, f))
+    .orderBy(desc(sales.date), desc(sales.id));
+}
+
+type Breakdown = { key: string; net: number; units: number };
+
+/** Totals and breakdowns of everything matching (in each currency; nothing is converted). */
+export async function summarizeSales(orgId: string, f: SalesFilter) {
+  const w = where(orgId, f);
+  const units = sql<number>`sum(greatest(1, ${sales.quantity}) * sign(${sales.netCents}))::int`;
+  const net = sql<number>`sum(${sales.netCents})::int`;
+  const group = (key: SQL<string>, limit = 8) =>
+    db
+      .select({ currency: sales.currency, key, net, units })
+      .from(sales)
+      .leftJoin(bands, eq(bands.id, sales.bandId))
+      .where(w)
+      .groupBy(sales.currency, sql`2`)
+      .orderBy(sql`3 desc`)
+      .limit(limit * 4);
+  const [totals, byMonth, byItem, byCountry, bySource, byType, byBand] = await Promise.all([
+    db
+      .select({
+        currency: sales.currency,
+        sales: sql<number>`count(*)::int`,
+        units,
+        net,
+        refunds: sql<number>`count(*) filter (where ${sales.netCents} < 0)::int`,
+        refundCents: sql<number>`coalesce(sum(${sales.netCents}) filter (where ${sales.netCents} < 0), 0)::int`,
+        first: sql<string>`min(${sales.date})`,
+        last: sql<string>`max(${sales.date})`,
+      })
+      .from(sales)
+      .where(w)
+      .groupBy(sales.currency)
+      .orderBy(sql`4 desc`),
+    db
+      .select({ currency: sales.currency, month: sql<string>`substr(${sales.date}, 1, 7)`, net, units })
+      .from(sales)
+      .where(w)
+      .groupBy(sales.currency, sql`2`)
+      .orderBy(sql`2`),
+    group(sql<string>`${sales.itemName}`),
+    group(sql<string>`case when ${country} = '' then 'Not given' else ${country} end`),
+    group(sql<string>`case when ${source} = '' then 'Direct / unknown' else ${source} end`),
+    group(sql<string>`${sales.category}`),
+    group(sql<string>`coalesce(${bands.name}, 'Not matched to a band')`),
+  ]);
+
+  const currencies = totals.map((t) => t.currency);
+  const main = currencies[0] ?? "USD";
+  const pick = (rows: (Breakdown & { currency: string })[], limit = 8) =>
+    rows
+      .filter((r) => r.currency === main)
+      .slice(0, limit)
+      .map(({ key, net, units }) => ({ key, net, units }));
+  return {
+    main,
+    totals,
+    byMonth: fillMonths(byMonth.filter((m) => m.currency === main)),
+    byItem: pick(byItem),
+    byCountry: pick(byCountry),
+    bySource: pick(bySource),
+    byType: pick(byType),
+    byBand: pick(byBand),
+  };
+}
+
+/** Every month between the first and last, so quiet months show as zero. */
+function fillMonths(rows: { month: string; net: number; units: number }[]) {
+  if (!rows.length) return [];
+  const m = new Map(rows.map((r) => [r.month, r]));
+  const out: { month: string; net: number; units: number }[] = [];
+  let [y, mo] = rows[0].month.split("-").map(Number);
+  const last = rows[rows.length - 1].month;
+  for (let k = rows[0].month; k <= last && out.length < 600; ) {
+    out.push({ month: k, net: m.get(k)?.net ?? 0, units: m.get(k)?.units ?? 0 });
+    mo++;
+    if (mo > 12) [y, mo] = [y + 1, 1];
+    k = `${y}-${String(mo).padStart(2, "0")}`;
+  }
+  return out;
+}
+
+/** Choices for the filter dropdowns. */
+export async function salesFilterOptions(orgId: string) {
+  const [bandRows, countries, sources, currencies] = await Promise.all([
+    db.select({ id: bands.id, name: bands.name }).from(bands).where(eq(bands.orgId, orgId)).orderBy(asc(bands.name)),
+    db
+      .selectDistinct({ v: country })
+      .from(sales)
+      .where(eq(sales.orgId, orgId))
+      .orderBy(sql`1`),
+    db
+      .select({ v: source, n: sql<number>`count(*)::int` })
+      .from(sales)
+      .where(eq(sales.orgId, orgId))
+      .groupBy(sql`1`)
+      .orderBy(sql`2 desc`)
+      .limit(40),
+    db
+      .selectDistinct({ v: sales.currency })
+      .from(sales)
+      .where(eq(sales.orgId, orgId)),
+  ]);
+  return {
+    bands: bandRows,
+    countries: countries.map((c) => c.v),
+    sources: sources.map((s) => s.v),
+    currencies: currencies.map((c) => c.v).sort(),
+  };
+}

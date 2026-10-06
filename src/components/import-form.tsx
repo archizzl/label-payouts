@@ -34,7 +34,7 @@ export function ImportForm() {
         if (res.error) return setError(res.error);
         setFile(null);
         setPreview(null);
-        router.push(`/import?imported=${res.importId}`);
+        router.push(`/sales/import?imported=${res.importId}`);
       } catch (e) {
         setError((e as Error).message);
       }

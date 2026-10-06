@@ -149,7 +149,7 @@ export async function PayoutView({
           {sync.synced > 0 ? (
             <>
               Synced with Bandcamp first: {sync.synced} new sale{sync.synced === 1 ? "" : "s"} imported (see{" "}
-              <Link href="/import">Import sales</Link>).
+              <Link href="/sales/import">Import sales</Link>).
             </>
           ) : (
             "Synced with Bandcamp first: no new sales, you’re up to date."
@@ -172,7 +172,7 @@ export async function PayoutView({
       {problems.unrouted > 0 && (
         <Callout tone="bad">
           {problems.unrouted} sale(s) aren’t matched to a band yet.{" "}
-          <Link href="/import" className="underline">
+          <Link href="/sales/import" className="underline">
             Assign them on the Import page
           </Link>
           .
@@ -230,7 +230,7 @@ export async function PayoutView({
         <Card>
           <Empty>
             No sales to pay in these dates.{" "}
-            <Link href="/import" className="underline">
+            <Link href="/sales/import" className="underline">
               Import a sales report
             </Link>{" "}
             first, or pick other dates.

@@ -547,7 +547,7 @@ export async function syncBandcampSales(_: ActionState, fd: FormData): Promise<A
     return { error: (e as Error).message };
   }
   done();
-  if (result.added > 0) redirect(`/import?imported=${result.importId}`);
+  if (result.added > 0) redirect(`/sales/import?imported=${result.importId}`);
   return { ok: `Up to date: all ${result.duplicates} sales from ${result.names} were already imported.` };
 }
 

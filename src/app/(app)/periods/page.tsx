@@ -45,7 +45,7 @@ export default async function PeriodsPage({ searchParams }: PageProps<"/periods"
       <PageHeader title="Payouts" subtitle="A payout covers a date range of sales. Preview it, finalize it, then pay everyone." />
       {!salesRange?.first && (
         <Callout tone="neutral">
-          No sales imported yet. <Link href="/import">Import a Bandcamp sales report</Link> first, then create a payout for it.
+          No sales imported yet. <Link href="/sales/import">Import a Bandcamp sales report</Link> first, then create a payout for it.
         </Callout>
       )}
       <Owed orgId={orgId} />

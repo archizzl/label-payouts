@@ -67,7 +67,7 @@ export default async function Dashboard() {
       href: "/rules",
       hint: "",
     },
-    { done: saleCount > 0, label: "Import a Bandcamp sales report", href: "/import", hint: "" },
+    { done: saleCount > 0, label: "Import a Bandcamp sales report", href: "/sales/import", hint: "" },
     { done: periods.length > 0, label: "Create a payout period and pay people", href: "/periods", hint: "" },
   ];
   // The header's highlighted button is whatever should happen next.
@@ -94,7 +94,7 @@ export default async function Dashboard() {
         title="Dashboard"
         actions={
           <>
-            <LinkButton href="/import" variant={next === "import" ? "primary" : "secondary"}>
+            <LinkButton href="/sales/import" variant={next === "import" ? "primary" : "secondary"}>
               Import sales
             </LinkButton>
             <LinkButton href="/periods" variant={next === "payout" ? "primary" : "secondary"}>
@@ -109,7 +109,7 @@ export default async function Dashboard() {
 
       {unrouted > 0 && (
         <Callout tone="bad">
-          {unrouted} imported sale(s) aren’t matched to a band. <Link href="/import" className="underline">Fix on the Import page</Link>.
+          {unrouted} imported sale(s) aren’t matched to a band. <Link href="/sales/import" className="underline">Fix on the Import page</Link>.
         </Callout>
       )}
 

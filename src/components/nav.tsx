@@ -25,7 +25,7 @@ function itemsFor(account: Account, isAdmin: boolean, labels: Item[]): Item[] {
   if (!isAdmin) return [{ href: "/me", label: "my earnings" }];
   return [
     { href: "/", label: "dashboard" },
-    { href: "/import", label: "import sales" },
+    { href: "/sales", label: "sales" },
     { href: "/periods", label: "payouts" },
     { href: "/receipts", label: "receipts" },
     { href: "/projects", label: "projects" },
