@@ -93,6 +93,19 @@ describe("browsing sales", () => {
     expect(summary.byPayout).toEqual({ paid: { net: 900, sales: 1 }, pending: { net: 90, sales: 1 }, none: { net: 1400, sales: 3 } });
   });
 
+  it("uses a payout's list of sales: a later sale dated inside it isn't marked paid", async () => {
+    const { orgId } = await setup();
+    const [person] = await db.insert(schema.people).values({ orgId, name: "Member" }).returning();
+    const [jan] = await db.insert(schema.periods).values({ orgId, name: "Jan", startDate: "2026-01-01", endDate: "2026-02-28" }).returning();
+    await db.insert(schema.periodSales).values({ orgId, periodId: jan.id, dedupeKey: "LP" }); // it paid the LP, not the Single
+    await db.insert(schema.payouts).values({ orgId, periodId: jan.id, personId: person.id, currency: "USD", amountCents: 900, byBand: {}, status: "paid" });
+    const { rows } = await browse.browseSales(orgId, f({ sort: "date", dir: "asc" }));
+    expect(rows.slice(0, 2).map((r) => [r.itemName, r.payoutState])).toEqual([
+      ["LP", "paid"],
+      ["Single", "none"],
+    ]);
+  });
+
   it("finds a buyer's sales by their full email, and links them together", async () => {
     const { orgId } = await setup();
     const { emailFingerprint } = await import("../secrets");

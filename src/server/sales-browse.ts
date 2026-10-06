@@ -95,14 +95,17 @@ export function filterQuery(f: SalesFilter, change: Partial<Record<keyof SalesFi
 const country = sql<string>`coalesce(nullif(${sales.raw}->>'country', ''), '')`;
 const source = sql<string>`coalesce(nullif(${sales.raw}->>'referer', ''), nullif(${sales.raw}->>'referrer', ''), nullif(${sales.raw}->>'source', ''), '')`;
 /*
- * The finalized payout covering a sale, the same rule payouts use: one for the whole label, or for
- * the sale's band, whose dates include the sale's. It counts as paid once every person in it is
+ * The finalized payout that paid a sale, the same rule payouts use: the one whose list has it (or,
+ * for payouts without a list, one for the whole label or the sale's band whose dates include it). It counts as paid once every person in it is
  * marked paid (or kept, for whoever holds the label's account).
  */
-const coveringPeriod = sql`(select ${periods.id} from ${periods}
-  where ${periods.orgId} = ${sales.orgId} and ${sales.date} between ${periods.startDate} and ${periods.endDate}
-    and (${periods.bandId} is null or ${periods.bandId} = ${sales.bandId})
-  order by ${periods.id} limit 1)`;
+const coveringPeriod = sql`coalesce(
+  (select ps.period_id from ${schema.periodSales} ps where ps.org_id = ${sales.orgId} and ps.dedupe_key = ${sales.dedupeKey} limit 1),
+  (select ${periods.id} from ${periods}
+    where ${periods.orgId} = ${sales.orgId} and ${sales.date} between ${periods.startDate} and ${periods.endDate}
+      and (${periods.bandId} is null or ${periods.bandId} = ${sales.bandId})
+      and not exists (select 1 from ${schema.periodSales} x where x.period_id = ${periods.id})
+    order by ${periods.id} limit 1))`;
 const payoutState = sql<PayoutState>`case
   when ${coveringPeriod} is null then 'none'
   when exists (select 1 from ${payouts} where ${payouts.periodId} = ${coveringPeriod} and ${payouts.status} = 'pending') then 'pending'

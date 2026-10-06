@@ -78,6 +78,13 @@
       "when": 1791296490227,
       "tag": "0010_deduction_sale_part",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1791298003254,
+      "tag": "0011_period_sales",
+      "breakpoints": true
     }
   ]
 }

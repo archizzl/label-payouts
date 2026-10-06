@@ -89,3 +89,47 @@ describe("paying bands one at a time", () => {
     expect([...names.band.keys()].sort()).toEqual([two.a.id, two.b.id].sort());
   });
 });
+
+describe("payouts remember exactly which sales they paid", () => {
+  /** Like finalizing in the app: work out the payout, save it, and save the list of sales it paid. */
+  async function finalize(orgId: string, scope: { startDate: string; endDate: string; bandId: number | null }) {
+    const { results, saleById } = await data.computePayoutPeriod(orgId, { id: 0, ...scope });
+    const [p] = await db.insert(schema.periods).values({ orgId, name: "p", ...scope, status: "finalized" }).returning();
+    await db.insert(schema.periodSales).values(results.map((r) => ({ orgId, periodId: p.id, dedupeKey: saleById.get(r.saleId)!.dedupeKey })));
+    return p;
+  }
+  const addSale = async (orgId: string, importId: number, key: string, bandId: number, date: string) =>
+    db.insert(schema.sales).values({
+      orgId, importId, dedupeKey: key, date, itemType: "album", category: "album", itemName: "x", artist: "", itemUrl: "",
+      packageName: "", currency: "USD", netCents: 1000, transactionId: key, routingKey: key, bandId, raw: {},
+    });
+  const keys = async (orgId: string, scope: { startDate: string; endDate: string; bandId: number | null; id?: number }) => {
+    const { results, saleById } = await data.computePayoutPeriod(orgId, { id: 0, ...scope });
+    return results.map((r) => saleById.get(r.saleId)!.dedupeKey).sort();
+  };
+
+  it("pays a sale made later on a payout's last day in the next payout, which starts that day", async () => {
+    const { orgId, a, aJan } = await setup();
+    const jan = await finalize(orgId, { startDate: "2026-01-01", endDate: "2026-01-10", bandId: a.id });
+    // Later on Jan 10, after finalizing, another sale comes in.
+    await addSale(orgId, aJan.importId, "a-jan-late", a.id, "2026-01-10");
+    expect(await keys(orgId, { startDate: "2026-01-10", endDate: "2026-02-28", bandId: a.id })).toEqual(["a-feb", "a-jan-late"]);
+    // The finalized payout still has just what it paid.
+    expect(await keys(orgId, { id: jan.id, startDate: "2026-01-01", endDate: "2026-01-10", bandId: a.id })).toEqual(["a-jan"]);
+  });
+
+  it("keeps a sale paid when it's deleted and imported again", async () => {
+    const { orgId, a, aJan } = await setup();
+    await finalize(orgId, { startDate: "2026-01-01", endDate: "2026-01-31", bandId: a.id });
+    const { eq } = await import("drizzle-orm");
+    await db.delete(schema.sales).where(eq(schema.sales.id, aJan.id));
+    await addSale(orgId, aJan.importId, "a-jan", a.id, "2026-01-10");
+    expect(await keys(orgId, { startDate: "2026-01-01", endDate: "2026-02-28", bandId: a.id })).toEqual(["a-feb"]);
+  });
+
+  it("still treats payouts without a list (older books) as covering their dates", async () => {
+    const { orgId, a } = await setup();
+    await db.insert(schema.periods).values({ orgId, name: "old", startDate: "2026-01-01", endDate: "2026-01-31", bandId: a.id, status: "finalized" });
+    expect(await keys(orgId, { startDate: "2026-01-01", endDate: "2026-02-28", bandId: a.id })).toEqual(["a-feb"]);
+  });
+});

@@ -361,6 +361,23 @@ export const periods = pgTable(
   (t) => [index("periods_org").on(t.orgId)],
 );
 
+/**
+ * Exactly which sales a finalized payout paid (by their stable de-duplication key, so re-importing
+ * a sale doesn't make it unpaid). A sale that turns up later, even dated inside a finalized
+ * payout's range, isn't in it, so the next payout picks it up.
+ */
+export const periodSales = pgTable(
+  "period_sales",
+  {
+    orgId: orgId(),
+    periodId: integer("period_id")
+      .notNull()
+      .references(() => periods.id, { onDelete: "cascade" }),
+    dedupeKey: text("dedupe_key").notNull(),
+  },
+  (t) => [uniqueIndex("period_sales_pk").on(t.periodId, t.dedupeKey), index("period_sales_org_key").on(t.orgId, t.dedupeKey)],
+);
+
 export const payouts = pgTable(
   "payouts",
   {

@@ -190,22 +190,38 @@ export function salePackage(s: SaleRow, packages: ReleasePackage[]): { pkg: Rele
 type PeriodScope = { id: number; startDate: string; endDate: string; bandId: number | null };
 
 /**
- * The sales a payout period pays: in its dates, for its band (or the whole label), and not
- * already paid by another finalized period. A sale is already paid if a finalized period for the
- * whole label, or for that sale's band, covers its date. That's what lets you pay bands one at a
- * time without anything being paid twice.
+ * The sales a payout period pays: in its dates, for its band (or the whole label), and not already
+ * paid by another finalized period. A finalized payout remembers exactly which sales it paid
+ * (period_sales), so a sale that turns up later, even dated inside its range, is still unpaid and
+ * the next payout picks it up. That's what lets you pay bands one at a time, and start a payout on
+ * the day the last one ended, without anything being paid twice or skipped.
+ *
+ * For a finalized period itself, its sales are exactly the ones it paid. (Payouts without a list,
+ * e.g. from older books, cover every sale in their dates, as before.)
  */
 export async function computePayoutPeriod(orgId: string, period: PeriodScope) {
-  const [{ results, saleById }, periodRows] = await Promise.all([
+  const [{ results, saleById }, periodRows, paidRows] = await Promise.all([
     computePeriod(orgId, period.startDate, period.endDate),
     db.select().from(schema.periods).where(eq(schema.periods.orgId, orgId)),
+    db
+      .select({ periodId: schema.periodSales.periodId, dedupeKey: schema.periodSales.dedupeKey })
+      .from(schema.periodSales)
+      .where(eq(schema.periodSales.orgId, orgId)),
   ]);
+  const paidIn = new Map(paidRows.map((r) => [r.dedupeKey, r.periodId]));
+  const withList = new Set(paidRows.map((r) => r.periodId));
   const others = periodRows.filter((o) => o.id !== period.id);
+  const ownList = period.id > 0 && withList.has(period.id);
   const alreadyPaid = new Map<number, number>(); // other period id → sales it already covered
   const mine = results.filter((r) => {
     const s = saleById.get(r.saleId)!;
+    const paidBy = paidIn.get(s.dedupeKey);
+    if (ownList) return paidBy === period.id;
     if (period.bandId !== null && s.bandId !== period.bandId) return false;
-    const by = others.find((o) => s.date >= o.startDate && s.date <= o.endDate && (o.bandId === null || o.bandId === s.bandId));
+    const by =
+      paidBy !== undefined && paidBy !== period.id
+        ? others.find((o) => o.id === paidBy)
+        : others.find((o) => !withList.has(o.id) && s.date >= o.startDate && s.date <= o.endDate && (o.bandId === null || o.bandId === s.bandId));
     if (by) {
       alreadyPaid.set(by.id, (alreadyPaid.get(by.id) ?? 0) + 1);
       return false;

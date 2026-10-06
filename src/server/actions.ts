@@ -706,7 +706,7 @@ export async function finalizePayout(_: ActionState, fd: FormData): Promise<Acti
   const { orgId } = await requireAdmin();
   const scope = await payoutScope(orgId, fd);
   if (!scope) return { error: "Pick a valid start and end date" };
-  const { results, summary } = await computePayoutPeriod(orgId, { id: 0, ...scope });
+  const { results, summary, saleById } = await computePayoutPeriod(orgId, { id: 0, ...scope });
   if (results.length === 0) return { error: "There are no sales to pay in these dates." };
   const problems = results.filter((r) => r.problem).length;
   if (problems > 0 && !bool(fd, "force")) {
@@ -765,6 +765,9 @@ export async function finalizePayout(_: ActionState, fd: FormData): Promise<Acti
         }),
     );
     if (lines.length) await tx.insert(payouts).values(lines);
+    // Remember exactly which sales this payout paid.
+    const keys = results.map((r) => ({ orgId, periodId: id, dedupeKey: saleById.get(r.saleId)!.dedupeKey }));
+    for (let i = 0; i < keys.length; i += 500) await tx.insert(schema.periodSales).values(keys.slice(i, i + 500)).onConflictDoNothing();
     return id;
   });
   await syncPeriodStatus(orgId, id);
