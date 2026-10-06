@@ -4,6 +4,7 @@ import { db, schema } from "@/db";
 import type { ReleasePackage } from "@/db/schema";
 import type { ItemCategory } from "@/lib/bandcamp-csv";
 import { type Catalog, normalizeId, normalizeText, routeSale } from "@/lib/routing";
+import { salePartsOf } from "@/lib/sale-parts";
 import { computeLedger, type EngineContext, type EngineSale, type SaleResult, summarize } from "@/lib/splits";
 import { expenseDeductions, projectReleaseMap } from "./expenses";
 
@@ -155,6 +156,7 @@ export async function computePeriod(orgId: string, start: string, end: string) {
       quantity: s.quantity,
       format,
       packageId: pkg?.bandcampId ?? null,
+      parts: salePartsOf(s.raw),
       tieKey: hash32(s.dedupeKey),
     };
   });

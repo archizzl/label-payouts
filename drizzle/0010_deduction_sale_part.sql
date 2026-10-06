@@ -1,0 +1,1 @@
+ALTER TABLE "deductions" ADD COLUMN "sale_part" text;

@@ -26,7 +26,9 @@ export type DeductionDestination = "label" | "band_fund" | "expense" | "person";
 export type Deduction = {
   id: number;
   label: string;
-  kind: "percent" | "fixed" | "per_unit";
+  kind: "percent" | "fixed" | "per_unit" | "sale_part";
+  /** sale_part: which part of each sale is taken, e.g. "shipping" (see lib/sale-parts). */
+  salePart?: string | null;
   /** percent: basis points of the amount remaining at this step (2000 = 20%). */
   percentBps: number | null;
   /**
@@ -70,6 +72,8 @@ export type EngineSale = {
   format?: string;
   /** The release format that was sold (its Bandcamp package id), when it could be identified. */
   packageId?: number | null;
+  /** Parts of the sale as reported (shipping, paid above price…), in cents, for sale_part deductions. */
+  parts?: Partial<Record<string, number>>;
   /**
    * A number that identifies the sale for good (e.g. a hash of its Bandcamp transaction), used to
    * break rounding ties. Unlike the database id it doesn't change if the books are moved.
@@ -314,6 +318,10 @@ export function computeLedger(sales: EngineSale[], ctx: EngineContext): SaleResu
       if (d.kind === "percent") {
         const exact = (Math.abs(remaining) * (d.percentBps ?? 0)) / 10000;
         cents = Math.sign(remaining) * Math.round(exact);
+      } else if (d.kind === "sale_part") {
+        // Exactly that part of this sale (e.g. its shipping), never more than what's left; refunds reverse it.
+        const part = Math.abs(sale.parts?.[d.salePart ?? ""] ?? 0);
+        cents = Math.sign(remaining) * Math.min(part, Math.abs(remaining));
       } else if (d.kind === "per_unit") {
         // Never more than what's left of the sale; a refund reverses it.
         const perSale = Math.max(0, d.amountCents ?? 0) * Math.max(1, Math.abs(sale.quantity ?? 1));

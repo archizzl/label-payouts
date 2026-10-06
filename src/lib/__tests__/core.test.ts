@@ -290,6 +290,32 @@ describe("split engine", () => {
     expect(results[1].unallocatedCents).toBe(800); // label cut still taken
   });
 
+  describe("withholding a part of each sale (e.g. its shipping)", () => {
+    const shipping = (over: Partial<Deduction> = {}) =>
+      deduction({ id: 80, kind: "sale_part", salePart: "shipping", destination: "label", itemCategory: "merch", formatMatch: "CD", label: "CD shipping", ...over });
+    const cd = (id: number, shippingCents: number, over: Partial<EngineSale> = {}) =>
+      s(id, { category: "merch", format: "CD Compact Disc (CD)", netCents: 1500, parts: { shipping: shippingCents }, ...over });
+
+    it("takes exactly that sale's shipping, whatever it was, then splits the rest", () => {
+      const [domestic, abroad] = computeLedger([cd(1, 400), cd(2, 1100)], { ...ctx, deductions: [shipping()] });
+      expect(domestic.deductions).toEqual([expect.objectContaining({ label: "CD shipping", destination: "label", cents: 400 })]);
+      expect(domestic.shares.reduce((a, x) => a + x.cents, 0)).toBe(1100);
+      expect(abroad.deductions[0].cents).toBe(1100);
+    });
+
+    it("skips sales with no shipping and formats that don't match", () => {
+      const [noShipping, vinyl] = computeLedger([cd(1, 0), cd(2, 500, { format: "12in Vinyl LP" })], { ...ctx, deductions: [shipping()] });
+      expect(noShipping.deductions).toEqual([]);
+      expect(vinyl.deductions).toEqual([]);
+    });
+
+    it("never takes more than the sale, and a refund reverses it", () => {
+      const [tiny, refund] = computeLedger([cd(1, 900, { netCents: 600 }), cd(2, 400, { netCents: -1500 })], { ...ctx, deductions: [shipping()] });
+      expect(tiny.deductions[0].cents).toBe(600);
+      expect(refund.deductions[0].cents).toBe(-400);
+    });
+  });
+
   describe("per-item costs (e.g. CD manufacturing)", () => {
     const cdCost = (over: Partial<Deduction> = {}) =>
       deduction({ id: 70, kind: "per_unit", amountCents: 342, currency: "USD", destination: "expense", itemCategory: "merch", formatMatch: "CD", label: "CD manufacturing", ...over });

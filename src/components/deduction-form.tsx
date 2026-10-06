@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { deductions as deductionsTable } from "@/db/schema";
 import { ITEM_CATEGORIES } from "@/lib/bandcamp-csv";
+import { SALE_PARTS } from "@/lib/sale-parts";
 import { saveDeduction } from "@/server/actions";
 import { SubmitButton } from "./client";
 import { Field } from "./ui";
@@ -16,6 +17,8 @@ const KIND_HELP = {
   percent: "Comes off what’s left after any earlier deductions.",
   per_unit: "Taken from every matching item sold (× quantity), e.g. $3.42 per CD, before the profit is split. Never more than the sale; refunds reverse it.",
   fixed: "Taken from matching sales, oldest first, until the total is paid off (e.g. a $300 mastering bill), then it stops.",
+  sale_part:
+    "Takes exactly that part of each matching sale, whatever it was, as Bandcamp reported it (you can see it on each sale in the Sales tab). Never more than the sale; refunds reverse it.",
 } as const;
 
 /**
@@ -65,6 +68,7 @@ export function DeductionForm({
           <select name="kind" value={kind} onChange={(e) => setKind(e.target.value as Deduction["kind"])}>
             <option value="percent">Percentage of each sale</option>
             <option value="per_unit">Fixed amount per item sold</option>
+            <option value="sale_part">A part of each sale (e.g. its shipping)</option>
             <option value="fixed">Fixed total, recouped until paid off</option>
           </select>
         </Field>
@@ -72,6 +76,16 @@ export function DeductionForm({
         {kind === "percent" ? (
           <Field label="Percent">
             <input name="percent" inputMode="decimal" required defaultValue={d?.percentBps != null ? d.percentBps / 100 : ""} placeholder="20" />
+          </Field>
+        ) : kind === "sale_part" ? (
+          <Field label="Which part">
+            <select name="salePart" required defaultValue={d?.salePart ?? "shipping"}>
+              {SALE_PARTS.map((p) => (
+                <option key={p.key} value={p.key}>
+                  {p.label} ({p.hint})
+                </option>
+              ))}
+            </select>
           </Field>
         ) : (
           <div className="grid grid-cols-[1fr_6rem] gap-2">

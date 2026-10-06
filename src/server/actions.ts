@@ -8,6 +8,7 @@ import { db, schema } from "@/db";
 import { type ItemCategory, parseBandcampCsv } from "@/lib/bandcamp-csv";
 import { parseReleasePage } from "@/lib/bandcamp-release";
 import { parseCents } from "@/lib/money";
+import { isSalePart, salePartLabel } from "@/lib/sale-parts";
 import { cleanCashtag, cleanVenmoHandle } from "@/lib/paypal-export";
 import { fetchPage, upsertRelease } from "./bandcamp";
 import { bandcampCredentials } from "./bandcamp-api";
@@ -394,7 +395,9 @@ export async function deleteSplitRule(fd: FormData) {
 export async function saveDeduction(fd: FormData) {
   const { orgId } = await requireAdmin();
   const kindRaw = str(fd, "kind");
-  const kind = (["percent", "fixed", "per_unit"].includes(kindRaw) ? kindRaw : "percent") as "percent" | "fixed" | "per_unit";
+  const kind = (["percent", "fixed", "per_unit", "sale_part"].includes(kindRaw) ? kindRaw : "percent") as "percent" | "fixed" | "per_unit" | "sale_part";
+  const salePart = kind === "sale_part" ? str(fd, "salePart") : null;
+  if (kind === "sale_part" && !isSalePart(salePart)) throw new Error("Choose which part of the sale to withhold");
   const dest = str(fd, "destination");
   const destination = (["label", "band_fund", "expense", "person"].includes(dest) ? dest : "label") as
     | "label"
@@ -407,11 +410,14 @@ export async function saveDeduction(fd: FormData) {
   const packageId = Number.isFinite(formatPackage) && formatPackage > 0 ? formatPackage : null;
   if (destination === "person" && !personId) throw new Error("Choose who gets paid");
   const values = {
-    label: str(fd, "label") || (kind === "percent" ? "Deduction" : kind === "per_unit" ? "Per-item cost" : "Recoupable cost"),
+    label:
+      str(fd, "label") ||
+      (kind === "percent" ? "Deduction" : kind === "per_unit" ? "Per-item cost" : kind === "sale_part" ? salePartLabel(salePart) : "Recoupable cost"),
     kind,
+    salePart,
     percentBps: kind === "percent" ? Math.round(Number.parseFloat(str(fd, "percent")) * 100) || 0 : null,
-    amountCents: kind !== "percent" ? Math.round(Number.parseFloat(str(fd, "amount")) * 100) || 0 : null,
-    currency: kind !== "percent" ? str(fd, "currency").toUpperCase() || "USD" : null,
+    amountCents: kind === "per_unit" || kind === "fixed" ? Math.round(Number.parseFloat(str(fd, "amount")) * 100) || 0 : null,
+    currency: kind === "per_unit" || kind === "fixed" ? str(fd, "currency").toUpperCase() || "USD" : null,
     destination,
     personId,
     bandId: optInt(fd, "bandId"),

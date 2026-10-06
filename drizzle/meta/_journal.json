@@ -71,6 +71,13 @@
       "when": 1791294375056,
       "tag": "0009_setup_hidden_for_good",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1791296490227,
+      "tag": "0010_deduction_sale_part",
+      "breakpoints": true
     }
   ]
 }

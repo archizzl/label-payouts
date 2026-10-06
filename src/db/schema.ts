@@ -244,8 +244,13 @@ export const deductions = pgTable(
     id: id(),
     orgId: orgId(),
     label: text("label").notNull(),
-    /** percent of what's left · fixed total recouped over time · per_unit amount per item sold */
-    kind: text("kind", { enum: ["percent", "fixed", "per_unit"] }).notNull(),
+    /**
+     * percent of what's left · fixed total recouped over time · per_unit amount per item sold ·
+     * sale_part a part of each sale as reported (e.g. its shipping)
+     */
+    kind: text("kind", { enum: ["percent", "fixed", "per_unit", "sale_part"] }).notNull(),
+    /** sale_part: which part, e.g. "shipping" (see src/lib/sale-parts.ts). */
+    salePart: text("sale_part"),
     percentBps: integer("percent_bps"),
     amountCents: integer("amount_cents"),
     currency: text("currency"),

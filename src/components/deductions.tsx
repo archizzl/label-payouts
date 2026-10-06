@@ -1,4 +1,5 @@
 import type { deductions as deductionsTable } from "@/db/schema";
+import { salePartLabel } from "@/lib/sale-parts";
 import { ITEM_CATEGORIES } from "@/lib/bandcamp-csv";
 import { formatCents } from "@/lib/money";
 import { deleteDeduction } from "@/server/actions";
@@ -27,7 +28,9 @@ export function describeDeduction(d: Deduction, names: Names) {
       ? `${((d.percentBps ?? 0) / 100).toFixed(2).replace(/\.00$/, "")}%`
       : d.kind === "per_unit"
         ? `${money} per item`
-        : `${money} recoupable`;
+        : d.kind === "sale_part"
+          ? `the ${salePartLabel(d.salePart).toLowerCase()} on each sale`
+          : `${money} recoupable`;
   const destination =
     d.destination === "person" ? `Paid to ${d.personId ? (names.person?.get(d.personId) ?? "someone") : "someone"}` : DEST_LABEL[d.destination];
   const scope = [
