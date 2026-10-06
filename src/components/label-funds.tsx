@@ -88,7 +88,7 @@ async function TransferForm({ transfer, bandId }: { transfer?: Transfer; bandId?
  * The label's own money and where it went: kept from sales, sent on to others (fundraisers,
  * donations), and what's left. With `bandId`, only transfers raised by that band.
  */
-export async function LabelFunds({ bandId }: { bandId?: number }) {
+export async function LabelFunds({ bandId, showTotals = true }: { bandId?: number; showTotals?: boolean }) {
   const { orgId } = await getContext();
   const [funds, names] = await Promise.all([labelFunds(orgId), nameMaps(orgId)]);
   const transfers = bandId ? funds.transfers.filter((t) => t.bandId === bandId) : funds.transfers;
@@ -98,14 +98,15 @@ export async function LabelFunds({ bandId }: { bandId?: number }) {
   const currencies = [...funds.balance.keys()].sort();
 
   return (
-    <Card title={bandId ? "Label funds sent on" : "Label funds"}>
+    <Card title={bandId ? "Label funds sent on" : showTotals ? "Label funds" : "Sent on to others"}>
       <p className="mb-4 text-sm text-muted">
-        {bandId
-          ? "Money the label kept from this band’s sales and then passed on, e.g. a fundraiser’s proceeds sent to an aid group."
+        {bandId || !showTotals
+          ? "Money the label kept from sales and then passed on, e.g. a fundraiser’s proceeds sent to an aid group."
           : "What the label kept from sales (its cut, label releases, anything routed to it like a fundraiser), what it passed on to others or spent (expenses it paid, people it reimbursed; see Receipts), and what’s left in its account."}
       </p>
 
       {!bandId &&
+        showTotals &&
         currencies.map((cur) => (
           <div key={cur} className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
             <Stat label={`Kept by the label${currencies.length > 1 ? ` (${cur})` : ""}`} cents={funds.kept.get(cur) ?? 0} currency={cur} />

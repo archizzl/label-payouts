@@ -2,7 +2,6 @@ import { asc, desc, eq, max, min } from "drizzle-orm";
 import Link from "next/link";
 import { connection } from "next/server";
 import { ActionForm, SubmitButton } from "@/components/client";
-import { LabelFunds } from "@/components/label-funds";
 import { Owed } from "@/components/owed";
 import { Badge, Callout, Card, Empty, Field, Money, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
@@ -93,7 +92,6 @@ export default async function PeriodsPage({ searchParams }: PageProps<"/periods"
         </p>
       </Card>
 
-      <LabelFunds />
 
       <Card title="Finalized payouts">
         {periods.length === 0 ? (
