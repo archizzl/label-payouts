@@ -45,7 +45,8 @@ export default async function SalesPage({ searchParams }: PageProps<"/sales">) {
     f.source !== undefined ||
     f.currency ||
     f.refunds ||
-    f.payout
+    f.payout ||
+    f.buyer
   );
   const main = summary.totals[0];
   const pages = Math.max(1, Math.ceil(page.count / PAGE_SIZE));
@@ -67,6 +68,11 @@ export default async function SalesPage({ searchParams }: PageProps<"/sales">) {
       <SalesTabs active="browse" unrouted={unrouted} />
 
       <Filters f={f} options={options} filtered={filtered} />
+      {f.buyer && (
+        <p className="-mt-3 mb-6 text-sm">
+          Showing one buyer’s sales. <Link href={filterQuery(f, { buyer: undefined, page: 1 }) || "/sales"}>Show everyone’s</Link>
+        </p>
+      )}
 
       {!main ? (
         <Card>
@@ -180,6 +186,18 @@ export default async function SalesPage({ searchParams }: PageProps<"/sales">) {
                                 </div>
                               ))}
                           </dl>
+                          {s.buyerKey ? (
+                            <p className="mt-1 text-xs">
+                              <span className="text-muted">buyer </span>
+                              {s.fanEmail ? `${s.fanName ? `${s.fanName} · ` : ""}${s.fanEmail} (on your mailing list)` : "not on your mailing list"}
+                              {s.buyerSales > 1 && !f.buyer && (
+                                <>
+                                  {" · "}
+                                  <Link href={filterQuery({ ...f, q: undefined }, { buyer: s.buyerKey, page: 1 })}>all {s.buyerSales} sales to this buyer</Link>
+                                </>
+                              )}
+                            </p>
+                          ) : null}
                           {s.releaseId && (
                             <Link href={`/catalog/${s.releaseId}`} className="mt-1 inline-block text-xs">
                               {s.releaseTitle ?? "Release"} in the catalog →
@@ -276,7 +294,7 @@ function Filters({ f, options, filtered }: { f: SalesFilter; options: Awaited<Re
     <form action="/sales" className="mb-6 grid grid-cols-2 gap-3 border border-border bg-surface p-4 sm:grid-cols-4 lg:grid-cols-6">
       <label className="col-span-2">
         <span className="mb-1 block text-xs text-muted">Search</span>
-        <input name="q" defaultValue={f.q} placeholder="Item, artist, format or transaction" />
+        <input name="q" defaultValue={f.q} placeholder="Item, artist, transaction, or a buyer’s full email" />
       </label>
       <label>
         <span className="mb-1 block text-xs text-muted">From</span>
@@ -357,6 +375,7 @@ function Filters({ f, options, filtered }: { f: SalesFilter; options: Awaited<Re
         <input type="checkbox" name="refunds" value="1" defaultChecked={f.refunds} />
         Refunds only
       </label>
+      {f.buyer && <input type="hidden" name="buyer" value={f.buyer} />}
       {f.sort !== "date" && <input type="hidden" name="sort" value={f.sort} />}
       {f.dir !== "desc" && <input type="hidden" name="dir" value={f.dir} />}
       <div className="col-span-2 flex items-end gap-3 sm:col-span-1">

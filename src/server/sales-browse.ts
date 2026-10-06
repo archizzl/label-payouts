@@ -2,6 +2,7 @@ import "server-only";
 import { and, asc, desc, eq, gte, ilike, isNull, lt, lte, or, type SQL, sql } from "drizzle-orm";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { db, schema } from "@/db";
+import { emailFingerprint } from "./secrets";
 
 /*
  * The Sales tab: every imported sale, filtered and sorted from the URL, with totals and breakdowns
@@ -9,7 +10,16 @@ import { db, schema } from "@/db";
  * of sales.
  */
 
-const { sales, bands, releases, periods, payouts } = schema;
+const { sales, bands, releases, periods, payouts, fans } = schema;
+
+/** A buyer's fingerprint (see emailFingerprint), or null if it can't be made. */
+function fingerprint(email: string) {
+  try {
+    return emailFingerprint(email);
+  } catch {
+    return null;
+  }
+}
 
 const CATEGORIES = ["album", "track", "merch", "other"] as const;
 export const SORTS = ["date", "item", "band", "type", "country", "source", "qty", "net", "payout"] as const;
@@ -29,6 +39,8 @@ export type SalesFilter = {
   source?: string;
   currency?: string;
   refunds?: boolean;
+  /** One buyer's sales: their email fingerprint (from a sale's "all sales to this buyer" link). */
+  buyer?: string;
   /** paid: in a payout that's been paid; pending: in a finalized payout not paid yet; none: in no payout yet. */
   payout?: PayoutState;
   sort: SortKey;
@@ -57,6 +69,7 @@ export function parseSalesFilter(sp: Record<string, string | string[] | undefine
     source: one(sp.source),
     currency: one(sp.currency)?.toUpperCase(),
     refunds: one(sp.refunds) === "1",
+    buyer: one(sp.buyer)?.replace(/[^A-Za-z0-9_-]/g, "") || undefined,
     payout: PAYOUT_STATES.find((p) => p === one(sp.payout)),
     sort: SORTS.find((s) => s === sort) ?? "date",
     dir: one(sp.dir) === "asc" ? "asc" : "desc",
@@ -101,8 +114,20 @@ function where(orgId: string, f: SalesFilter): SQL {
   const c: (SQL | undefined)[] = [eq(sales.orgId, orgId)];
   if (f.q) {
     const l = like(f.q);
-    c.push(or(ilike(sales.itemName, l), ilike(sales.artist, l), ilike(sales.packageName, l), ilike(sales.transactionId, l), ilike(sales.itemUrl, l)));
+    // A whole email address finds that buyer's sales (by fingerprint: emails aren't stored).
+    const buyer = f.q.includes("@") ? fingerprint(f.q) : null;
+    c.push(
+      or(
+        ilike(sales.itemName, l),
+        ilike(sales.artist, l),
+        ilike(sales.packageName, l),
+        ilike(sales.transactionId, l),
+        ilike(sales.itemUrl, l),
+        buyer ? eq(sales.buyerKey, buyer) : undefined,
+      ),
+    );
   }
+  if (f.buyer) c.push(eq(sales.buyerKey, f.buyer));
   if (f.from) c.push(gte(sales.date, f.from));
   if (f.to) c.push(lte(sales.date, f.to));
   if (f.band === "none") c.push(isNull(sales.bandId));
@@ -160,6 +185,11 @@ export async function browseSales(orgId: string, f: SalesFilter) {
         raw: sales.raw,
         payoutState,
         periodId: coveringPeriod.mapWith(Number),
+        buyerKey: sales.buyerKey,
+        buyerSales: sql<number>`(select count(*)::int from ${sales} b where b.org_id = ${sales.orgId} and b.buyer_key = ${sales.buyerKey})`,
+        // If the buyer is on the mailing list, who they are (they gave the label their details).
+        fanEmail: sql<string | null>`(select ${fans.email} from ${fans} where ${fans.orgId} = ${sales.orgId} and ${fans.emailKey} = ${sales.buyerKey} limit 1)`,
+        fanName: sql<string | null>`(select ${fans.name} from ${fans} where ${fans.orgId} = ${sales.orgId} and ${fans.emailKey} = ${sales.buyerKey} limit 1)`,
       })
       .from(sales)
       .leftJoin(bands, eq(bands.id, sales.bandId))

@@ -1,5 +1,8 @@
+import { inArray } from "drizzle-orm";
 import { beforeAll, describe, expect, it } from "vitest";
 import { newAccount, testDb } from "../../../test/helpers/db";
+
+process.env.APP_ENCRYPTION_KEY ??= "test-key";
 
 let db: Awaited<ReturnType<typeof testDb>>["db"];
 let schema: Awaited<ReturnType<typeof testDb>>["schema"];
@@ -88,6 +91,21 @@ describe("browsing sales", () => {
     expect((await browse.browseSales(orgId, f({ payout: "pending" }))).rows.map((r) => r.itemName)).toEqual(["Single"]);
     const summary = await browse.summarizeSales(orgId, f());
     expect(summary.byPayout).toEqual({ paid: { net: 900, sales: 1 }, pending: { net: 90, sales: 1 }, none: { net: 1400, sales: 3 } });
+  });
+
+  it("finds a buyer's sales by their full email, and links them together", async () => {
+    const { orgId } = await setup();
+    const { emailFingerprint } = await import("../secrets");
+    const ann = emailFingerprint("ann@example.com")!;
+    await db.update(schema.sales).set({ buyerKey: ann }).where(inArray(schema.sales.itemName, ["LP", "Shirt"]));
+    const names = async (sp: Record<string, string>) => (await browse.browseSales(orgId, f(sp))).rows.map((r) => r.itemName).sort();
+    expect(await names({ q: "Ann@Example.com" })).toEqual(["LP", "Shirt"]);
+    expect(await names({ q: "example.com" })).toEqual([]); // part of an email can't be matched
+    expect(await names({ buyer: ann })).toEqual(["LP", "Shirt"]);
+    const lp = (await browse.browseSales(orgId, f({ q: "ann@example.com" }))).rows.find((r) => r.itemName === "LP")!;
+    expect(lp).toMatchObject({ buyerSales: 2, fanEmail: null });
+    await db.insert(schema.fans).values({ orgId, email: "ann@example.com", name: "Ann", addedOn: "2026-01-01", emailKey: ann });
+    expect((await browse.browseSales(orgId, f({ buyer: ann }))).rows[0]).toMatchObject({ fanEmail: "ann@example.com", fanName: "Ann" });
   });
 
   it("keeps accounts apart", async () => {
