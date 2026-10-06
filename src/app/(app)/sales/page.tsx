@@ -3,7 +3,7 @@ import Link from "next/link";
 import { connection } from "next/server";
 import { BarList, MonthlyColumns } from "@/components/charts";
 import { SalesTabs } from "@/components/sales-tabs";
-import { buttonClass, Card, Empty, Money, PageHeader } from "@/components/ui";
+import { Badge, buttonClass, Card, Empty, Money, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
 import { formatCents } from "@/lib/money";
 import { requireAdmin } from "@/server/context";
@@ -34,7 +34,19 @@ export default async function SalesPage({ searchParams }: PageProps<"/sales">) {
       .from(schema.organization)
       .where(eq(schema.organization.id, orgId)),
   ]);
-  const filtered = !!(f.q || f.from || f.to || f.band || f.release || f.type || f.country !== undefined || f.source !== undefined || f.currency || f.refunds);
+  const filtered = !!(
+    f.q ||
+    f.from ||
+    f.to ||
+    f.band ||
+    f.release ||
+    f.type ||
+    f.country !== undefined ||
+    f.source !== undefined ||
+    f.currency ||
+    f.refunds ||
+    f.payout
+  );
   const main = summary.totals[0];
   const pages = Math.max(1, Math.ceil(page.count / PAGE_SIZE));
   const cur = summary.main;
@@ -82,6 +94,18 @@ export default async function SalesPage({ searchParams }: PageProps<"/sales">) {
               hint={main.refunds ? formatCents(main.refundCents, main.currency) : undefined}
             />
           </div>
+          <p className="-mt-3 mb-6 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+            {(["paid", "pending", "none"] as const).map((st) =>
+              summary.byPayout[st].sales ? (
+                <Link key={st} href={filterQuery(f, { payout: f.payout === st ? undefined : st, page: 1 }) || "/sales"} className="text-text hover:no-underline">
+                  <PayoutBadge state={st} /> <span className="tabular-nums">{formatCents(summary.byPayout[st].net, cur)}</span>{" "}
+                  <span className="text-muted">
+                    ({summary.byPayout[st].sales} sale{summary.byPayout[st].sales === 1 ? "" : "s"})
+                  </span>
+                </Link>
+              ) : null,
+            )}
+          </p>
           {summary.totals.length > 1 && (
             <p className="-mt-3 mb-6 text-xs text-muted">
               Totals and charts are in {cur}. Also:{" "}
@@ -133,6 +157,7 @@ export default async function SalesPage({ searchParams }: PageProps<"/sales">) {
                     <SortHeader f={f} k="source" label="From" />
                     <SortHeader f={f} k="qty" label="Qty" num />
                     <SortHeader f={f} k="net" label="Net" num />
+                    <SortHeader f={f} k="payout" label="Paid out" />
                   </tr>
                 </thead>
                 <tbody>
@@ -201,6 +226,9 @@ export default async function SalesPage({ searchParams }: PageProps<"/sales">) {
                       <td className={`num ${s.netCents < 0 ? "text-bad" : ""}`}>
                         <Money cents={s.netCents} currency={s.currency} />
                       </td>
+                      <td className="whitespace-nowrap text-sm">
+                        <PayoutCell state={s.payoutState} periodId={s.periodId} />
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -220,6 +248,25 @@ export default async function SalesPage({ searchParams }: PageProps<"/sales">) {
         </>
       )}
     </>
+  );
+}
+
+const PAYOUT_LABEL = { paid: "Paid out", pending: "In a payout, not paid yet", none: "Not in a payout yet" } as const;
+const PAYOUT_TONE = { paid: "good", pending: "warn", none: "neutral" } as const;
+
+function PayoutBadge({ state }: { state: keyof typeof PAYOUT_LABEL }) {
+  return <Badge tone={PAYOUT_TONE[state]}>{PAYOUT_LABEL[state]}</Badge>;
+}
+
+/** Whether a sale's money has gone out: a badge, linking to the payout that covers it. */
+function PayoutCell({ state, periodId }: { state: keyof typeof PAYOUT_LABEL; periodId: number | null }) {
+  const badge = <PayoutBadge state={state === "paid" ? "paid" : state === "pending" ? "pending" : "none"} />;
+  return periodId ? (
+    <Link href={`/periods/${periodId}`} className="hover:no-underline" title="Open the payout">
+      {badge}
+    </Link>
+  ) : (
+    badge
   );
 }
 
@@ -296,6 +343,15 @@ function Filters({ f, options, filtered }: { f: SalesFilter; options: Awaited<Re
           </select>
         </label>
       )}
+      <label>
+        <span className="mb-1 block text-xs text-muted">Paid out?</span>
+        <select name="payout" defaultValue={f.payout ?? ""}>
+          <option value="">All</option>
+          <option value="paid">Paid out</option>
+          <option value="pending">In a payout, not paid yet</option>
+          <option value="none">Not in a payout yet</option>
+        </select>
+      </label>
       <label className="flex items-center gap-2 self-end pb-2 text-sm">
         <input type="checkbox" name="refunds" value="1" defaultChecked={f.refunds} />
         Refunds only

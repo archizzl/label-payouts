@@ -64,6 +64,32 @@ describe("browsing sales", () => {
     expect(us.totals[0]).toMatchObject({ sales: 3, net: 1800 });
   });
 
+  it("marks whether each sale's money has been paid out, by the payout covering it", async () => {
+    const { orgId, flagDay } = await setup();
+    const [person] = await db.insert(schema.people).values({ orgId, name: "Member" }).returning();
+    // January for the whole label: everyone paid. February for Flag Day only: not paid yet.
+    const [jan] = await db.insert(schema.periods).values({ orgId, name: "Jan", startDate: "2026-01-01", endDate: "2026-01-31" }).returning();
+    const [feb] = await db
+      .insert(schema.periods)
+      .values({ orgId, name: "Feb", startDate: "2026-02-01", endDate: "2026-02-28", bandId: flagDay.id })
+      .returning();
+    await db.insert(schema.payouts).values([
+      { orgId, periodId: jan.id, personId: person.id, currency: "USD", amountCents: 900, byBand: {}, status: "paid" },
+      { orgId, periodId: feb.id, personId: person.id, currency: "USD", amountCents: 90, byBand: {}, status: "pending" },
+    ]);
+    const { rows } = await browse.browseSales(orgId, f({ sort: "date", dir: "asc" }));
+    expect(rows.map((r) => [r.itemName, r.payoutState, r.periodId])).toEqual([
+      ["LP", "paid", jan.id],
+      ["Single", "pending", feb.id],
+      ["Shirt", "none", null],
+      ["LP refund", "none", null],
+      ["Mystery", "none", null],
+    ]);
+    expect((await browse.browseSales(orgId, f({ payout: "pending" }))).rows.map((r) => r.itemName)).toEqual(["Single"]);
+    const summary = await browse.summarizeSales(orgId, f());
+    expect(summary.byPayout).toEqual({ paid: { net: 900, sales: 1 }, pending: { net: 90, sales: 1 }, none: { net: 1400, sales: 3 } });
+  });
+
   it("keeps accounts apart", async () => {
     await setup();
     expect((await browse.browseSales(await newAccount(), f())).count).toBe(0);

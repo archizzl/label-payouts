@@ -9,10 +9,12 @@ import { db, schema } from "@/db";
  * of sales.
  */
 
-const { sales, bands, releases } = schema;
+const { sales, bands, releases, periods, payouts } = schema;
 
 const CATEGORIES = ["album", "track", "merch", "other"] as const;
-export const SORTS = ["date", "item", "band", "type", "country", "source", "qty", "net"] as const;
+export const SORTS = ["date", "item", "band", "type", "country", "source", "qty", "net", "payout"] as const;
+export const PAYOUT_STATES = ["paid", "pending", "none"] as const;
+export type PayoutState = (typeof PAYOUT_STATES)[number];
 export type SortKey = (typeof SORTS)[number];
 
 export type SalesFilter = {
@@ -27,6 +29,8 @@ export type SalesFilter = {
   source?: string;
   currency?: string;
   refunds?: boolean;
+  /** paid: in a payout that's been paid; pending: in a finalized payout not paid yet; none: in no payout yet. */
+  payout?: PayoutState;
   sort: SortKey;
   dir: "asc" | "desc";
   page: number;
@@ -53,6 +57,7 @@ export function parseSalesFilter(sp: Record<string, string | string[] | undefine
     source: one(sp.source),
     currency: one(sp.currency)?.toUpperCase(),
     refunds: one(sp.refunds) === "1",
+    payout: PAYOUT_STATES.find((p) => p === one(sp.payout)),
     sort: SORTS.find((s) => s === sort) ?? "date",
     dir: one(sp.dir) === "asc" ? "asc" : "desc",
     page: Math.max(1, Number.parseInt(one(sp.page) ?? "1", 10) || 1),
@@ -76,6 +81,20 @@ export function filterQuery(f: SalesFilter, change: Partial<Record<keyof SalesFi
 
 const country = sql<string>`coalesce(nullif(${sales.raw}->>'country', ''), '')`;
 const source = sql<string>`coalesce(nullif(${sales.raw}->>'referer', ''), nullif(${sales.raw}->>'referrer', ''), nullif(${sales.raw}->>'source', ''), '')`;
+/*
+ * The finalized payout covering a sale, the same rule payouts use: one for the whole label, or for
+ * the sale's band, whose dates include the sale's. It counts as paid once every person in it is
+ * marked paid (or kept, for whoever holds the label's account).
+ */
+const coveringPeriod = sql`(select ${periods.id} from ${periods}
+  where ${periods.orgId} = ${sales.orgId} and ${sales.date} between ${periods.startDate} and ${periods.endDate}
+    and (${periods.bandId} is null or ${periods.bandId} = ${sales.bandId})
+  order by ${periods.id} limit 1)`;
+const payoutState = sql<PayoutState>`case
+  when ${coveringPeriod} is null then 'none'
+  when exists (select 1 from ${payouts} where ${payouts.periodId} = ${coveringPeriod} and ${payouts.status} = 'pending') then 'pending'
+  else 'paid' end`;
+
 const like = (s: string) => `%${s.replace(/[%_\\]/g, (c) => `\\${c}`)}%`;
 
 function where(orgId: string, f: SalesFilter): SQL {
@@ -94,6 +113,7 @@ function where(orgId: string, f: SalesFilter): SQL {
   if (f.source !== undefined) c.push(sql`${source} = ${f.source === "(direct)" ? "" : f.source}`);
   if (f.currency) c.push(eq(sales.currency, f.currency));
   if (f.refunds) c.push(lt(sales.netCents, 0));
+  if (f.payout) c.push(sql`${payoutState} = ${f.payout}`);
   return and(...c)!;
 }
 
@@ -106,6 +126,8 @@ const ORDER: Record<SortKey, SQL | AnyPgColumn> = {
   source: sql`nullif(${source}, '')`,
   qty: sales.quantity,
   net: sales.netCents,
+  // Not paid out yet first (ascending), then waiting to be paid, then paid.
+  payout: sql`case ${payoutState} when 'none' then 0 when 'pending' then 1 else 2 end`,
 };
 
 export type SaleRow = Awaited<ReturnType<typeof browseSales>>["rows"][number];
@@ -136,6 +158,8 @@ export async function browseSales(orgId: string, f: SalesFilter) {
         country,
         source,
         raw: sales.raw,
+        payoutState,
+        periodId: coveringPeriod.mapWith(Number),
       })
       .from(sales)
       .leftJoin(bands, eq(bands.id, sales.bandId))
@@ -177,7 +201,7 @@ export async function summarizeSales(orgId: string, f: SalesFilter) {
       .groupBy(sales.currency, sql`2`)
       .orderBy(sql`3 desc`)
       .limit(limit * 4);
-  const [totals, byMonth, byItem, byCountry, bySource, byType, byBand] = await Promise.all([
+  const [totals, byMonth, byItem, byCountry, bySource, byType, byBand, byPayout] = await Promise.all([
     db
       .select({
         currency: sales.currency,
@@ -204,6 +228,11 @@ export async function summarizeSales(orgId: string, f: SalesFilter) {
     group(sql<string>`case when ${source} = '' then 'Direct / unknown' else ${source} end`),
     group(sql<string>`${sales.category}`),
     group(sql<string>`coalesce(${bands.name}, 'Not matched to a band')`),
+    db
+      .select({ currency: sales.currency, state: payoutState, net, sales: sql<number>`count(*)::int` })
+      .from(sales)
+      .where(w)
+      .groupBy(sales.currency, sql`2`),
   ]);
 
   const currencies = totals.map((t) => t.currency);
@@ -222,6 +251,12 @@ export async function summarizeSales(orgId: string, f: SalesFilter) {
     bySource: pick(bySource),
     byType: pick(byType),
     byBand: pick(byBand),
+    byPayout: Object.fromEntries(
+      PAYOUT_STATES.map((st) => {
+        const r = byPayout.find((p) => p.currency === main && p.state === st);
+        return [st, { net: r?.net ?? 0, sales: r?.sales ?? 0 }];
+      }),
+    ) as Record<PayoutState, { net: number; sales: number }>,
   };
 }
 
