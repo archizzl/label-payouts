@@ -134,7 +134,8 @@ describe("browsing sales", () => {
     expect(f({}).per).toBe(browse.DEFAULT_PAGE_SIZE);
     expect(await page({ per: "5", page: "1" })).toHaveLength(5);
     expect(await page({ per: "5", page: "2" })).toEqual([]);
-    expect(browse.filterQuery(f({ per: "10" }), { page: 2 })).toBe("?page=2&per=10");
+    expect(browse.filterQuery(f({ per: "50" }), { page: 2 })).toBe("?page=2&per=50");
+    expect(browse.filterQuery(f({ per: "10" }), { page: 2 })).toBe("?page=2"); // 10 is the default
   });
 
   it("builds links that keep the other filters", () => {

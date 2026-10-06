@@ -75,20 +75,6 @@ export default async function SalesPage({ searchParams }: PageProps<"/sales">) {
             Showing one buyer’s sales. <Link href={filterQuery(f, { buyer: undefined, page: 1 }) || "/sales"}>Show everyone’s</Link>
           </p>
         )}
-        {main && (
-          <p className="mb-3 flex flex-wrap gap-x-4 gap-y-1 text-sm">
-            {(["paid", "pending"] as const).map((st) =>
-              summary.byPayout[st].sales ? (
-                <Link key={st} href={filterQuery(f, { payout: f.payout === st ? undefined : st, page: 1 }) || "/sales"} className="text-text hover:no-underline">
-                  <PayoutBadge state={st} /> <span className="tabular-nums">{formatCents(summary.byPayout[st].net, cur)}</span>{" "}
-                  <span className="text-muted">
-                    ({summary.byPayout[st].sales} sale{summary.byPayout[st].sales === 1 ? "" : "s"})
-                  </span>
-                </Link>
-              ) : null,
-            )}
-          </p>
-        )}
         {!main ? (
           <Empty>
             {filtered ? (
