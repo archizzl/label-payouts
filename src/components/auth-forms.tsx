@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { acceptInvite, createAccount, type FormState, signIn, signUp } from "@/server/account-actions";
+import { acceptInvite, createAccount, type FormState, resetPassword, signIn, signUp } from "@/server/account-actions";
 import { buttonClass, Field } from "./ui";
 
 function Result({ state }: { state: FormState }) {
@@ -35,16 +35,17 @@ export function SignInForm({ next, email }: { next: string; email?: string }) {
   );
 }
 
-export function SignUpForm({ next, email }: { next: string; email?: string }) {
+export function SignUpForm({ next, email, code, emailLocked = false }: { next: string; email?: string; code?: string; emailLocked?: boolean }) {
   const [state, action, pending] = useActionState(signUp, null);
   return (
     <form action={action} className="space-y-4">
       <input type="hidden" name="next" value={next} />
+      {code && <input type="hidden" name="code" value={code} />}
       <Field label="Your name">
         <input name="name" autoComplete="name" required />
       </Field>
       <Field label="Email">
-        <input name="email" type="email" autoComplete="email" required defaultValue={email} />
+        <input name="email" type="email" autoComplete="email" required defaultValue={email} readOnly={emailLocked} />
       </Field>
       <Field label="Password" hint="At least 8 characters.">
         <input name="password" type="password" autoComplete="new-password" minLength={8} required />
@@ -92,6 +93,20 @@ export function AcceptInviteForm({ id }: { id: string }) {
       <input type="hidden" name="id" value={id} />
       <Result state={state} />
       <Submit pending={pending}>Accept invite</Submit>
+    </form>
+  );
+}
+
+export function ResetPasswordForm({ token }: { token: string }) {
+  const [state, action, pending] = useActionState(resetPassword, null);
+  return (
+    <form action={action} className="space-y-4">
+      <input type="hidden" name="token" value={token} />
+      <Field label="New password" hint="At least 8 characters.">
+        <input name="password" type="password" autoComplete="new-password" minLength={8} required />
+      </Field>
+      <Result state={state} />
+      <Submit pending={pending}>Save new password</Submit>
     </form>
   );
 }

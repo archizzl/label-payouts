@@ -650,3 +650,25 @@ export const chartLayouts = pgTable(
   },
   (t) => [uniqueIndex("chart_layouts_pk").on(t.userId, t.orgId, t.boardId)],
 );
+
+/**
+ * Invite links for creating a login: the only way to sign up (besides an invite into an existing
+ * account). Made by a site admin on /admin; each works once, until it expires or is revoked.
+ */
+export const signupInvites = pgTable(
+  "signup_invites",
+  {
+    id: id(),
+    code: text("code").notNull(),
+    /** Only this email can use it, when set (lower-cased). */
+    email: text("email"),
+    note: text("note"),
+    createdByUserId: text("created_by_user_id").references(() => user.id, { onDelete: "set null" }),
+    createdAt: text("created_at").notNull().default(now),
+    expiresAt: text("expires_at").notNull(),
+    usedAt: text("used_at"),
+    usedByUserId: text("used_by_user_id").references(() => user.id, { onDelete: "set null" }),
+    revokedAt: text("revoked_at"),
+  },
+  (t) => [uniqueIndex("signup_invites_code").on(t.code)],
+);

@@ -1,53 +1,58 @@
-import { mkdirSync } from "node:fs";
-import { join } from "node:path";
-import { PGlite } from "@electric-sql/pglite";
-import { drizzle as drizzleNodePg, type NodePgDatabase } from "drizzle-orm/node-postgres";
-import { migrate as migrateNodePg } from "drizzle-orm/node-postgres/migrator";
-import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
-import { migrate as migratePglite } from "drizzle-orm/pglite/migrator";
+import { getCloudflareContext } from "@opennextjs/cloudflare";
+import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
+import { openLocal } from "@/db/local";
 import * as schema from "./schema";
 
 /*
- * Postgres, from DATABASE_URL: a hosted one (Neon, Supabase, Railway…), or the local one that
- * `npm run dev` starts (data/postgres). Tests set PGLITE_DIR=memory:// instead, for a fresh
- * in-memory Postgres each run. (PGlite is never used for real data: it must only ever be opened by
- * one process, and Next's dev server runs several.)
+ * The database. On Cloudflare: Postgres (Neon) through Hyperdrive, with a fresh connection for each
+ * request (Workers can't share one between requests). Everywhere else (`npm run dev`, scripts):
+ * Postgres from DATABASE_URL, one pool per process. Tests: an in-memory Postgres (local-pglite.ts).
  */
 
 export type DB = NodePgDatabase<typeof schema>;
 
-const migrationsFolder = join(process.cwd(), "drizzle");
+/** Running on Cloudflare Workers (not Node). */
+export const onCloudflare = (globalThis as { navigator?: { userAgent?: string } }).navigator?.userAgent === "Cloudflare-Workers";
 
-function open(): { db: DB; migrate: () => Promise<void> } {
-  const url = process.env.DATABASE_URL;
-  if (url) {
-    const db = drizzleNodePg(new Pool({ connectionString: url }), { schema });
-    return { db, migrate: () => migrateNodePg(db, { migrationsFolder }) };
+// Off Cloudflare: one connection per server process (survives dev hot reloads).
+const state = globalThis as unknown as { __labelDb?: ReturnType<typeof openLocal>; __labelReady?: Promise<void> };
+const local = () => (state.__labelDb ??= openLocal());
+
+// On Cloudflare: one database client per request, kept for the rest of that request.
+const perRequest = new WeakMap<object, DB>();
+function forThisRequest(): DB {
+  const { env, ctx } = getCloudflareContext();
+  let db = perRequest.get(ctx);
+  if (!db) {
+    const hyperdrive = (env as unknown as { HYPERDRIVE: { connectionString: string } }).HYPERDRIVE;
+    // A few connections for this request only (Hyperdrive does the real pooling); never reused by another request.
+    db = drizzle(new Pool({ connectionString: hyperdrive.connectionString, max: 5, idleTimeoutMillis: 2_000 }), { schema });
+    perRequest.set(ctx, db);
   }
-  const dir = process.env.PGLITE_DIR;
-  if (!dir) {
-    throw new Error("DATABASE_URL isn't set. Start the app with `npm run dev`, which runs a local database, or set DATABASE_URL.");
-  }
-  if (!dir.includes("://")) mkdirSync(dir, { recursive: true });
-  const db = drizzlePglite(new PGlite(dir), { schema });
-  return {
-    // Same query API as node-postgres for everything we use.
-    db: db as unknown as DB,
-    migrate: () => migratePglite(db, { migrationsFolder }),
-  };
+  return db;
 }
 
-// One connection per server process: survives dev hot reloads, and PGlite must never be opened twice.
-const state = globalThis as unknown as { __labelDb?: ReturnType<typeof open>; __labelReady?: Promise<void> };
-const conn = (state.__labelDb ??= open());
+const current = (): DB => (onCloudflare ? forThisRequest() : local().db);
 
-export const db: DB = conn.db;
+/** The database, used as before (`db.select()…`): it picks the right connection each time it's used. */
+export const db: DB = new Proxy({} as DB, {
+  get(_target, prop) {
+    const real = current();
+    const value = Reflect.get(real, prop, real);
+    return typeof value === "function" ? value.bind(real) : value;
+  },
+});
 
 /**
- * Resolves once the schema is up to date. The server awaits it at startup (src/instrumentation.ts);
- * scripts and tests await it before their first query.
+ * Resolves once the schema is up to date. Locally the server runs migrations at startup
+ * (src/instrumentation.ts); scripts and tests await it. On Cloudflare migrations run before each
+ * deploy (`npm run db:migrate`), so there's nothing to wait for.
  */
-export const ready: Promise<void> = (state.__labelReady ??= conn.migrate());
+export const ready: PromiseLike<void> = {
+  // Lazy: started the first time something waits for it, never just by loading this module (as
+  // `next build` does).
+  then: (resolve, reject) => (onCloudflare ? Promise.resolve() : (state.__labelReady ??= local().migrate())).then(resolve, reject),
+};
 
 export { schema };

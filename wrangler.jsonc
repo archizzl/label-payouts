@@ -1,0 +1,28 @@
+{
+  // Cloudflare Workers config for the live site. See DEPLOY.md.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "label-payouts",
+  "main": "cloudflare/worker.ts",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
+  "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "label-payouts" }],
+  "hyperdrive": [
+    {
+      // The Neon database, through Hyperdrive. Replace with the id `wrangler hyperdrive create` prints (DEPLOY.md, step 3).
+      "binding": "HYPERDRIVE",
+      "id": "REPLACE_WITH_HYPERDRIVE_ID",
+      // `npm run preview` uses the local database instead.
+      "localConnectionString": "postgres://postgres:local@127.0.0.1:5433/label_payouts"
+    }
+  ],
+  // Sync every account with Bandcamp once an hour, in the background.
+  "triggers": { "crons": ["17 * * * *"] },
+  "observability": { "enabled": true },
+  "vars": {
+    // Your site's address, e.g. https://app.example.com (DEPLOY.md, step 8).
+    "BETTER_AUTH_URL": "https://REPLACE_WITH_YOUR_DOMAIN",
+    // Who can see /admin (comma-separated).
+    "SITE_ADMIN_EMAILS": "reactionfutureinstitute@gmail.com"
+  }
+}

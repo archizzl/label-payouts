@@ -40,3 +40,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 data/
+
+# Cloudflare build output and local Worker settings
+/.open-next
+/.wrangler
+.dev.vars*
+.deploy.local

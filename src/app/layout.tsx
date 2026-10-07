@@ -4,6 +4,8 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "labels for bandcamp",
   description: "Split Bandcamp earnings between bands and members, and pay them out.",
+  // A private app: keep it out of search engines.
+  robots: { index: false, follow: false },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

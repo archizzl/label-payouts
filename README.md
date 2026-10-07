@@ -25,7 +25,7 @@ npm run dev
 
 `npm run dev` starts a local Postgres database for you (its data lives in `data/postgres`; nothing to install), then the app. Open http://localhost:3000, create a login, then create your label or band account (or open an invite someone sent you).
 
-### Settings (`.env.local`)
+### Settings (`.env.development.local`)
 
 | Variable | What it's for |
 | --- | --- |
@@ -69,7 +69,7 @@ A band can have its own account (its members, its own sales) and also be on a la
    npm run import:local -- --email you@example.com --sqlite ../label-payouts/data/label.db
    ```
 
-   This creates the label account (named after your label), makes you its owner, copies all bands, people, releases, splits, sales and payouts, links your login to your payee record, and copies `BANDCAMP_CLIENT_ID`/`BANDCAMP_CLIENT_SECRET` from `.env.local` into the account's settings.
+   This creates the label account (named after your label), makes you its owner, copies all bands, people, releases, splits, sales and payouts, links your login to your payee record, and copies `BANDCAMP_CLIENT_ID`/`BANDCAMP_CLIENT_SECRET` from `.env.development.local` into the account's settings.
 
 ## Workflow
 
@@ -86,7 +86,7 @@ A band can have its own account (its members, its own sales) and also be on a la
 4. **Deductions.** Add the label cut under *Label rules*. Add band funds or recoupable costs on each band's page.
    - **Per-format costs**, e.g. $3.42 for the Triple Single CD and $8 for its vinyl: on the band page, under *Physical formats*, click *+ cost* on that format. Sales are matched to the exact format by SKU/UPC (including size SKUs), falling back to the package name.
    - **Per-item costs by format word**, e.g. $3.42 for every CD sold: choose *Fixed amount per item sold*, set *Only for item type* to merch and *Only for format* to `CD`. Choose whether it's withheld (to pay the plant) or paid to a person (whoever fronted the pressing — it's added to their payout). The profit is split after it. It's multiplied by quantity, never takes more than the sale, and a refund reverses it.
-5. **Import.** With Bandcamp API access, put the credentials in `.env.local` (`BANDCAMP_CLIENT_ID=…` and `BANDCAMP_CLIENT_SECRET=…`, never committed) and click **Sync sales now** on the *Sales → Import* page: it pulls the label's raw sales report (all artists, refunds included) and imports whatever's new. It lines up exactly with CSV imports, so mixing the two never double-counts.
+5. **Import.** With Bandcamp API access, put the credentials in `.env.development.local` (`BANDCAMP_CLIENT_ID=…` and `BANDCAMP_CLIENT_SECRET=…`, never committed) and click **Sync sales now** on the *Sales → Import* page: it pulls the label's raw sales report (all artists, refunds included) and imports whatever's new. It lines up exactly with CSV imports, so mixing the two never double-counts.
 
    **Automatic syncing.** Once the account has its Bandcamp address (and, for sales, API access), opening the app syncs with Bandcamp in the background at most once an hour: new artists (for a label), new releases and merch, a few older releases refreshed each time, then new sales. It never slows a page down; the nav shows "syncing with Bandcamp…" while it runs. The dashboard, *Sales → Import* and *Settings* show when it last synced and what came in, with a **Sync now** button that syncs straight away regardless of the hour.
 
@@ -134,3 +134,9 @@ Code layout:
 - `src/app/(app)/` holds the signed-in pages; `src/app/(auth)/` sign-in, sign-up and invites.
 - Migrations in `drizzle/` run automatically on startup (`src/instrumentation.ts`).
 - Tests use an in-memory Postgres (PGlite), a fresh one per test file.
+
+## Going live
+
+The app can run on Cloudflare Workers with a Neon Postgres database. See **[DEPLOY.md](DEPLOY.md)** for the step-by-step.
+
+On the live site, **signing up is by invitation only**: site admins (set by `SITE_ADMIN_EMAILS`) make invite links on **Admin** (`/admin`). People invited into an existing label or band account (from its Settings) can also create a login for that email. Admin also lists every login and account, and makes one-time password reset links (there's no email service).

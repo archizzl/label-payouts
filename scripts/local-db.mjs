@@ -11,10 +11,10 @@ import EmbeddedPostgres from "embedded-postgres";
 
 const DB_NAME = "label_payouts";
 
-/** DATABASE_URL from the environment or .env.local, if set. */
+/** DATABASE_URL from the environment or .env.development.local, if set. */
 export function configuredDatabaseUrl() {
   if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
-  const file = join(process.cwd(), ".env.local");
+  const file = join(process.cwd(), ".env.development.local");
   if (!existsSync(file)) return null;
   const line = readFileSync(file, "utf8")
     .split("\n")

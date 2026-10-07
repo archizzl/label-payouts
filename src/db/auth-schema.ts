@@ -10,6 +10,7 @@ import {
   index,
   integer,
   uniqueIndex,
+  bigint,
 } from "drizzle-orm/pg-core";
 
 export const user = pgTable("user", {
@@ -44,6 +45,14 @@ export const session = pgTable(
   },
   (table) => [index("session_userId_idx").on(table.userId)],
 );
+
+/** Better Auth's rate limiting, kept in the database so every server shares it (stored per IP and path). */
+export const rateLimit = pgTable("rate_limit", {
+  id: text("id").primaryKey(),
+  key: text("key").notNull().unique(),
+  count: integer("count").notNull(),
+  lastRequest: bigint("last_request", { mode: "number" }).notNull(),
+});
 
 export const account = pgTable(
   "account",

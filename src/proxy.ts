@@ -2,7 +2,7 @@ import { getSessionCookie } from "better-auth/cookies";
 import { type NextRequest, NextResponse } from "next/server";
 
 /** Pages anyone can see without signing in. */
-const PUBLIC = ["/login", "/signup", "/invite/"];
+const PUBLIC = ["/login", "/signup", "/invite/", "/reset-password", "/robots.txt", "/api/cron/"];
 
 /**
  * A quick first check: no session cookie means not signed in, so go to /login. This only looks at

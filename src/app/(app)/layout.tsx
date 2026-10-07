@@ -3,6 +3,7 @@ import { Nav } from "@/components/nav";
 import { syncAccount, syncStatus } from "@/server/auto-sync";
 import { getContext } from "@/server/context";
 import { labelsForBandAccount } from "@/server/links";
+import { isSiteAdminEmail } from "@/server/site-admin";
 
 /** Everything you see once signed in: the nav (with your accounts), then the page. */
 export default async function AppLayout({ children }: LayoutProps<"/">) {
@@ -29,6 +30,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
         account={ctx.org}
         accounts={ctx.accounts}
         isAdmin={ctx.isAdmin}
+        siteAdmin={isSiteAdminEmail(ctx.user.email)}
         syncing={due || !!sync?.running}
         labels={labels.map(({ link, label }) => ({ href: `/from-label/${link.id}`, label: `from ${label.name}` }))}
       />

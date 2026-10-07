@@ -78,6 +78,7 @@ export function Nav({
   isAdmin,
   labels = [],
   syncing = false,
+  siteAdmin = false,
 }: {
   user: { name: string; email: string };
   account: Account;
@@ -87,9 +88,11 @@ export function Nav({
   labels?: Item[];
   /** A background sync with Bandcamp is running (or about to). */
   syncing?: boolean;
+  /** Runs the whole site: gets the Admin link. */
+  siteAdmin?: boolean;
 }) {
   const path = usePathname();
-  const items = itemsFor(account, isAdmin, labels);
+  const items = [...itemsFor(account, isAdmin, labels), ...(siteAdmin ? [{ href: "/admin", label: "admin" }] : [])];
   return (
     <header className="no-print border-b border-border bg-surface">
       <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 pt-4 pb-3 md:px-8">

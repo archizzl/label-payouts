@@ -8,25 +8,32 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "import:local": "tsx --conditions=react-server --env-file=.env.local scripts/import-local.mts",
-    "users": "tsx --env-file=.env.local scripts/users.mts",
+    "import:local": "tsx --conditions=react-server --env-file=.env.development.local scripts/import-local.mts",
+    "users": "tsx --env-file=.env.development.local scripts/users.mts",
     "db:studio": "drizzle-kit studio",
-    "set-password": "tsx --env-file=.env.local scripts/set-password.mts"
+    "set-password": "tsx --env-file=.env.development.local scripts/set-password.mts",
+    "db:migrate": "tsx scripts/migrate.mts",
+    "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
+    "deploy": "node scripts/deploy.mjs",
+    "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
+    "copy-to-production": "tsx --env-file=.env.development.local scripts/copy-to-production.mts",
+    "db:migrate:production": "node -e \"const u=require('fs').readFileSync('.deploy.local','utf8').match(/^PRODUCTION_DATABASE_URL=(.+)$/m)?.[1]?.trim(); if(!u){console.error('Put PRODUCTION_DATABASE_URL in .deploy.local');process.exit(1)} require('child_process').execSync('npx tsx scripts/migrate.mts',{stdio:'inherit',env:{...process.env,DATABASE_URL:u}})\""
   },
   "dependencies": {
-    "@electric-sql/pglite": "^0.5.8",
     "better-auth": "^1.7.6",
-    "better-sqlite3": "^12.11.1",
     "drizzle-orm": "^0.45.3",
-    "next": "16.3.6",
+    "next": "~16.3.8",
     "papaparse": "^5.7.0",
     "pg": "^8.23.0",
+    "pg-cloudflare": "^1.4.1",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "server-only": "^0.0.1",
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
+    "@opennextjs/cloudflare": "^1.20.9",
     "@tailwindcss/postcss": "^4",
     "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^20",
@@ -34,12 +41,14 @@
     "@types/pg": "^8.23.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "better-sqlite3": "^12.11.1",
     "drizzle-kit": "^0.31.11",
     "embedded-postgres": "^18.4.0-beta.17",
     "eslint": "^9",
-    "eslint-config-next": "16.3.6",
+    "eslint-config-next": "~16.3.8",
     "tailwindcss": "^4",
     "typescript": "^5",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.11",
+    "wrangler": "^4.148.0"
   }
 }

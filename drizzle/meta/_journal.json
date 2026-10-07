@@ -113,6 +113,13 @@
       "when": 1791302224541,
       "tag": "0015_chart_layouts",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1791393807862,
+      "tag": "0016_signup_invites",
+      "breakpoints": true
     }
   ]
 }

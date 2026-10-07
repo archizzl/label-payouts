@@ -41,7 +41,11 @@ export async function signUp(_: FormState, fd: FormData): Promise<FormState> {
   if (!name || !email) return { error: "Enter your name and email." };
   if (password.length < 8) return { error: "Use a password of at least 8 characters." };
   try {
-    await auth.api.signUpEmail({ body: { name, email, password }, headers: await headers() });
+    // The invite code goes along so Better Auth's check (src/server/auth.ts) lets this sign-up through.
+    const h = new Headers(await headers());
+    const code = str(fd, "code");
+    if (code) h.set("x-invite-code", code);
+    await auth.api.signUpEmail({ body: { name, email, password }, headers: h });
   } catch (e) {
     return { error: messageOf(e, "Couldn't create your login.") };
   }
@@ -57,6 +61,18 @@ export async function signIn(_: FormState, fd: FormData): Promise<FormState> {
     return { error: messageOf(e, "That email and password don't match.") };
   }
   redirect(safeNext(str(fd, "next")));
+}
+
+/** Set a new password from a reset link, then sign in with it. */
+export async function resetPassword(_: FormState, fd: FormData): Promise<FormState> {
+  const password = String(fd.get("password") ?? "");
+  if (password.length < 8) return { error: "Use a password of at least 8 characters." };
+  try {
+    await auth.api.resetPassword({ body: { newPassword: password, token: str(fd, "token") } });
+  } catch (e) {
+    return { error: messageOf(e, "This reset link doesn’t work any more. Ask for a new one.") };
+  }
+  redirect("/login?reset=1");
 }
 
 export async function signOut() {
