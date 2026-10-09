@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ActionForm, SubmitButton } from "@/components/client";
 import { syncWithBandcamp } from "@/server/actions";
-import { syncStatus } from "@/server/auto-sync";
+import { CATALOG_SYNC_EVERY_MINUTES, syncStatus } from "@/server/auto-sync";
 
 /** "5 minutes ago", "2 hours ago", "3 days ago". */
 export function ago(iso: string) {
@@ -38,6 +38,12 @@ export async function SyncStatus({ orgId }: { orgId: string }) {
           <>
             Synced with Bandcamp {ago(s.finishedAt)}: {s.summary}
             {s.error && <span className="text-warn"> {s.error}</span>}
+            {s.catalogSyncedAt && (
+              <>
+                {" "}
+                Artists and releases update every {CATALOG_SYNC_EVERY_MINUTES} minutes (last {ago(s.catalogSyncedAt)}).
+              </>
+            )}
           </>
         ) : (
           "Not synced with Bandcamp yet."

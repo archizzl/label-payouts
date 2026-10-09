@@ -18,7 +18,9 @@
     "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
     "copy-to-production": "tsx --env-file=.env.development.local scripts/copy-to-production.mts",
     "db:migrate:production": "node -e \"const u=require('fs').readFileSync('.deploy.local','utf8').match(/^PRODUCTION_DATABASE_URL=(.+)$/m)?.[1]?.trim(); if(!u){console.error('Put PRODUCTION_DATABASE_URL in .deploy.local');process.exit(1)} require('child_process').execSync('npx tsx scripts/migrate.mts',{stdio:'inherit',env:{...process.env,DATABASE_URL:u}})\"",
-    "sync-catalog": "tsx --conditions=react-server --env-file=.env.development.local scripts/sync-catalog.mts"
+    "sync-catalog": "tsx --conditions=react-server --env-file=.env.development.local scripts/sync-catalog.mts",
+    "sync-catalog:schedule": "node scripts/schedule-catalog-sync.mjs",
+    "sync-catalog:unschedule": "node scripts/schedule-catalog-sync.mjs --remove"
   },
   "dependencies": {
     "better-auth": "^1.7.6",

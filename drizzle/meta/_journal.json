@@ -120,6 +120,13 @@
       "when": 1791393807862,
       "tag": "0016_signup_invites",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1791561456583,
+      "tag": "0017_catalog_synced_at",
+      "breakpoints": true
     }
   ]
 }

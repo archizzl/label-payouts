@@ -79,7 +79,7 @@ describe("syncing on open, at most once an hour", () => {
 });
 
 describe("when Bandcamp shows a bot check instead of its pages", () => {
-  it("isn't an error: the summary says where catalog details come from instead", async () => {
+  it("isn't an error, and isn't mentioned", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => new Response("<html><head><title>Client Challenge</title></head><body></body></html>", { status: 200 })),
@@ -87,7 +87,54 @@ describe("when Bandcamp shows a bot check instead of its pages", () => {
     const orgId = await account();
     const result = await sync.syncAccount(orgId, { force: true });
     expect(result.errors).toEqual([]);
-    expect(result.summary).toContain(sync.BLOCKED_NOTE);
+    expect(result.summary).toBe("Up to date.");
     expect((await settings(orgId)).syncError).toBeNull();
+  });
+});
+
+describe("the catalog sync (npm run sync-catalog)", () => {
+  it("records when it last read the pages, without holding up the hourly sync", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("<html><title>Artists</title></html>", { status: 200 })));
+    const orgId = await account();
+    await sync.syncCatalog(orgId);
+    const s = await settings(orgId);
+    expect(s.catalogSyncedAt).toBeTruthy();
+    expect(s.syncStartedAt).toBeNull();
+    expect((await sync.syncStatus(orgId))?.due).toBe(true);
+  });
+
+  it("doesn't record a sync when Bandcamp shows a bot check", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("<title>Client Challenge</title>", { status: 200 })));
+    const orgId = await account();
+    const r = await sync.syncCatalog(orgId);
+    expect(r.errors.join(" ")).toContain("bot check");
+    expect((await settings(orgId)).catalogSyncedAt).toBeNull();
+  });
+});
+
+describe("artists' photos", () => {
+  it("replaces a photo that no longer loads, and fills in a missing one, from the artist's page", async () => {
+    const { refreshBandPhotos } = await import("../sync");
+    const orgId = await account();
+    await db.insert(schema.bands).values([
+      { orgId, name: "Changed", urlPatterns: ["changed"], imageUrl: "https://f4.bcbits.com/img/0000000001_36.jpg" },
+      { orgId, name: "Missing", urlPatterns: ["missing"] },
+      { orgId, name: "Fine", urlPatterns: ["fine"], imageUrl: "https://f4.bcbits.com/img/0000000003_36.jpg" },
+    ]);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url.endsWith("0000000001_36.jpg")) return new Response(null, { status: 404 });
+        if (url.includes("bcbits")) return new Response(null, { status: 200 });
+        return new Response('<img class="band-photo" src="https://f4.bcbits.com/img/0000000099_21.jpg">', { status: 200 });
+      }),
+    );
+    expect(await refreshBandPhotos(orgId)).toBe(2);
+    const photos = Object.fromEntries((await db.select().from(schema.bands).where(eq(schema.bands.orgId, orgId))).map((b) => [b.name, b.imageUrl]));
+    expect(photos).toEqual({
+      Changed: "https://f4.bcbits.com/img/0000000099_36.jpg",
+      Missing: "https://f4.bcbits.com/img/0000000099_36.jpg",
+      Fine: "https://f4.bcbits.com/img/0000000003_36.jpg",
+    });
   });
 });

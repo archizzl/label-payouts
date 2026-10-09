@@ -1,0 +1,1 @@
+ALTER TABLE "account_settings" ADD COLUMN "catalog_synced_at" text;

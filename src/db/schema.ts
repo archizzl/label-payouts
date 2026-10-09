@@ -53,6 +53,8 @@ export const accountSettings = pgTable("account_settings", {
   syncFinishedAt: text("sync_finished_at"),
   syncSummary: text("sync_summary"),
   syncError: text("sync_error"),
+  /** When `npm run sync-catalog` (on a Mac) last read the public Bandcamp pages for this account. */
+  catalogSyncedAt: text("catalog_synced_at"),
   /** An admin closed the dashboard's "Getting started" checklist (it can be brought back). */
   setupHidden: boolean("setup_hidden").notNull().default(false),
   /** …and asked for no reminder either: nothing checklist-related on the dashboard (Settings brings it back). */

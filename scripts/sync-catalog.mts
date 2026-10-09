@@ -3,7 +3,8 @@
  *
  * Reads your public Bandcamp pages from this Mac and updates the LIVE catalog: new releases and
  * merch, track lists, artwork, release dates, artists. The live site can't do this itself: Bandcamp
- * shows cloud servers a bot check instead of its pages. Run it now and then (say, after a release).
+ * shows cloud servers a bot check instead of its pages. `npm run sync-catalog:schedule` runs it every
+ * 10 minutes while this Mac is on.
  *
  * It never uses the Bandcamp API, so it can't disturb the live site's sign-in. The live database
  * is PRODUCTION_DATABASE_URL, from the shell or .deploy.local. With --local it updates the local
@@ -34,8 +35,10 @@ if (args.local) {
 }
 
 // After the settings above: the app's modules read them when they load.
-const { db, schema } = await import("../src/db");
-const { syncAccount } = await import("../src/server/auto-sync");
+const { db, ready, schema } = await import("../src/db");
+// The local database is brought up to date here; the live one is by `npm run deploy`.
+if (args.local) await ready;
+const { syncCatalog } = await import("../src/server/auto-sync");
 const { eq, isNotNull } = await import("drizzle-orm");
 
 const where = args.local ? "the local database" : new URL(process.env.DATABASE_URL!).host;
@@ -49,9 +52,8 @@ const accounts = (
 
 if (!accounts.length) console.log(args.account ? `No account called “${args.account}” with a Bandcamp address.` : "No accounts have a Bandcamp address.");
 for (const a of accounts) {
-  console.log(`${a.name} (${a.url}) → ${where}…`);
-  const r = await syncAccount(a.orgId, { force: true, refreshAll: true });
-  console.log(`  ${r.summary}`);
+  const r = await syncCatalog(a.orgId);
+  console.log(`${new Date().toISOString()}  ${a.name} → ${where}: ${r.summary}`);
   for (const e of r.errors) console.log(`  ! ${e}`);
 }
 await stopDb();

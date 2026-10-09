@@ -9,6 +9,7 @@ import {
   labelArtistsUrl,
   labelMerchUrl,
   labelMusicUrl,
+  parseBandPhoto,
   parseLabelArtists,
   parseLabelMerch,
   parseLabelMusic,
@@ -175,13 +176,14 @@ export async function lookupLabelArtists(orgId: string, input: string): Promise<
     };
   }
   const existing = await allBands(orgId);
-  // Fill in photos and locations for bands that are already linked but don't have them yet.
+  // Keep linked bands' photos current (an artist who changes theirs leaves the old link dead), and
+  // fill in missing locations.
   for (const a of artists) {
     const b = existing.find((x) => x.urlPatterns.some((p) => p.toLowerCase() === a.urlPattern));
-    if (b && ((!b.imageUrl && a.imageUrl) || (!b.location && a.location))) {
+    if (b && ((a.imageUrl && a.imageUrl !== b.imageUrl) || (!b.location && a.location))) {
       await db
         .update(bands)
-        .set({ imageUrl: b.imageUrl ?? a.imageUrl, location: b.location ?? a.location })
+        .set({ imageUrl: a.imageUrl ?? b.imageUrl, location: b.location ?? a.location })
         .where(eq(bands.id, b.id));
     }
   }
@@ -228,6 +230,31 @@ export async function addArtists(orgId: string, rows: LabelArtistRow[]): Promise
   });
   if (added || updated) await reRouteAll(orgId);
   return { added, updated };
+}
+
+/**
+ * Photos for bands with their own Bandcamp page (e.g. artists that came from the API and aren't on
+ * the label's artists page): fetched when missing, or when the saved one no longer loads. Returns
+ * how many changed.
+ */
+export async function refreshBandPhotos(orgId: string): Promise<number> {
+  let updated = 0;
+  for (const b of await allBands(orgId)) {
+    const subdomain = b.urlPatterns.find((p) => /^[a-z0-9-]+$/i.test(p));
+    if (!subdomain) continue;
+    if (b.imageUrl) {
+      const still = await fetch(b.imageUrl, { method: "HEAD", signal: AbortSignal.timeout(10000) }).then((r) => r.status !== 404, () => true);
+      if (still) continue;
+    }
+    const page = await fetchPage(`https://${subdomain.toLowerCase()}.bandcamp.com/`);
+    if ("error" in page) continue;
+    const photo = parseBandPhoto(page.html);
+    if (photo && photo !== b.imageUrl) {
+      await db.update(bands).set({ imageUrl: photo }).where(eq(bands.id, b.id));
+      updated++;
+    }
+  }
+  return updated;
 }
 
 // ---------- grab releases from a Bandcamp label page ----------
