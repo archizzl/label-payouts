@@ -62,4 +62,18 @@ describe("Bandcamp merch orders", () => {
       [{ id: 10, id_type: "p", shipped: true, notification: false }],
     ]);
   });
+
+  it("never touches the Bandcamp API on a copy with BANDCAMP_API=off, even with credentials saved", async () => {
+    const orgId = await account();
+    const calls = fakeBandcamp([]);
+    process.env.BANDCAMP_API = "off";
+    try {
+      expect(await api.bandcampCredentials(orgId)).toBeNull();
+      await expect(api.openMerchOrders(orgId, creds)).rejects.toThrow(/switched off/);
+      await expect(api.markMerchShipped(orgId, creds, [{ paymentId: 1, notify: true }])).rejects.toThrow(/switched off/);
+      expect(calls).toEqual([]);
+    } finally {
+      delete process.env.BANDCAMP_API;
+    }
+  });
 });

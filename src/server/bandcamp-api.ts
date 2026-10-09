@@ -15,7 +15,17 @@ import { decryptSecret, encryptSecret } from "./secrets";
 export type BandcampCredentials = { clientId: string; clientSecret: string };
 
 /** This account's Bandcamp API access, or null if it hasn't been set up. */
+/**
+ * BANDCAMP_API=off (set in .env.development.local): this copy never uses the Bandcamp API. Bandcamp
+ * allows one active sign-in per API client, and the live site holds it; a dev copy using the API
+ * would take it away (and could act on real orders). Public-page syncing still works.
+ */
+export function bandcampApiOff() {
+  return process.env.BANDCAMP_API === "off";
+}
+
 export async function bandcampCredentials(orgId: string): Promise<BandcampCredentials | null> {
+  if (bandcampApiOff()) return null;
   const [s] = await db.select().from(schema.accountSettings).where(eq(schema.accountSettings.orgId, orgId));
   if (!s?.bandcampClientId || !s.bandcampClientSecret) return null;
   return { clientId: s.bandcampClientId, clientSecret: decryptSecret(s.bandcampClientSecret) };
@@ -140,6 +150,7 @@ export async function accessToken(orgId: string, creds: BandcampCredentials): Pr
 }
 
 async function call<T>(orgId: string, creds: BandcampCredentials, path: string, payload: object = {}, retried = false): Promise<T> {
+  if (bandcampApiOff()) throw new Error("The Bandcamp API is switched off on this copy (BANDCAMP_API=off).");
   const res = await fetch(`https://bandcamp.com/api/${path}`, {
     method: "POST",
     headers: { Authorization: `Bearer ${await accessToken(orgId, creds)}`, "Content-Type": "application/json" },

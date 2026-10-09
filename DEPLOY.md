@@ -66,7 +66,7 @@ npm run deploy
 This migrates the database, builds, and deploys. The first time, it gives you a `https://label-payouts.<you>.workers.dev` address.
 
 ## 7. Bandcamp: one sign-in at a time
-Bandcamp allows one active API sign-in per client. Once the live site is syncing, **stop running the local app** (`npm run dev`). Otherwise the two keep taking the sign-in from each other. If the live site ever reports a Bandcamp sign-in problem, use **Test connection** under Settings there.
+Bandcamp allows one active API sign-in per client, and the live site holds it. Your local copy has `BANDCAMP_API=off` in `.env.development.local`, so `npm run dev` never uses the API: no sales sync, merch orders or marking orders shipped locally, and it can't take the sign-in from the live site. Public-page syncing (new releases) still works locally. Keep that line in place on any machine you develop on.
 
 ## 8. Your domain (you)
 1. In the Cloudflare dashboard: **Workers & Pages → label-payouts → Settings → Domains & Routes → Add → Custom domain**, e.g. `app.yourlabel.com`.

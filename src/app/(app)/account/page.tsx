@@ -2,7 +2,7 @@ import { and, asc, eq } from "drizzle-orm";
 import Link from "next/link";
 import { connection } from "next/server";
 import { ActionForm, CopyButton, SubmitButton } from "@/components/client";
-import { Badge, Card, Disclosure, Empty, Field, PageHeader } from "@/components/ui";
+import { Badge, Callout, Card, Disclosure, Empty, Field, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
 import {
   cancelInvite,
@@ -14,6 +14,7 @@ import {
 } from "@/server/account-actions";
 import { SyncFooter } from "@/components/sync-status";
 import { setSetupHidden } from "@/server/actions";
+import { bandcampApiOff } from "@/server/bandcamp-api";
 import { requireAdmin } from "@/server/context";
 import { acceptLinkCode, unlink } from "@/server/link-actions";
 import { labelsForBandAccount } from "@/server/links";
@@ -49,6 +50,13 @@ export default async function AccountPage() {
   return (
     <>
       <PageHeader title="Settings" subtitle={`${ctx.org.name} · ${kind} account`} />
+
+      {bandcampApiOff() && (
+        <Callout tone="neutral">
+          The Bandcamp API is switched off on this copy (<code>BANDCAMP_API=off</code>), so it never takes the live site’s Bandcamp sign-in.
+          Sales sync, merch orders and marking orders shipped only work on the live site. Syncing releases from public pages still works.
+        </Callout>
+      )}
 
       <Card title="Account">
         <ActionForm action={saveAccountSettings} className="grid gap-4 sm:grid-cols-2">
