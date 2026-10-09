@@ -69,7 +69,7 @@ A band can have its own account (its members, its own sales) and also be on a la
    npm run import:local -- --email you@example.com --sqlite ../label-payouts/data/label.db
    ```
 
-   This creates the label account (named after your label), makes you its owner, copies all bands, people, releases, splits, sales and payouts, links your login to your payee record, and copies `BANDCAMP_CLIENT_ID`/`BANDCAMP_CLIENT_SECRET` from `.env.development.local` into the account's settings.
+   This creates the label account (named after your label), makes you its owner, copies all bands, people, releases, splits, sales and payouts, links your login to your payee record, and, if `BANDCAMP_CLIENT_ID`/`BANDCAMP_CLIENT_SECRET` are set in the environment, saves them in the account's settings (a one-time step for moving an old single-label setup; the app itself only ever reads them from the account's settings).
 
 ## Workflow
 
@@ -86,7 +86,7 @@ A band can have its own account (its members, its own sales) and also be on a la
 4. **Deductions.** Add the label cut under *Label rules*. Add band funds or recoupable costs on each band's page.
    - **Per-format costs**, e.g. $3.42 for the Triple Single CD and $8 for its vinyl: on the band page, under *Physical formats*, click *+ cost* on that format. Sales are matched to the exact format by SKU/UPC (including size SKUs), falling back to the package name.
    - **Per-item costs by format word**, e.g. $3.42 for every CD sold: choose *Fixed amount per item sold*, set *Only for item type* to merch and *Only for format* to `CD`. Choose whether it's withheld (to pay the plant) or paid to a person (whoever fronted the pressing — it's added to their payout). The profit is split after it. It's multiplied by quantity, never takes more than the sale, and a refund reverses it.
-5. **Import.** With Bandcamp API access, put the credentials in `.env.development.local` (`BANDCAMP_CLIENT_ID=…` and `BANDCAMP_CLIENT_SECRET=…`, never committed) and click **Sync sales now** on the *Sales → Import* page: it pulls the label's raw sales report (all artists, refunds included) and imports whatever's new. It lines up exactly with CSV imports, so mixing the two never double-counts.
+5. **Import.** With Bandcamp API access, enter the account's client ID and secret under **Settings** (each label or band account has its own, saved in the database with the secret encrypted) and click **Sync sales now** on the *Sales → Import* page: it pulls the label's raw sales report (all artists, refunds included) and imports whatever's new. It lines up exactly with CSV imports, so mixing the two never double-counts.
 
    **Automatic syncing.** Once the account has its Bandcamp address (and, for sales, API access), opening the app syncs with Bandcamp in the background at most once an hour: new artists (for a label), new releases and merch, a few older releases refreshed each time, then new sales. It never slows a page down; the nav shows "syncing with Bandcamp…" while it runs. The dashboard, *Sales → Import* and *Settings* show when it last synced and what came in, with a **Sync now** button that syncs straight away regardless of the hour.
 
