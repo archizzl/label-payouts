@@ -101,7 +101,7 @@ export function Nav({
       <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 pt-4 pb-3 md:px-8">
         <Link href="/" className="flex items-center gap-2 text-text hover:no-underline">
           <Mark />
-          <span className="text-xl font-bold tracking-tight lowercase">labels for bandcamp</span>
+          <span className="text-xl font-bold tracking-tight lowercase">labelmaker</span>
         </Link>
         <div className="flex flex-wrap items-center gap-3">
           <SyncIndicator active={syncing} />

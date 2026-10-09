@@ -1,4 +1,4 @@
-# Label Payouts
+# labelmaker
 
 A web app for labels and bands to split their Bandcamp earnings between bands and band members, then pay everyone (PayPal, Venmo, Cash App).
 

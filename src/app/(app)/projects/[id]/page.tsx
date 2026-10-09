@@ -94,7 +94,7 @@ export default async function ProjectPage({ params }: PageProps<"/projects/[id]"
 
       <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
         <Stat label="Spent" value={formatCents(n.spent, cur)} hint={n.pending ? `+ ${formatCents(n.pending, cur)} waiting for approval` : undefined} />
-        <Stat label="Made back on Bandcamp" value={formatCents(n.madeBack, cur)} hint={`${n.units} item${n.units === 1 ? "" : "s"} sold`} />
+        <Stat label="Made back in sales" value={formatCents(n.madeBack, cur)} hint={`${n.units} item${n.units === 1 ? "" : "s"} sold`} />
         <Stat
           label={n.spent === 0 ? "Balance" : n.balance >= 0 ? "Ahead by" : "Still to make back"}
           value={formatCents(Math.abs(n.balance), cur)}

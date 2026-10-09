@@ -73,7 +73,7 @@ export default async function FansPage({ searchParams }: PageProps<"/fans">) {
     <>
       <PageHeader
         title="Fans"
-        subtitle="Your Bandcamp mailing list, kept here so you can see it grow and take it anywhere. Only admins can see it."
+        subtitle="Your mailing list (imported from Bandcamp), kept here so you can see it grow and take it anywhere. Only admins can see it."
         actions={
           stats.total > 0 && (
             <a href={`/fans/export${exportQuery ? `?${exportQuery}` : ""}`} className={buttonClass("secondary")} download>

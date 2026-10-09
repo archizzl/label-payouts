@@ -7,7 +7,7 @@ import { matchesBandPattern, normalizeText, normalizeUrl } from "@/lib/routing";
 
 const { bands, releases, tracks, outsideArtists } = schema;
 
-const UA = "Mozilla/5.0 (label-payouts; reading my own label's public pages)";
+const UA = "Mozilla/5.0 (labelmaker; reading my own label's public pages)";
 
 /**
  * Bandcamp shows some visitors (cloud servers, like the live site's) a "Client Challenge" bot check

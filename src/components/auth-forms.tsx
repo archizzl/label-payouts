@@ -77,7 +77,7 @@ export function CreateAccountForm() {
           </span>
         </label>
       </fieldset>
-      <Field label="Name" hint="Your label or band name, as on Bandcamp.">
+      <Field label="Name" hint="Your label or band name.">
         <input name="name" required />
       </Field>
       <Result state={state} />

@@ -7,9 +7,10 @@ export default function AuthLayout({ children }: LayoutProps<"/">) {
     <main className="flex flex-1 flex-col items-center px-4 py-16">
       <Link href="/" className="mb-8 flex items-center gap-2 text-text hover:no-underline">
         <Mark />
-        <span className="text-xl font-bold tracking-tight lowercase">labels for bandcamp</span>
+        <span className="text-xl font-bold tracking-tight lowercase">labelmaker</span>
       </Link>
       <div className="w-full max-w-sm rounded-md border border-border bg-surface p-6">{children}</div>
+      <p className="mt-8 max-w-sm text-center text-xs text-muted">An independent tool for indie labels. Not affiliated with or endorsed by Bandcamp.</p>
     </main>
   );
 }

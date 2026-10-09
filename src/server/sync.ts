@@ -153,7 +153,7 @@ export async function lookupLabelArtists(orgId: string, input: string): Promise<
   let html: string;
   try {
     const res = await fetch(url, {
-      headers: { "User-Agent": "Mozilla/5.0 (label-payouts; reading my own label's artist list)" },
+      headers: { "User-Agent": "Mozilla/5.0 (labelmaker; reading my own label's artist list)" },
       signal: AbortSignal.timeout(20000),
       redirect: "follow",
     });

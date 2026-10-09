@@ -41,7 +41,9 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
       <main className="min-w-0 flex-1 px-4 py-8 md:px-8">
         <div className="mx-auto max-w-5xl">{children}</div>
       </main>
-      <footer className="no-print border-t border-border px-4 py-5 text-center text-xs text-muted">labels for bandcamp</footer>
+      <footer className="no-print border-t border-border px-4 py-5 text-center text-xs text-muted">
+        labelmaker · an independent tool for indie labels, not affiliated with or endorsed by Bandcamp
+      </footer>
     </>
   );
 }

@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "labels for bandcamp",
-  description: "Split Bandcamp earnings between bands and members, and pay them out.",
+  title: "labelmaker",
+  description: "Run your indie label: split earnings between bands and members, pay everyone out, and ship your merch.",
   // A private app: keep it out of search engines.
   robots: { index: false, follow: false },
 };
