@@ -39,6 +39,11 @@ describe("parseBandPhoto", () => {
     expect(parseBandPhoto(html)).toBe("https://f4.bcbits.com/img/0047556316_36.jpg");
   });
 
+  it("reads it from an artist's page with no music yet", () => {
+    const html = `<div class="stub-page-content fan"><img class="bio-pic" src="https://f4.bcbits.com/img/0036744872_24.jpg"><h1>Twig Lake</h1>`;
+    expect(parseBandPhoto(html)).toBe("https://f4.bcbits.com/img/0036744872_36.jpg");
+  });
+
   it("returns null when the account has no photo", () => {
     expect(parseBandPhoto("<div id='bio-container'></div>")).toBeNull();
   });

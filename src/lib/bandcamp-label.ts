@@ -104,7 +104,8 @@ function imgSrc(fragment: string): string | null {
  * label's artist grid uses, so the label's picture matches its bands'.
  */
 export function parseBandPhoto(html: string): string | null {
-  const tag = html.match(/<img\b[^>]*class="band-photo"[^>]*>/)?.[0];
+  // "bio-pic" on an artist's page with no music on it yet.
+  const tag = html.match(/<img\b[^>]*class="(?:band-photo|bio-pic)"[^>]*>/)?.[0];
   const id = tag?.match(/\/img\/(\d+)_\d+\./)?.[1];
   return id ? `https://f4.bcbits.com/img/${id}_36.jpg` : null;
 }
