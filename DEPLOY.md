@@ -24,8 +24,9 @@ npx wrangler login
 
 ## 3. Hyperdrive
 ```bash
-npx wrangler hyperdrive create label-payouts-db --connection-string="<your Neon direct connection string>"
+npx wrangler hyperdrive create label-payouts-db --caching-disabled true --connection-string="<your Neon direct connection string>"
 ```
+Keep caching off: Hyperdrive's cache can show a page's old data for up to a minute after a change (it doesn't know when the app writes). To turn it off on an existing config: `npx wrangler hyperdrive update <id> --caching-disabled true`.
 Copy the `id` it prints into `wrangler.jsonc`, replacing `REPLACE_WITH_HYPERDRIVE_ID`.
 
 ## 4. Secrets (you)
