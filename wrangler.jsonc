@@ -16,12 +16,14 @@
       "localConnectionString": "postgres://postgres:local@127.0.0.1:5433/label_payouts"
     }
   ],
+  // Served at labelmaker.ing (the domain is on this Cloudflare account).
+  "routes": [{ "pattern": "labelmaker.ing", "custom_domain": true }],
   // Sync every account with Bandcamp once an hour, in the background.
   "triggers": { "crons": ["17 * * * *"] },
   "observability": { "enabled": true },
   "vars": {
-    // Your site's address, e.g. https://app.example.com (DEPLOY.md, step 8).
-    "BETTER_AUTH_URL": "https://REPLACE_WITH_YOUR_DOMAIN",
+    // The site's address. Sign-ins are tied to it.
+    "BETTER_AUTH_URL": "https://labelmaker.ing",
     // Who can see /admin (comma-separated).
     "SITE_ADMIN_EMAILS": "reactionfutureinstitute@gmail.com"
   }
