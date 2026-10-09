@@ -3,14 +3,14 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { PrintButton } from "@/components/client";
 import { BandStatement } from "@/components/statement";
-import { requireAdmin } from "@/server/context";
+import { requireAccess } from "@/server/context";
 import { periodView } from "@/server/period-view";
 
 export default async function StatementPage({ params, searchParams }: PageProps<"/periods/[id]/statement">) {
   await connection();
   const id = Number((await params).id);
   const only = Number((await searchParams).band) || null;
-  const { orgId } = await requireAdmin();
+  const { orgId } = await requireAccess("payouts");
   const view = await periodView(orgId, id);
   if (!view) notFound();
   const { period, live, names } = view;

@@ -48,6 +48,16 @@ describe("browsing sales", () => {
     expect(await names({ q: "100%" })).toEqual([]);
   });
 
+  it("shows a member limited to their own bands only those bands' sales, whatever the URL asks for", async () => {
+    const { orgId, flagDay } = await setup();
+    const names = async (sp: Record<string, string>, onlyBands: number[]) =>
+      (await browse.browseSales(orgId, { ...f(sp), onlyBands })).rows.map((r) => r.itemName).sort();
+    expect(await names({}, [flagDay.id])).toHaveLength(4);
+    expect(await names({ band: "none" }, [flagDay.id])).toEqual([]);
+    expect(await names({}, [])).toEqual([]);
+    expect((await browse.salesFilterOptions(orgId, [])).bands).toEqual([]);
+  });
+
   it("sorts by any column, both ways", async () => {
     const { orgId } = await setup();
     const order = async (sort: string, dir: string) => (await browse.browseSales(orgId, f({ sort, dir }))).rows.map((r) => r.itemName);

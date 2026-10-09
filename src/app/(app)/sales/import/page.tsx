@@ -9,7 +9,7 @@ import { assignRouting, createReleaseFromSales, deleteImport } from "@/server/ac
 import { API_SYNC_PREFIX, bandcampCredentials } from "@/server/bandcamp-api";
 import { SalesTabs } from "@/components/sales-tabs";
 import { SyncFooter } from "@/components/sync-status";
-import { requireAdmin } from "@/server/context";
+import { requireAccess } from "@/server/context";
 import { unroutedGroups } from "@/server/data";
 
 /** The account's bands, releases and tracks, for choosing where unmatched sales belong. */
@@ -99,7 +99,7 @@ function Group({ g, mode, catalog }: { g: Awaited<ReturnType<typeof unroutedGrou
 
 export default async function ImportPage({ searchParams }: PageProps<"/sales/import">) {
   await connection();
-  const { orgId } = await requireAdmin();
+  const { orgId } = await requireAccess("sales", "edit");
   const importedId = Number((await searchParams).imported) || null;
   const [allImports, noBand, noRelease, bands, releases, tracks, creds] = await Promise.all([
     db.select().from(schema.imports).where(eq(schema.imports.orgId, orgId)).orderBy(desc(schema.imports.importedAt)),

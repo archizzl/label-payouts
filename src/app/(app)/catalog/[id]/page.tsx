@@ -10,12 +10,12 @@ import { SharesSummary, SplitRules, currentRule } from "@/components/split-rules
 import { Card, Disclosure, Empty, Field, MoneyList } from "@/components/ui";
 import { db, schema } from "@/db";
 import { addTracks, deleteRelease, deleteTrack, refreshReleaseFromBandcamp, saveRelease, saveTrack } from "@/server/actions";
-import { requireAdmin } from "@/server/context";
+import { requireAccess } from "@/server/context";
 import { bandAssociatedPeople, costDeductionsFor, nameMaps, personOptionsFor, ruleFilter, rulesWhere } from "@/server/data";
 
 export default async function ReleasePage({ params, searchParams }: PageProps<"/catalog/[id]">) {
   await connection();
-  const { orgId } = await requireAdmin();
+  const { orgId } = await requireAccess("catalog");
   const id = Number((await params).id);
   const [release] = await db
     .select()

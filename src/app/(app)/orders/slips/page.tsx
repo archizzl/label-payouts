@@ -2,13 +2,15 @@ import Link from "next/link";
 import { connection } from "next/server";
 import { PrintButton } from "@/components/client";
 import { buttonClass } from "@/components/ui";
-import { requireAdmin } from "@/server/context";
+import { bandScope, inBandScope } from "@/lib/permissions";
+import { requireAccess } from "@/server/context";
 import { loadOpenOrders } from "@/server/merch-orders";
 
 /** Printable packing slips, one per page: where it's going, and what's in the box. */
 export default async function SlipsPage({ searchParams }: PageProps<"/orders/slips">) {
   await connection();
-  const { orgId, org } = await requireAdmin();
+  const { orgId, org, access } = await requireAccess("orders");
+  const scope = bandScope(access, "orders");
   const raw = (await searchParams).ids;
   const ids = new Set(
     String(Array.isArray(raw) ? raw.join(",") : (raw ?? ""))
@@ -17,7 +19,7 @@ export default async function SlipsPage({ searchParams }: PageProps<"/orders/sli
       .filter(Boolean),
   );
   const open = await loadOpenOrders(orgId);
-  const orders = open.status === "ok" ? open.orders.filter((o) => ids.has(o.paymentId)) : [];
+  const orders = open.status === "ok" ? open.orders.filter((o) => ids.has(o.paymentId) && inBandScope(scope, o.bandIds)) : [];
 
   return (
     <>

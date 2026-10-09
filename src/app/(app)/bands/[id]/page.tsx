@@ -19,14 +19,14 @@ import { BandAccountLink } from "@/components/band-link";
 import { LabelFunds } from "@/components/label-funds";
 import { ExpenseForm, ExpenseTable } from "@/components/receipts";
 import { addMember, deleteBand, removeMember, saveRelease, updateMembership } from "@/server/actions";
-import { requireAdmin } from "@/server/context";
+import { requireAccess } from "@/server/context";
 import { accountExpenses, expenseFileList } from "@/server/expenses";
 import { accountProjects, projectNumbers } from "@/server/projects";
 import { bandAssociatedPeople, bandMembers, computeAllTime, labelHost, nameMaps, ruleFilter, rulesWhere } from "@/server/data";
 
 export default async function BandPage({ params, searchParams }: PageProps<"/bands/[id]">) {
   await connection();
-  const ctx = await requireAdmin();
+  const ctx = await requireAccess("roster");
   const { orgId } = ctx;
   const id = Number((await params).id);
   const [band] = await db

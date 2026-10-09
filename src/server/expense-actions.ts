@@ -4,7 +4,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db, schema } from "@/db";
 import { parseCents } from "@/lib/money";
-import { getContext, requireAdmin } from "./context";
+import { getContext, requireAccess } from "./context";
 import { readReceiptFiles as readFiles, recoupBands, recoupStartFor } from "./expenses";
 
 /*
@@ -44,7 +44,7 @@ function describe(e: unknown) {
 
 /** Admin: add or edit an expense. New ones count straight away (they're approved). */
 export async function saveExpense(_: ExpenseState, fd: FormData): Promise<ExpenseState> {
-  const ctx = await requireAdmin();
+  const ctx = await requireAccess("receipts", "edit");
   const { orgId } = ctx;
   try {
     const date = isoDate(str(fd, "date"));
@@ -193,7 +193,7 @@ export async function submitReceipt(_: ExpenseState, fd: FormData): Promise<Expe
 
 /** Admin: approve a submitted receipt (choosing whether sales pay it back) or reject it. */
 export async function reviewExpense(fd: FormData) {
-  const { orgId } = await requireAdmin();
+  const { orgId } = await requireAccess("receipts", "edit");
   const approve = str(fd, "decision") === "approve";
   const recoup = fd.get("recoup") === "on";
   const [e] = await db
@@ -220,7 +220,7 @@ export async function reviewExpense(fd: FormData) {
 
 /** Admin: the label has paid back someone who fronted an expense (or undo that). */
 export async function setReimbursed(fd: FormData) {
-  const { orgId } = await requireAdmin();
+  const { orgId } = await requireAccess("receipts", "edit");
   const reimbursed = str(fd, "reimbursed") === "true";
   await db
     .update(expenses)
@@ -248,7 +248,7 @@ export async function deleteExpense(fd: FormData) {
 }
 
 export async function deleteExpenseFile(fd: FormData) {
-  const { orgId } = await requireAdmin();
+  const { orgId } = await requireAccess("receipts", "edit");
   await db.delete(expenseFiles).where(and(eq(expenseFiles.orgId, orgId), inArray(expenseFiles.id, [Number(str(fd, "id"))])));
   done();
 }

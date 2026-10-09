@@ -5,6 +5,7 @@ import { onCloudflare } from "@/db";
 import { CATALOG_SYNC_EVERY_MINUTES, syncStatus } from "@/server/auto-sync";
 import { bandcampApiOff } from "@/server/bandcamp-api";
 import { catalogSyncRequestedAt } from "@/server/catalog-requests";
+import { getContext } from "@/server/context";
 
 /** "5 minutes ago", "2 hours ago", "3 days ago". */
 export function ago(iso: string) {
@@ -34,6 +35,8 @@ export async function SyncStatus({ orgId }: { orgId: string }) {
     );
   }
   const requestedAt = await catalogSyncRequestedAt(orgId);
+  // Sync now is for admins (members with a member type see the status only).
+  const { isAdmin } = await getContext();
   // What the hourly sync covers here. On the live site Bandcamp's pages can't be read, so artists'
   // details and releases come from the catalog sync on a Mac instead (the second line).
   const apiOn = !!s.hasApi && !bandcampApiOff();
@@ -69,9 +72,11 @@ export async function SyncStatus({ orgId }: { orgId: string }) {
           </p>
         )}
       </div>
-      <SubmitButton size="sm" variant="secondary">
-        Sync now
-      </SubmitButton>
+      {isAdmin && (
+        <SubmitButton size="sm" variant="secondary">
+          Sync now
+        </SubmitButton>
+      )}
     </ActionForm>
   );
 }

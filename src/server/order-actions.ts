@@ -2,8 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { bandScope } from "@/lib/permissions";
 import { bandcampCredentials, markMerchShipped } from "./bandcamp-api";
-import { requireAdmin } from "./context";
+import { requireAccess } from "./context";
 import { forgetOpenOrders, loadOpenOrders } from "./merch-orders";
 import { readShipmentCosts, recordShipmentCosts } from "./shipment-costs";
 
@@ -16,13 +17,17 @@ const str = (fd: FormData, k: string) => String(fd.get(k) ?? "").trim();
  * email them if asked. Only orders that are open for this account can be marked.
  */
 export async function markOrderShipped(_: ShipState, fd: FormData): Promise<ShipState> {
-  const { orgId, user } = await requireAdmin();
+  const { orgId, user, access } = await requireAccess("orders", "edit");
   const creds = await bandcampCredentials(orgId);
   if (!creds) return { error: "Add your Bandcamp API access under Settings first." };
   const paymentId = Number(str(fd, "paymentId"));
   const open = await loadOpenOrders(orgId);
   const order = open.status === "ok" ? open.orders.find((o) => o.paymentId === paymentId) : null;
   if (!order) return { error: "That order isn’t open any more. Refresh to see the latest." };
+  const scope = bandScope(access, "orders");
+  if (scope && !order.lines.every((l) => l.bandId !== null && scope.includes(l.bandId))) {
+    return { error: "This order has items from other bands, so an admin needs to mark it shipped." };
+  }
   const notify = fd.get("notify") === "on";
   // Shipping costs, if entered: checked before anything goes to Bandcamp.
   let costs;
@@ -71,7 +76,7 @@ export async function markOrderShipped(_: ShipState, fd: FormData): Promise<Ship
 
 /** Fetch the open orders from Bandcamp again now. */
 export async function refreshOrders() {
-  const { orgId } = await requireAdmin();
+  const { orgId } = await requireAccess("orders");
   forgetOpenOrders(orgId);
   revalidatePath("/orders");
 }

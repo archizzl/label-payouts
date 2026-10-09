@@ -168,15 +168,23 @@ export function coverageText(e: Expense, personName: (id: number) => string | un
 /** An approved expense that someone fronted and the label still owes them (not paid back from sales). */
 export const owedReimbursement = (e: Expense) => e.status === "approved" && e.paidBy === "person" && !e.recoup && !e.reimbursedAt;
 
-export type Viewer = { orgId: string; isAdmin: boolean; userId: string; personId: number | null };
+export type Viewer = {
+  orgId: string;
+  isAdmin: boolean;
+  userId: string;
+  personId: number | null;
+  /** Their member type lets them see the account's receipts. */
+  seesReceipts?: boolean;
+};
 
 /**
- * Who may open a receipt: admins of the account it belongs to, whoever submitted or paid it, and
+ * Who may open a receipt: admins of the account it belongs to (and members whose type lets them see
+ * receipts), whoever submitted or paid it, and
  * admins of a band account linked (actively) to that expense's band.
  */
 export async function canViewReceipt(viewer: Viewer, expense: Expense): Promise<boolean> {
   if (expense.orgId === viewer.orgId) {
-    return viewer.isAdmin || expense.submittedByUserId === viewer.userId || (viewer.personId !== null && expense.paidByPersonId === viewer.personId);
+    return viewer.isAdmin || !!viewer.seesReceipts || expense.submittedByUserId === viewer.userId || (viewer.personId !== null && expense.paidByPersonId === viewer.personId);
   }
   if (!viewer.isAdmin || expense.bandId === null) return false;
   const [link] = await db

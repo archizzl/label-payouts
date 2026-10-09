@@ -6,7 +6,7 @@ import { Badge, Card, Disclosure, Empty, Field, MoneyList, PageHeader, RolesList
 import { db, schema } from "@/db";
 import { deletePerson, mergePeopleAction, savePerson, setLabelAccountHolder } from "@/server/actions";
 import { payHandlesSummary } from "@/lib/paypal-export";
-import { requireAdmin } from "@/server/context";
+import { requireAccess } from "@/server/context";
 import { possibleDuplicates } from "@/server/people";
 
 function PersonFields({ person }: { person?: typeof schema.people.$inferSelect }) {
@@ -40,7 +40,7 @@ function PersonFields({ person }: { person?: typeof schema.people.$inferSelect }
 
 export default async function PeoplePage() {
   await connection();
-  const { orgId } = await requireAdmin();
+  const { orgId } = await requireAccess("roster");
   const [people, memberships, payoutRows, duplicates, outsideRows] = await Promise.all([
     db.select().from(schema.people).where(eq(schema.people.orgId, orgId)).orderBy(asc(schema.people.name)),
     db

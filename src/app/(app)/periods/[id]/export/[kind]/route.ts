@@ -2,7 +2,7 @@ import Papa from "papaparse";
 import type { NextRequest } from "next/server";
 import { centsToDecimal } from "@/lib/money";
 import { paypalBulkCsv } from "@/lib/paypal-export";
-import { requireAdmin } from "@/server/context";
+import { requireAccess } from "@/server/context";
 import { periodView, toPayoutLines } from "@/server/period-view";
 
 function csvResponse(body: string, filename: string) {
@@ -17,7 +17,7 @@ function csvResponse(body: string, filename: string) {
 
 export async function GET(_req: NextRequest, ctx: RouteContext<"/periods/[id]/export/[kind]">) {
   const { id, kind } = await ctx.params;
-  const { orgId } = await requireAdmin();
+  const { orgId } = await requireAccess("payouts");
   const view = await periodView(orgId, Number(id));
   if (!view) return new Response("Not found", { status: 404 });
   const slug = view.period.name.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase() || `period-${id}`;

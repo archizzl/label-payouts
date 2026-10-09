@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { bigint, boolean, customType, index, integer, jsonb, pgTable, text, uniqueIndex } from "drizzle-orm/pg-core";
-import { organization, user } from "./auth-schema";
+import { invitation, organization, user } from "./auth-schema";
 
 export * from "./auth-schema";
 
@@ -674,3 +674,48 @@ export const signupInvites = pgTable(
   },
   (t) => [uniqueIndex("signup_invites_code").on(t.code)],
 );
+
+/**
+ * Kinds of member an account's admins define (e.g. "Band manager"), with what they can see and
+ * change beyond their own earnings. See src/lib/permissions.ts.
+ */
+export const memberTypes = pgTable(
+  "member_types",
+  {
+    id: id(),
+    orgId: orgId(),
+    name: text("name").notNull(),
+    /** Section → "view" | "edit" (missing = nothing). */
+    permissions: jsonb("permissions").$type<Partial<Record<string, "view" | "edit">>>().notNull().default({}),
+    /** Sections limited to the person's own bands. */
+    bandAreas: jsonb("band_areas").$type<string[]>().notNull().default([]),
+    createdAt: text("created_at").notNull().default(now),
+  },
+  (t) => [index("member_types_org").on(t.orgId)],
+);
+
+/** Which member type a (non-admin) login has in an account. None: just their own earnings. */
+export const memberTypeAssignments = pgTable(
+  "member_type_assignments",
+  {
+    id: id(),
+    orgId: orgId(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    memberTypeId: integer("member_type_id")
+      .notNull()
+      .references(() => memberTypes.id, { onDelete: "cascade" }),
+  },
+  (t) => [uniqueIndex("member_type_assignments_org_user").on(t.orgId, t.userId)],
+);
+
+/** The member type an invite gives, applied when it's accepted. */
+export const invitationMemberTypes = pgTable("invitation_member_types", {
+  invitationId: text("invitation_id")
+    .primaryKey()
+    .references(() => invitation.id, { onDelete: "cascade" }),
+  memberTypeId: integer("member_type_id")
+    .notNull()
+    .references(() => memberTypes.id, { onDelete: "cascade" }),
+});

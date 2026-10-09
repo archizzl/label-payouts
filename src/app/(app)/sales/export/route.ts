@@ -1,13 +1,14 @@
 import Papa from "papaparse";
 import type { NextRequest } from "next/server";
 import { centsToDecimal } from "@/lib/money";
-import { requireAdmin } from "@/server/context";
+import { bandScope } from "@/lib/permissions";
+import { requireAccess } from "@/server/context";
 import { allMatchingSales, parseSalesFilter } from "@/server/sales-browse";
 
 /** The Sales tab's filtered sales as a CSV: the main columns, then everything Bandcamp reported. */
 export async function GET(req: NextRequest) {
-  const { orgId, org } = await requireAdmin();
-  const f = parseSalesFilter(Object.fromEntries(req.nextUrl.searchParams));
+  const { orgId, org, access } = await requireAccess("sales");
+  const f = { ...parseSalesFilter(Object.fromEntries(req.nextUrl.searchParams)), onlyBands: bandScope(access, "sales") ?? undefined };
   const rows = await allMatchingSales(orgId, f);
   const rawKeys = [...new Set(rows.flatMap((r) => Object.keys(r.sale.raw)))];
   const csv = Papa.unparse({

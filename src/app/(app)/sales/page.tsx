@@ -9,7 +9,8 @@ import { type BoardChart, breakdownChart, seriesChart } from "@/lib/chart-data";
 import type { ChartFormat } from "@/lib/chart-layout";
 import { formatCents } from "@/lib/money";
 import { loadLayout } from "@/server/chart-layouts";
-import { requireAdmin } from "@/server/context";
+import { bandScope, can } from "@/lib/permissions";
+import { requireAccess } from "@/server/context";
 import {
   browseSales,
   filterQuery,
@@ -27,12 +28,14 @@ const TYPE_LABEL: Record<string, string> = { album: "Album", track: "Track", mer
 /** Every sale, filterable and sortable, with totals and breakdowns of what's filtered. */
 export default async function SalesPage({ searchParams }: PageProps<"/sales">) {
   await connection();
-  const { orgId } = await requireAdmin();
-  const f = parseSalesFilter(await searchParams);
+  const { orgId, access } = await requireAccess("sales");
+  // A member type can limit this to their own bands' sales.
+  const scope = bandScope(access, "sales");
+  const f = { ...parseSalesFilter(await searchParams), onlyBands: scope ?? undefined };
   const [page, summary, options, [{ unrouted }]] = await Promise.all([
     browseSales(orgId, f),
     summarizeSales(orgId, f),
-    salesFilterOptions(orgId),
+    salesFilterOptions(orgId, scope ?? undefined),
     db
       .select({ unrouted: db.$count(schema.sales, and(eq(schema.sales.orgId, orgId), isNull(schema.sales.bandId))) })
       .from(schema.organization)
@@ -99,7 +102,7 @@ export default async function SalesPage({ searchParams }: PageProps<"/sales">) {
           )
         }
       />
-      <SalesTabs active="browse" unrouted={unrouted} />
+      <SalesTabs active="browse" unrouted={unrouted} canImport={can(access, "sales", "edit")} />
 
       <Card title={main ? `${page.count.toLocaleString("en-US")} sale${page.count === 1 ? "" : "s"}` : "Sales"}>
         <Filters f={f} options={options} filtered={filtered} />
@@ -324,7 +327,7 @@ function Filters({ f, options, filtered }: { f: SalesFilter; options: Awaited<Re
                   {b.name}
                 </option>
               ))}
-              <option value="none">Not matched to a band</option>
+              {!f.onlyBands && <option value="none">Not matched to a band</option>}
             </select>
           </label>
           <label>

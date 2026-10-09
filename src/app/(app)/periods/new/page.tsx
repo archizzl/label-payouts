@@ -1,13 +1,13 @@
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { PayoutView } from "@/components/payout-view";
-import { requireAdmin } from "@/server/context";
+import { requireAccess } from "@/server/context";
 import { payoutName, previewView } from "@/server/period-view";
 
 /** A payout before it's finalized: computed from the band and dates in the address, nothing stored. */
 export default async function PayoutPreviewPage({ searchParams }: PageProps<"/periods/new">) {
   await connection();
-  const { orgId } = await requireAdmin();
+  const { orgId } = await requireAccess("payouts", "edit");
   const q = await searchParams;
   const one = (k: string) => (typeof q[k] === "string" ? q[k] : undefined);
   const date = (k: string) => (/^\d{4}-\d{2}-\d{2}$/.test(one(k) ?? "") ? one(k)! : null);

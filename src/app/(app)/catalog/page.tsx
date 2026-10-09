@@ -8,12 +8,12 @@ import { Card, Disclosure, Empty, Field, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
 import { saveRelease } from "@/server/actions";
 import { SyncFooter } from "@/components/sync-status";
-import { requireAdmin } from "@/server/context";
+import { requireAccess } from "@/server/context";
 
 export default async function CatalogPage({ searchParams }: PageProps<"/catalog">) {
   await connection();
   const bandFilter = Number((await searchParams).band) || null;
-  const { orgId } = await requireAdmin();
+  const { orgId } = await requireAccess("catalog");
   const [bands, releases, trackCountRows, rules] = await Promise.all([
     db.select().from(schema.bands).where(eq(schema.bands.orgId, orgId)).orderBy(asc(schema.bands.name)),
     db

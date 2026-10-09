@@ -5,13 +5,13 @@ import { BandFields } from "@/components/band-fields";
 import { Card, Disclosure, Empty, MoneyList, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
 import { SyncFooter } from "@/components/sync-status";
-import { requireAdmin } from "@/server/context";
+import { requireAccess } from "@/server/context";
 import { linkedBandAccounts } from "@/server/links";
 import { computeAllTime, labelHost } from "@/server/data";
 
 export default async function BandsPage() {
   await connection();
-  const { orgId } = await requireAdmin();
+  const { orgId } = await requireAccess("roster");
   const [bands, memberCounts, allReleases, splitRules, { summary }, linked] = await Promise.all([
     db.select().from(schema.bands).where(eq(schema.bands.orgId, orgId)).orderBy(schema.bands.name),
     db

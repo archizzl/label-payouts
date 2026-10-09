@@ -2,10 +2,12 @@ import { eq } from "drizzle-orm";
 import type { NextRequest } from "next/server";
 import { db, schema } from "@/db";
 import { getContext } from "@/server/context";
+import { can } from "@/lib/permissions";
 import { canViewReceipt } from "@/server/expenses";
 
 /**
- * A receipt photo or PDF. Only for: admins of the account it belongs to, the person who submitted
+ * A receipt photo or PDF. Only for: admins of the account it belongs to (and members who can see
+ * receipts), the person who submitted
  * or paid it, and admins of a band account linked to that expense's band.
  */
 export async function GET(_req: NextRequest, ctx: RouteContext<"/receipts/file/[id]">) {
@@ -19,7 +21,10 @@ export async function GET(_req: NextRequest, ctx: RouteContext<"/receipts/file/[
   if (!row) return notFound;
   const { file, expense } = row;
 
-  const allowed = await canViewReceipt({ orgId: me.orgId, isAdmin: me.isAdmin, userId: me.user.id, personId: me.person?.id ?? null }, expense);
+  const allowed = await canViewReceipt(
+    { orgId: me.orgId, isAdmin: me.isAdmin, userId: me.user.id, personId: me.person?.id ?? null, seesReceipts: can(me.access, "receipts") },
+    expense,
+  );
   if (!allowed) return notFound;
 
   return new Response(Buffer.from(file.data), {

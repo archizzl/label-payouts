@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
 import { db, schema } from "@/db";
+import { type Access, type Area, can, normalizeBandAreas, normalizePermissions } from "@/lib/permissions";
 import { auth } from "./auth";
 
 /*
@@ -25,6 +26,10 @@ export type Context = {
   role: Role;
   /** Owners and admins manage everything; members see their own money and their bands' totals. */
   isAdmin: boolean;
+  /** What they can see and change, from their role and member type (src/lib/permissions.ts). */
+  access: Access;
+  /** Their member type's name, if they have one. */
+  memberType: string | null;
   /** Their payee record in this account (for "my earnings"), once linked. */
   person: typeof schema.people.$inferSelect | null;
   /** Every account they belong to, for the account switcher. */
@@ -70,18 +75,58 @@ export const getContext = cache(async (): Promise<Context> => {
     .select()
     .from(schema.people)
     .where(and(eq(schema.people.orgId, org.id), eq(schema.people.userId, session.user.id)));
+  const isAdmin = org.role !== "member";
+  const { access, memberType } = await accessFor(org.id, session.user.id, isAdmin, person?.id ?? null);
   return {
     user: { id: session.user.id, name: session.user.name, email: session.user.email },
     org,
     orgId: org.id,
     role: org.role,
-    isAdmin: org.role !== "member",
+    isAdmin,
+    access,
+    memberType,
     person: person ?? null,
     accounts,
   };
 });
 
-/** For pages and actions only admins may use: members are sent to their own earnings page. */
+/** What someone can do in an account: everything for admins, else what their member type grants. */
+export async function accessFor(orgId: string, userId: string, isAdmin: boolean, personId: number | null) {
+  if (isAdmin) return { access: { admin: true, permissions: {}, bandAreas: [], bandIds: [] } satisfies Access, memberType: null };
+  const [type] = await db
+    .select({ type: schema.memberTypes })
+    .from(schema.memberTypeAssignments)
+    .innerJoin(schema.memberTypes, eq(schema.memberTypes.id, schema.memberTypeAssignments.memberTypeId))
+    .where(and(eq(schema.memberTypeAssignments.orgId, orgId), eq(schema.memberTypeAssignments.userId, userId)));
+  const bandIds =
+    personId === null
+      ? []
+      : (
+          await db
+            .select({ bandId: schema.bandMemberships.bandId })
+            .from(schema.bandMemberships)
+            .where(and(eq(schema.bandMemberships.orgId, orgId), eq(schema.bandMemberships.personId, personId), eq(schema.bandMemberships.active, true)))
+        ).map((r) => r.bandId);
+  const access: Access = {
+    admin: false,
+    permissions: normalizePermissions(type?.type.permissions),
+    bandAreas: normalizeBandAreas(type?.type.bandAreas),
+    bandIds,
+  };
+  return { access, memberType: type?.type.name ?? null };
+}
+
+/**
+ * For pages and actions in one section: anyone whose role or member type allows it (viewing, or
+ * changing things). Everyone else is sent to their own earnings page.
+ */
+export async function requireAccess(area: Area, level: "view" | "edit" = "view"): Promise<Context> {
+  const ctx = await getContext();
+  if (!can(ctx.access, area, level)) redirect("/me");
+  return ctx;
+}
+
+/** For pages and actions only admins may use (settings, who can sign in): members are sent to their own earnings page. */
 export async function requireAdmin(): Promise<Context> {
   const ctx = await getContext();
   if (!ctx.isAdmin) redirect("/me");

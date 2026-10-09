@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq, gte, ilike, isNull, lt, lte, or, type SQL, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, ilike, inArray, isNull, lt, lte, or, type SQL, sql } from "drizzle-orm";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { db, schema } from "@/db";
 import { buildTrend, type Trend } from "@/lib/chart-data";
@@ -42,6 +42,8 @@ export type SalesFilter = {
   refunds?: boolean;
   /** One buyer's sales: their email fingerprint (from a sale's "all sales to this buyer" link). */
   buyer?: string;
+  /** Only these bands' sales (a member limited to their own bands). Never from the URL. */
+  onlyBands?: number[];
   /** paid: in a payout that's been paid; pending: in a finalized payout not paid yet; none: in no payout yet. */
   payout?: PayoutState;
   sort: SortKey;
@@ -137,6 +139,7 @@ function where(orgId: string, f: SalesFilter): SQL {
       ),
     );
   }
+  if (f.onlyBands) c.push(f.onlyBands.length ? inArray(sales.bandId, f.onlyBands) : sql`false`);
   if (f.buyer) c.push(eq(sales.buyerKey, f.buyer));
   if (f.from) c.push(gte(sales.date, f.from));
   if (f.to) c.push(lte(sales.date, f.to));
@@ -339,9 +342,13 @@ function fillMonths(rows: { month: string; net: number; units: number }[]) {
 }
 
 /** Choices for the filter dropdowns. */
-export async function salesFilterOptions(orgId: string) {
+export async function salesFilterOptions(orgId: string, onlyBands?: number[]) {
   const [bandRows, countries, sources, currencies] = await Promise.all([
-    db.select({ id: bands.id, name: bands.name }).from(bands).where(eq(bands.orgId, orgId)).orderBy(asc(bands.name)),
+    db
+      .select({ id: bands.id, name: bands.name })
+      .from(bands)
+      .where(and(eq(bands.orgId, orgId), onlyBands ? inArray(bands.id, onlyBands.length ? onlyBands : [-1]) : undefined))
+      .orderBy(asc(bands.name)),
     db
       .selectDistinct({ v: country })
       .from(sales)

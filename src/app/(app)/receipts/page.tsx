@@ -4,14 +4,14 @@ import { connection } from "next/server";
 import { ExpenseForm, ExpenseTable, expenseTotals } from "@/components/receipts";
 import { Card, Disclosure, MoneyList, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
-import { requireAdmin } from "@/server/context";
+import { requireAccess } from "@/server/context";
 import { accountExpenses, expenseFileList, owedReimbursement } from "@/server/expenses";
 import { accountProjects } from "@/server/projects";
 
 /** Every expense and its receipts: what's waiting for approval first, then everything else. */
 export default async function ReceiptsPage({ searchParams }: PageProps<"/receipts">) {
   await connection();
-  const { orgId } = await requireAdmin();
+  const { orgId } = await requireAccess("receipts");
   const bandFilter = Number((await searchParams).band) || undefined;
   const [all, files, bands, releases, people, projects] = await Promise.all([
     accountExpenses(orgId, bandFilter ? { bandId: bandFilter } : undefined),

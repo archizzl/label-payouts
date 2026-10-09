@@ -1,5 +1,6 @@
 import { after } from "next/server";
 import { Nav } from "@/components/nav";
+import { AREAS, can } from "@/lib/permissions";
 import { syncAccount, syncStatus } from "@/server/auto-sync";
 import { getContext } from "@/server/context";
 import { labelsForBandAccount } from "@/server/links";
@@ -30,6 +31,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
         account={ctx.org}
         accounts={ctx.accounts}
         isAdmin={ctx.isAdmin}
+        areas={AREAS.filter((a) => can(ctx.access, a.key)).map((a) => a.key)}
         siteAdmin={isSiteAdminEmail(ctx.user.email)}
         syncing={due || !!sync?.running}
         labels={labels.map(({ link, label }) => ({ href: `/from-label/${link.id}`, label: `from ${label.name}` }))}

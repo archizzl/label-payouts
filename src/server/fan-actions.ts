@@ -4,7 +4,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db, schema } from "@/db";
 import { parseFanCsv } from "@/lib/fan-csv";
-import { requireAdmin } from "./context";
+import { requireAccess } from "./context";
 import { type FanImportPlan, importFans, planFanImport } from "./fans";
 
 /*
@@ -29,7 +29,7 @@ async function readFile(fd: FormData) {
 
 /** What the file holds and what importing it would do. Nothing is saved. */
 export async function previewFans(fd: FormData): Promise<FanPreview> {
-  const { orgId } = await requireAdmin();
+  const { orgId } = await requireAccess("fans", "edit");
   const read = await readFile(fd);
   if ("error" in read) return { error: read.error! };
   const plan = await planFanImport(orgId, read.parsed.fans);
@@ -37,7 +37,7 @@ export async function previewFans(fd: FormData): Promise<FanPreview> {
 }
 
 export async function commitFans(fd: FormData): Promise<FanImportState> {
-  const { orgId, user } = await requireAdmin();
+  const { orgId, user } = await requireAccess("fans", "edit");
   const read = await readFile(fd);
   if ("error" in read) return { error: read.error };
   const raw = Number(fd.get("bandId"));
@@ -57,7 +57,7 @@ export async function commitFans(fd: FormData): Promise<FanImportState> {
 
 /** Take someone off the list entirely (e.g. they asked to be removed). */
 export async function deleteFans(fd: FormData) {
-  const { orgId } = await requireAdmin();
+  const { orgId } = await requireAccess("fans", "edit");
   const ids = fd
     .getAll("id")
     .map(Number)

@@ -3,7 +3,7 @@ import Papa from "papaparse";
 import type { NextRequest } from "next/server";
 import { db, schema } from "@/db";
 import { centsToDecimal } from "@/lib/money";
-import { requireAdmin } from "@/server/context";
+import { requireAccess } from "@/server/context";
 import { allFans } from "@/server/fans";
 
 /** "24.00 USD" (or several currencies joined), from what reached the label. */
@@ -15,7 +15,7 @@ function spent(purchases: { currency: string; netCents: number }[]) {
 
 /** The mailing list (or the part matching the Fans page's search) as a CSV that Mailchimp and the like import directly. */
 export async function GET(req: NextRequest) {
-  const { orgId, org } = await requireAdmin();
+  const { orgId, org } = await requireAccess("fans");
   const q = req.nextUrl.searchParams.get("q")?.trim() || undefined;
   const band = req.nextUrl.searchParams.get("band") ?? "";
   const [rows, bands] = await Promise.all([

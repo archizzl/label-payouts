@@ -10,14 +10,14 @@ import { type BoardChart, breakdownChart, buildTrend, seriesChart } from "@/lib/
 import type { ChartFormat } from "@/lib/chart-layout";
 import { formatCents } from "@/lib/money";
 import { loadLayout } from "@/server/chart-layouts";
-import { requireAdmin } from "@/server/context";
+import { requireAccess } from "@/server/context";
 import { deleteFans } from "@/server/fan-actions";
 import { type FanFilter, fanStats, listFans, type Purchase } from "@/server/fans";
 
 /** The mailing list, from Bandcamp's mailing-list export. Admins only: it's fans' personal data. */
 export default async function FansPage({ searchParams }: PageProps<"/fans">) {
   await connection();
-  const ctx = await requireAdmin();
+  const ctx = await requireAccess("fans");
   const { orgId } = ctx;
   const sp = await searchParams;
   const q = typeof sp.q === "string" ? sp.q.trim() : "";

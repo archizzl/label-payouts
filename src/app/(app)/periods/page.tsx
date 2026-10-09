@@ -11,11 +11,11 @@ import { periodName } from "@/lib/dates";
 import { STATUS_LABEL, STATUS_TONE } from "@/lib/status";
 import { previewPayout } from "@/server/actions";
 import { bandcampCredentials } from "@/server/bandcamp-api";
-import { requireAdmin } from "@/server/context";
+import { requireAccess } from "@/server/context";
 
 export default async function PeriodsPage({ searchParams }: PageProps<"/periods">) {
   await connection();
-  const { orgId } = await requireAdmin();
+  const { orgId } = await requireAccess("payouts");
   const [periods, payouts, bands, [salesRange], creds] = await Promise.all([
     db.select().from(schema.periods).where(eq(schema.periods.orgId, orgId)).orderBy(desc(schema.periods.startDate)),
     db.select().from(schema.payouts).where(eq(schema.payouts.orgId, orgId)),

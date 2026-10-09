@@ -8,6 +8,8 @@ import { redirect } from "next/navigation";
 import { db, schema } from "@/db";
 import { auth } from "./auth";
 import { accountsFor, getSession, requireAdmin } from "./context";
+import { AREAS, type Area, normalizeBandAreas, normalizePermissions } from "@/lib/permissions";
+import { assignMemberType, memberTypeForInvite, parseRoleChoice, setInviteMemberType } from "./member-types";
 import { normalizeEmail } from "./people";
 import { bandcampCredentials, forgetBandcampSignIn, myBands } from "./bandcamp-api";
 import { encryptSecret } from "./secrets";
@@ -184,7 +186,13 @@ export async function testBandcampConnection(): Promise<FormState> {
 export async function inviteMember(_: FormState, fd: FormData): Promise<FormState> {
   const { orgId } = await requireAdmin();
   const email = normalizeEmail(str(fd, "email"));
-  const role = str(fd, "role") === "admin" ? "admin" : "member";
+  let choice;
+  try {
+    choice = await parseRoleChoice(orgId, str(fd, "role"));
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
+  const { role } = choice;
   const personId = Number(str(fd, "personId")) || undefined;
   if (!email.includes("@")) return { error: "Enter their email address." };
   if (personId) {
@@ -196,7 +204,8 @@ export async function inviteMember(_: FormState, fd: FormData): Promise<FormStat
     if (p.userId) return { error: `${p.name} already has a login linked.` };
   }
   try {
-    await auth.api.createInvitation({ body: { email, role, organizationId: orgId, personId }, headers: await headers() });
+    const invite = await auth.api.createInvitation({ body: { email, role, organizationId: orgId, personId }, headers: await headers() });
+    if (choice.memberTypeId !== null && invite?.id) await setInviteMemberType(invite.id, choice.memberTypeId);
   } catch (e) {
     return { error: messageOf(e, "Couldn't create the invite.") };
   }
@@ -210,11 +219,49 @@ export async function cancelInvite(fd: FormData) {
   revalidatePath("/account");
 }
 
+/** Change what someone can do here: admin, a plain member, or a member with a member type. */
 export async function setMemberRole(fd: FormData) {
   const { orgId } = await requireAdmin();
-  const role = str(fd, "role") === "admin" ? "admin" : "member";
-  await auth.api.updateMemberRole({ body: { memberId: str(fd, "memberId"), role, organizationId: orgId }, headers: await headers() });
-  revalidatePath("/account");
+  const memberId = str(fd, "memberId");
+  const [m] = await db
+    .select()
+    .from(schema.member)
+    .where(and(eq(schema.member.organizationId, orgId), eq(schema.member.id, memberId)));
+  if (!m || m.role === "owner") return;
+  const { role, memberTypeId } = await parseRoleChoice(orgId, str(fd, "role"));
+  if (m.role !== role) await auth.api.updateMemberRole({ body: { memberId, role, organizationId: orgId }, headers: await headers() });
+  await assignMemberType(orgId, m.userId, memberTypeId);
+  revalidatePath("/", "layout");
+}
+
+/** Create or change a member type: its name, and what it can see and change. */
+export async function saveMemberType(_: FormState, fd: FormData): Promise<FormState> {
+  const { orgId } = await requireAdmin();
+  const name = str(fd, "name").slice(0, 60);
+  if (!name) return { error: "Give it a name, e.g. Band manager." };
+  const permissions = normalizePermissions(Object.fromEntries(AREAS.map((a) => [a.key, str(fd, `perm:${a.key}`)])));
+  // "Only their own bands" counts only where they can see the section at all.
+  const bandAreas = normalizeBandAreas(AREAS.filter((a) => fd.get(`bands:${a.key}`) === "on" && permissions[a.key]).map((a): Area => a.key));
+  const id = Number(str(fd, "id")) || null;
+  if (id) {
+    const updated = await db
+      .update(schema.memberTypes)
+      .set({ name, permissions, bandAreas })
+      .where(and(eq(schema.memberTypes.orgId, orgId), eq(schema.memberTypes.id, id)))
+      .returning({ id: schema.memberTypes.id });
+    if (!updated.length) return { error: "That member type doesn't exist any more." };
+  } else {
+    await db.insert(schema.memberTypes).values({ orgId, name, permissions, bandAreas });
+  }
+  revalidatePath("/", "layout");
+  return { ok: id ? `Saved ${name}.` : `Added ${name}. Choose it for someone under Who can sign in.` };
+}
+
+/** Delete a member type. Anyone who had it goes back to seeing just their own earnings. */
+export async function deleteMemberType(fd: FormData) {
+  const { orgId } = await requireAdmin();
+  await db.delete(schema.memberTypes).where(and(eq(schema.memberTypes.orgId, orgId), eq(schema.memberTypes.id, Number(str(fd, "id")))));
+  revalidatePath("/", "layout");
 }
 
 export async function removeAccountMember(fd: FormData) {
@@ -226,6 +273,7 @@ export async function removeAccountMember(fd: FormData) {
     .where(and(eq(schema.member.organizationId, orgId), eq(schema.member.id, memberId)));
   if (!m) return;
   await auth.api.removeMember({ body: { memberIdOrEmail: memberId, organizationId: orgId }, headers: await headers() });
+  await assignMemberType(orgId, m.userId, null);
   // They keep their payee record (and history); it's just no longer tied to a login here.
   await db
     .update(schema.people)
@@ -269,6 +317,9 @@ export async function acceptInvite(_: FormState, fd: FormData): Promise<FormStat
   } else {
     await db.insert(schema.people).values({ orgId, userId: user.id, name: user.name, email: user.email });
   }
+  // The member type the invite gave, if any.
+  const memberTypeId = invite.role === "member" ? await memberTypeForInvite(orgId, invite.id) : null;
+  if (memberTypeId !== null) await assignMemberType(orgId, user.id, memberTypeId);
   await auth.api.setActiveOrganization({ body: { organizationId: orgId }, headers: await headers() });
   revalidatePath("/", "layout");
   redirect("/");

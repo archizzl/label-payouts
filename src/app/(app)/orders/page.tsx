@@ -6,7 +6,8 @@ import { Badge, buttonClass, Callout, Card, Disclosure, Empty, Field, PageHeader
 import { db, schema } from "@/db";
 import { type MerchOrder, pickList, readyToShip } from "@/lib/merch-orders";
 import { formatCents } from "@/lib/money";
-import { requireAdmin } from "@/server/context";
+import { bandScope, can, inBandScope } from "@/lib/permissions";
+import { requireAccess } from "@/server/context";
 import { loadOpenOrders } from "@/server/merch-orders";
 import { markOrderShipped, refreshOrders } from "@/server/order-actions";
 
@@ -15,7 +16,11 @@ const CARRIERS = ["USPS", "UPS", "FedEx", "DHL", "Royal Mail", "Canada Post", "A
 /** Open merch orders from Bandcamp: what to pack, who's waiting, packing slips, and marking them shipped. */
 export default async function OrdersPage({ searchParams }: PageProps<"/orders">) {
   await connection();
-  const { orgId } = await requireAdmin();
+  const { orgId, access } = await requireAccess("orders");
+  // A member type can limit this to their own bands' orders, and to looking (not marking shipped).
+  const scope = bandScope(access, "orders");
+  // Marking shipped covers the whole order, so someone limited to their bands can only mark orders that are all theirs.
+  const shippable = (o: MerchOrder) => can(access, "orders", "edit") && (scope === null || o.lines.every((l) => l.bandId !== null && scope.includes(l.bandId)));
   const sp = await searchParams;
   const band = Number(sp.band) || null;
   const shipped = typeof sp.shipped === "string" ? sp.shipped.slice(0, 80) : null;
@@ -25,6 +30,7 @@ export default async function OrdersPage({ searchParams }: PageProps<"/orders">)
     db.select({ id: schema.people.id, name: schema.people.name }).from(schema.people).where(eq(schema.people.orgId, orgId)).orderBy(asc(schema.people.name)),
   ]);
   const bandName = new Map(bands.map((b) => [b.id, b.name]));
+  if (open.status === "ok") open.orders = open.orders.filter((o) => inBandScope(scope, o.bandIds));
 
   if (open.status !== "ok") {
     return (
@@ -146,18 +152,18 @@ export default async function OrdersPage({ searchParams }: PageProps<"/orders">)
           )}
 
           <Card title={`Waiting to ship (${ready.length})`}>
-            {ready.length === 0 ? <Empty>Nothing ready to ship.</Empty> : <OrderList orders={ready} bandName={bandName} slipHref={slipHref} people={people} />}
+            {ready.length === 0 ? <Empty>Nothing ready to ship.</Empty> : <OrderList orders={ready} bandName={bandName} slipHref={slipHref} people={people} canShip={shippable} />}
           </Card>
 
           {preorders.length > 0 && (
             <Card title={`Pre-orders not out yet (${preorders.length})`}>
-              <OrderList orders={preorders} bandName={bandName} slipHref={slipHref} people={people} />
+              <OrderList orders={preorders} bandName={bandName} slipHref={slipHref} people={people} canShip={shippable} />
             </Card>
           )}
           {failed.length > 0 && (
             <Card title={`Payment failed (${failed.length})`}>
               <p className="mb-3 text-sm text-muted">Bandcamp says these payments didn’t go through (e.g. a PayPal eCheck that failed). Don’t ship them.</p>
-              <OrderList orders={failed} bandName={bandName} slipHref={slipHref} people={people} />
+              <OrderList orders={failed} bandName={bandName} slipHref={slipHref} people={people} canShip={shippable} />
             </Card>
           )}
         </>
@@ -175,11 +181,13 @@ function OrderList({
   bandName,
   slipHref,
   people,
+  canShip,
 }: {
   orders: MerchOrder[];
   bandName: Map<number, string>;
   slipHref: (ids: number[]) => string;
   people: { id: number; name: string }[];
+  canShip: (o: MerchOrder) => boolean;
 }) {
   return (
     <ul className="divide-y divide-border border-y border-border">
@@ -214,7 +222,7 @@ function OrderList({
               <Link href={slipHref([o.paymentId])} className={buttonClass("secondary", "sm")}>
                 Packing slip
               </Link>
-              {!o.failed && (
+              {!o.failed && canShip(o) && (
                 <Disclosure summary="Mark shipped">
                   <ActionForm action={markOrderShipped} className="grid gap-3 sm:grid-cols-2">
                     <input type="hidden" name="paymentId" value={o.paymentId} />

@@ -7,7 +7,7 @@ import { type BoardChart, breakdownChart, seriesChart } from "@/lib/chart-data";
 import type { ChartFormat } from "@/lib/chart-layout";
 import { formatCents } from "@/lib/money";
 import { loadLayout } from "@/server/chart-layouts";
-import { requireAdmin } from "@/server/context";
+import { requireAccess } from "@/server/context";
 import { nameMaps } from "@/server/data";
 import { LABEL_RELEASES_SOURCE, labelIncome, SHIPPING_SOURCE, type Totals } from "@/server/label-income";
 
@@ -24,7 +24,7 @@ function explain(source: string) {
  */
 export default async function FundsPage() {
   await connection();
-  const { orgId } = await requireAdmin();
+  const { orgId } = await requireAccess("funds");
   const [inc, names] = await Promise.all([labelIncome(orgId), nameMaps(orgId)]);
   const cur = inc.currencies[0] ?? "USD";
   const v = (m: Totals) => m.get(cur) ?? 0;

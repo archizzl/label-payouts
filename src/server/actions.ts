@@ -14,16 +14,17 @@ import { fetchPage, upsertRelease } from "./bandcamp";
 import { bandcampCredentials } from "./bandcamp-api";
 import { requestCatalogSync } from "./catalog-requests";
 import { syncAccount } from "./auto-sync";
-import { requireAdmin } from "./context";
+import { requireAccess, requireAdmin } from "./context";
 import { prepare, runSalesSync, saveSales } from "./sync";
 import { computePayoutPeriod, reRouteAll } from "./data";
 import { type PayoutScope, payoutName } from "./period-view";
 import { autoMergeByEmail, findExistingPerson, mergePeople } from "./people";
 
 /*
- * Every action here changes an account's books, so every one starts with requireAdmin(): the caller
- * must be signed in and an owner or admin of the account they're working in. Every query is scoped
- * to that account (orgId), and ids that arrive from forms are checked to belong to it.
+ * Every action here changes an account's books, so every one starts with requireAccess(section,
+ * "edit") (an admin, or a member whose member type lets them change that section) or requireAdmin().
+ * Every query is scoped to that account (orgId), and ids that arrive from forms are checked to
+ * belong to it.
  */
 
 const {
@@ -100,7 +101,7 @@ export type ActionState = { ok?: string; error?: string } | null;
 // ---------- bands ----------
 
 export async function saveBand(fd: FormData) {
-  const { orgId } = await requireAdmin();
+  const { orgId } = await requireAccess("roster", "edit");
   const id = optInt(fd, "id");
   const values = {
     name: str(fd, "name"),
@@ -118,7 +119,7 @@ export async function saveBand(fd: FormData) {
 }
 
 export async function deleteBand(fd: FormData) {
-  const { orgId } = await requireAdmin();
+  const { orgId } = await requireAccess("roster", "edit");
   const id = int(fd, "id");
   const [hasPayouts] = await db
     .select({ id: periods.id })
@@ -134,7 +135,7 @@ export async function deleteBand(fd: FormData) {
 // ---------- people & memberships ----------
 
 export async function savePerson(fd: FormData) {
-  const { orgId } = await requireAdmin();
+  const { orgId } = await requireAccess("roster", "edit");
   const id = optInt(fd, "id");
   const values = {
     name: str(fd, "name"),
@@ -168,7 +169,7 @@ export async function savePerson(fd: FormData) {
 
 /** Merge one person into another (from the People page). */
 export async function mergePeopleAction(fd: FormData) {
-  const { orgId } = await requireAdmin();
+  const { orgId } = await requireAccess("roster", "edit");
   const intoId = int(fd, "intoId");
   for (const from of fd.getAll("fromId")) await mergePeople(orgId, intoId, Number(from));
   await syncAllPeriodStatuses(orgId);
@@ -176,7 +177,7 @@ export async function mergePeopleAction(fd: FormData) {
 }
 
 export async function deletePerson(_: ActionState, fd: FormData): Promise<ActionState> {
-  const { orgId } = await requireAdmin();
+  const { orgId } = await requireAccess("roster", "edit");
   const id = int(fd, "id");
   await owned(orgId, people, id);
   const [hasPayouts] = await db.select({ id: payouts.id }).from(payouts).where(eq(payouts.personId, id));
@@ -192,7 +193,7 @@ export async function deletePerson(_: ActionState, fd: FormData): Promise<Action
 
 /** Add an existing person (personId) or a new one (name/email) to a band. */
 export async function addMember(fd: FormData) {
-  const { orgId } = await requireAdmin();
+  const { orgId } = await requireAccess("roster", "edit");
   const bandId = int(fd, "bandId");
   let personId = optInt(fd, "personId");
   await owned(orgId, bands, bandId);
@@ -230,7 +231,7 @@ export async function addMember(fd: FormData) {
 
 /** Edit a band member: their roles and status in this band, and their name and PayPal details. */
 export async function updateMembership(fd: FormData) {
-  const { orgId } = await requireAdmin();
+  const { orgId } = await requireAccess("roster", "edit");
   const [m] = await db
     .update(bandMemberships)
     .set({ roles: list(fd, "roles"), active: bool(fd, "active") })
@@ -248,7 +249,7 @@ export async function updateMembership(fd: FormData) {
 }
 
 export async function removeMember(fd: FormData) {
-  const { orgId } = await requireAdmin();
+  const { orgId } = await requireAccess("roster", "edit");
   await db.delete(bandMemberships).where(and(eq(bandMemberships.orgId, orgId), eq(bandMemberships.id, int(fd, "membershipId"))));
   done();
 }
@@ -256,7 +257,7 @@ export async function removeMember(fd: FormData) {
 // ---------- catalog ----------
 
 export async function saveRelease(fd: FormData) {
-  const { orgId } = await requireAdmin();
+  const { orgId } = await requireAccess("catalog", "edit");
   const id = optInt(fd, "id");
   const values = {
     bandId: int(fd, "bandId"),
@@ -279,7 +280,7 @@ export async function saveRelease(fd: FormData) {
 }
 
 export async function deleteRelease(fd: FormData) {
-  const { orgId } = await requireAdmin();
+  const { orgId } = await requireAccess("catalog", "edit");
   const [r] = await db
     .delete(releases)
     .where(and(eq(releases.orgId, orgId), eq(releases.id, int(fd, "id"))))
@@ -291,7 +292,7 @@ export async function deleteRelease(fd: FormData) {
 
 /** Add tracks: one title per line, optionally "Title | URL". */
 export async function addTracks(fd: FormData) {
-  const { orgId } = await requireAdmin();
+  const { orgId } = await requireAccess("catalog", "edit");
   const releaseId = int(fd, "releaseId");
   await owned(orgId, releases, releaseId);
   const existing = (await db.select({ id: tracks.id }).from(tracks).where(eq(tracks.releaseId, releaseId))).length;
@@ -312,7 +313,7 @@ export async function addTracks(fd: FormData) {
 }
 
 export async function saveTrack(fd: FormData) {
-  const { orgId } = await requireAdmin();
+  const { orgId } = await requireAccess("catalog", "edit");
   const bandId = optInt(fd, "bandId");
   await owned(orgId, bands, bandId);
   await db
@@ -330,7 +331,7 @@ export async function saveTrack(fd: FormData) {
 }
 
 export async function deleteTrack(fd: FormData) {
-  const { orgId } = await requireAdmin();
+  const { orgId } = await requireAccess("catalog", "edit");
   await db.delete(tracks).where(and(eq(tracks.orgId, orgId), eq(tracks.id, int(fd, "id"))));
   await reRouteAll(orgId);
   done();
@@ -339,7 +340,7 @@ export async function deleteTrack(fd: FormData) {
 // ---------- split rules ----------
 
 export async function saveSplitRule(_: ActionState, fd: FormData): Promise<ActionState> {
-  const { orgId } = await requireAdmin();
+  const { orgId } = await requireAccess("rules", "edit");
   const scope = str(fd, "scope") as "label_default" | "band_default" | "band_item_type" | "release" | "track";
   if (!["label_default", "band_default", "band_item_type", "release", "track"].includes(scope)) return { error: "Bad scope" };
   const shares = (JSON.parse(str(fd, "shares") || "[]") as { personId: number; bps: number }[]).filter((s) => s.bps > 0);
@@ -386,7 +387,7 @@ export async function saveSplitRule(_: ActionState, fd: FormData): Promise<Actio
 }
 
 export async function deleteSplitRule(fd: FormData) {
-  const { orgId } = await requireAdmin();
+  const { orgId } = await requireAccess("rules", "edit");
   await db.delete(splitRules).where(and(eq(splitRules.orgId, orgId), eq(splitRules.id, int(fd, "ruleId"))));
   done();
 }
@@ -394,7 +395,7 @@ export async function deleteSplitRule(fd: FormData) {
 // ---------- deductions ----------
 
 export async function saveDeduction(fd: FormData) {
-  const { orgId } = await requireAdmin();
+  const { orgId } = await requireAccess("rules", "edit");
   const kindRaw = str(fd, "kind");
   const kind = (["percent", "fixed", "per_unit", "sale_part"].includes(kindRaw) ? kindRaw : "percent") as "percent" | "fixed" | "per_unit" | "sale_part";
   const salePart = kind === "sale_part" ? str(fd, "salePart") : null;
@@ -443,7 +444,7 @@ export async function saveDeduction(fd: FormData) {
 }
 
 export async function deleteDeduction(fd: FormData) {
-  const { orgId } = await requireAdmin();
+  const { orgId } = await requireAccess("rules", "edit");
   await db.delete(deductions).where(and(eq(deductions.orgId, orgId), eq(deductions.id, int(fd, "id"))));
   done();
 }
@@ -471,7 +472,7 @@ async function readUpload(fd: FormData) {
 }
 
 export async function previewImport(_: ImportPreview | null, fd: FormData): Promise<ImportPreview> {
-  const { orgId } = await requireAdmin();
+  const { orgId } = await requireAccess("sales", "edit");
   let name = "file";
   try {
     const up = await readUpload(fd);
@@ -512,7 +513,7 @@ export async function previewImport(_: ImportPreview | null, fd: FormData): Prom
 }
 
 export async function commitImport(fd: FormData): Promise<{ importId?: number; error?: string }> {
-  const { orgId } = await requireAdmin();
+  const { orgId } = await requireAccess("sales", "edit");
   const up = await readUpload(fd);
   const parsed = parseBandcampCsv(up.bytes);
   if (parsed.missingColumns.length) return { error: "Not a Bandcamp sales report" };
@@ -532,7 +533,7 @@ async function syncOutcome(orgId: string): Promise<Record<string, string>> {
 }
 
 export async function syncBandcampSales(_: ActionState, fd: FormData): Promise<ActionState> {
-  const { orgId } = await requireAdmin();
+  const { orgId } = await requireAccess("sales", "edit");
   let result;
   try {
     result = await runSalesSync(orgId, str(fd, "from") || undefined);
@@ -568,14 +569,14 @@ export async function syncWithBandcamp(): Promise<ActionState> {
 }
 
 export async function deleteImport(fd: FormData) {
-  const { orgId } = await requireAdmin();
+  const { orgId } = await requireAccess("sales", "edit");
   await db.delete(imports).where(and(eq(imports.orgId, orgId), eq(imports.id, int(fd, "id"))));
   done();
 }
 
 /** Route every sale with this key to a band / release / track, and remember the choice. */
 export async function assignRouting(fd: FormData) {
-  const { orgId } = await requireAdmin();
+  const { orgId } = await requireAccess("sales", "edit");
   const key = str(fd, "key");
   const [kind, idStr] = str(fd, "target").split(":");
   const id = Number(idStr);
@@ -609,7 +610,7 @@ export async function assignRouting(fd: FormData) {
 }
 
 export async function deleteRoutingOverride(fd: FormData) {
-  const { orgId } = await requireAdmin();
+  const { orgId } = await requireAccess("sales", "edit");
   await db.delete(routingOverrides).where(and(eq(routingOverrides.orgId, orgId), eq(routingOverrides.id, int(fd, "id"))));
   await reRouteAll(orgId);
   done();
@@ -617,7 +618,7 @@ export async function deleteRoutingOverride(fd: FormData) {
 
 /** One-click: create a release from an unmatched sale group and route it there. */
 export async function createReleaseFromSales(fd: FormData) {
-  const { orgId } = await requireAdmin();
+  const { orgId } = await requireAccess("catalog", "edit");
   const key = str(fd, "key");
   const bandId = int(fd, "bandId");
   await owned(orgId, bands, bandId);
@@ -649,7 +650,7 @@ export async function createReleaseFromSales(fd: FormData) {
 }
 
 export async function rerouteAction() {
-  const { orgId } = await requireAdmin();
+  const { orgId } = await requireAccess("sales", "edit");
   await reRouteAll(orgId);
   done();
 }
@@ -686,7 +687,7 @@ function previewUrl(scope: PayoutScope, extra: Record<string, string> = {}) {
  * stored until it's finalized. (A failed sync doesn't block the preview; the page says so.)
  */
 export async function previewPayout(_: ActionState, fd: FormData): Promise<ActionState> {
-  const { orgId } = await requireAdmin();
+  const { orgId } = await requireAccess("payouts", "edit");
   const scope = await payoutScope(orgId, fd);
   if (!scope) return { error: "Pick a valid start and end date" };
   const sync = await syncOutcome(orgId);
@@ -696,7 +697,7 @@ export async function previewPayout(_: ActionState, fd: FormData): Promise<Actio
 
 /** "Sync from Bandcamp" on a preview: pull new sales, then show the preview again. */
 export async function resyncPreview(fd: FormData) {
-  const { orgId } = await requireAdmin();
+  const { orgId } = await requireAccess("payouts", "edit");
   const scope = await payoutScope(orgId, fd);
   if (!scope) redirect("/periods");
   const sync = await syncOutcome(orgId);
@@ -706,7 +707,7 @@ export async function resyncPreview(fd: FormData) {
 
 /** Lock in a previewed payout: store the amounts owed to each person, ready to pay. */
 export async function finalizePayout(_: ActionState, fd: FormData): Promise<ActionState> {
-  const { orgId } = await requireAdmin();
+  const { orgId } = await requireAccess("payouts", "edit");
   const scope = await payoutScope(orgId, fd);
   if (!scope) return { error: "Pick a valid start and end date" };
   const { results, summary, saleById } = await computePayoutPeriod(orgId, { id: 0, ...scope });
@@ -780,7 +781,7 @@ export async function finalizePayout(_: ActionState, fd: FormData): Promise<Acti
 
 /** Undo a finalized payout: its records (paid marks included) are removed and it's a preview again. */
 export async function undoFinalize(fd: FormData) {
-  const { orgId } = await requireAdmin();
+  const { orgId } = await requireAccess("payouts", "edit");
   const [p] = await db
     .delete(periods)
     .where(and(eq(periods.orgId, orgId), eq(periods.id, int(fd, "id"))))
@@ -805,7 +806,7 @@ async function syncPeriodStatus(orgId: string, periodId: number) {
 
 /** Mark one payout line paid, kept in the label account, or back to unpaid. */
 export async function setPayoutStatus(fd: FormData) {
-  const { orgId } = await requireAdmin();
+  const { orgId } = await requireAccess("payouts", "edit");
   const status = str(fd, "status");
   if (status !== "pending" && status !== "paid" && status !== "kept") throw new Error("Unknown payout status");
   const [row] = await db
@@ -822,7 +823,7 @@ export async function setPayoutStatus(fd: FormData) {
 }
 
 export async function markAllPaid(fd: FormData) {
-  const { orgId } = await requireAdmin();
+  const { orgId } = await requireAccess("payouts", "edit");
   const periodId = int(fd, "periodId");
   await db
     .update(payouts)
@@ -837,7 +838,7 @@ export async function markAllPaid(fd: FormData) {
  * it's recorded as theirs, but never sent. Their unpaid payouts so far are marked kept too.
  */
 export async function setLabelAccountHolder(fd: FormData) {
-  const { orgId } = await requireAdmin();
+  const { orgId } = await requireAccess("funds", "edit");
   const personId = optInt(fd, "personId");
   await owned(orgId, people, personId);
   await db.transaction(async (tx) => {
@@ -860,7 +861,7 @@ export async function setLabelAccountHolder(fd: FormData) {
 
 /** Record money the label kept and sent on, e.g. a fundraiser's proceeds to an aid group. */
 export async function saveLabelTransfer(_: ActionState, fd: FormData): Promise<ActionState> {
-  const { orgId } = await requireAdmin();
+  const { orgId } = await requireAccess("funds", "edit");
   const date = isoDate(optStr(fd, "date"));
   const recipient = str(fd, "recipient");
   const amountCents = parseCents(str(fd, "amount"));
@@ -909,7 +910,7 @@ export async function saveLabelTransfer(_: ActionState, fd: FormData): Promise<A
 }
 
 export async function deleteLabelTransfer(fd: FormData) {
-  const { orgId } = await requireAdmin();
+  const { orgId } = await requireAccess("funds", "edit");
   await db.delete(labelTransfers).where(and(eq(labelTransfers.orgId, orgId), eq(labelTransfers.id, int(fd, "id"))));
   done();
 }
@@ -919,7 +920,7 @@ export async function deleteLabelTransfer(fd: FormData) {
  * Reuses an existing person with the same email (or name), otherwise creates one.
  */
 export async function saveOutsideArtistContact(fd: FormData) {
-  const { orgId } = await requireAdmin();
+  const { orgId } = await requireAccess("roster", "edit");
   const artistId = int(fd, "artistId");
   const [artist] = await db
     .select()
@@ -943,7 +944,7 @@ export async function saveOutsideArtistContact(fd: FormData) {
 
 /** Don't pay an outside artist (e.g. a donated track): the label keeps their share. Or undo that. */
 export async function setOutsideArtistDismissed(fd: FormData) {
-  const { orgId } = await requireAdmin();
+  const { orgId } = await requireAccess("roster", "edit");
   const dismissed = bool(fd, "dismissed");
   const ids = fd.getAll("artistId").map(Number).filter(Number.isFinite);
   if (ids.length) {
@@ -956,7 +957,7 @@ export async function setOutsideArtistDismissed(fd: FormData) {
 }
 
 export async function clearOutsideArtistContact(fd: FormData) {
-  const { orgId } = await requireAdmin();
+  const { orgId } = await requireAccess("roster", "edit");
   await db
     .update(outsideArtists)
     .set({ contactPersonId: null })
@@ -966,7 +967,7 @@ export async function clearOutsideArtistContact(fd: FormData) {
 
 /** "refresh from Bandcamp" on a release page. */
 export async function refreshReleaseFromBandcamp(_: ActionState, fd: FormData): Promise<ActionState> {
-  const { orgId } = await requireAdmin();
+  const { orgId } = await requireAccess("catalog", "edit");
   const [r] = await db
     .select()
     .from(releases)
@@ -987,7 +988,7 @@ export async function refreshReleaseFromBandcamp(_: ActionState, fd: FormData): 
  * sold, either withheld or paid to a person. Everything else is implied by the row it came from.
  */
 export async function saveItemCost(fd: FormData) {
-  const { orgId } = await requireAdmin();
+  const { orgId } = await requireAccess("rules", "edit");
   const releaseId = int(fd, "releaseId");
   const [release] = await db
     .select()

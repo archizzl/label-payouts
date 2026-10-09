@@ -7,12 +7,12 @@ import { SplitRules } from "@/components/split-rules";
 import { Card, Disclosure, Empty, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
 import { deleteRoutingOverride, rerouteAction } from "@/server/actions";
-import { requireAdmin } from "@/server/context";
+import { requireAccess } from "@/server/context";
 import { nameMaps, ruleFilter, rulesWhere } from "@/server/data";
 
 export default async function RulesPage() {
   await connection();
-  const { orgId } = await requireAdmin();
+  const { orgId } = await requireAccess("rules");
   const [names, bands, releases, orgDeductions, overrides, labelDefault, peopleRows, bandDefaults] = await Promise.all([
     nameMaps(orgId),
     db.select().from(schema.bands).where(eq(schema.bands.orgId, orgId)).orderBy(asc(schema.bands.name)),

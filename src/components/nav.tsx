@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useRef } from "react";
+import type { Area } from "@/lib/permissions";
 import { signOut, switchAccount } from "@/server/account-actions";
 import type { Account } from "@/server/context";
 import { SyncIndicator } from "./sync-indicator";
@@ -21,25 +22,24 @@ export function Mark() {
 
 type Item = { href: string; label: string };
 
-function itemsFor(account: Account, isAdmin: boolean, labels: Item[]): Item[] {
-  if (!isAdmin) return [{ href: "/me", label: "my earnings" }];
-  return [
-    { href: "/", label: "dashboard" },
-    { href: "/sales", label: "sales" },
-    { href: "/orders", label: "orders" },
-    { href: "/periods", label: "payouts" },
-    ...(account.kind === "label" ? [{ href: "/funds", label: "label funds" }] : []),
-    { href: "/receipts", label: "receipts" },
+function itemsFor(account: Account, isAdmin: boolean, areas: Area[], labels: Item[]): Item[] {
+  const all: (Item & { area?: Area })[] = [
+    { href: "/", label: "dashboard", area: "dashboard" },
+    { href: "/sales", label: "sales", area: "sales" },
+    { href: "/orders", label: "orders", area: "orders" },
+    { href: "/periods", label: "payouts", area: "payouts" },
+    ...(account.kind === "label" ? [{ href: "/funds", label: "label funds", area: "funds" as const }] : []),
+    { href: "/receipts", label: "receipts", area: "receipts" },
     // { href: "/projects", label: "projects" },
-    { href: "/bands", label: account.kind === "band" ? "band" : "bands" },
-    { href: "/people", label: "people" },
-    // { href: "/fans", label: "fans" },
-    { href: "/catalog", label: "catalog" },
-    { href: "/rules", label: account.kind === "band" ? "rules" : "label rules" },
-    // { href: "/me", label: "my earnings" },
-    ...labels,
-    { href: "/account", label: "settings" },
+    { href: "/bands", label: account.kind === "band" ? "band" : "bands", area: "roster" },
+    { href: "/people", label: "people", area: "roster" },
+    // { href: "/fans", label: "fans", area: "fans" },
+    { href: "/catalog", label: "catalog", area: "catalog" },
+    { href: "/rules", label: account.kind === "band" ? "rules" : "label rules", area: "rules" },
   ];
+  if (isAdmin) return [...all, ...labels, { href: "/account", label: "settings" }];
+  // Members: their own earnings, plus whatever their member type lets them see.
+  return [{ href: "/me", label: "my earnings" }, ...all.filter((i) => i.area && areas.includes(i.area))];
 }
 
 /** Pick which of your accounts (labels and bands) you're working in. */
@@ -76,6 +76,7 @@ export function Nav({
   account,
   accounts,
   isAdmin,
+  areas = [],
   labels = [],
   syncing = false,
   siteAdmin = false,
@@ -84,6 +85,8 @@ export function Nav({
   account: Account;
   accounts: Account[];
   isAdmin: boolean;
+  /** For members: the sections their member type lets them see. */
+  areas?: Area[];
   /** Band accounts: a link to each label they're linked to. */
   labels?: Item[];
   /** A background sync with Bandcamp is running (or about to). */
@@ -92,7 +95,7 @@ export function Nav({
   siteAdmin?: boolean;
 }) {
   const path = usePathname();
-  const items = [...itemsFor(account, isAdmin, labels), ...(siteAdmin ? [{ href: "/admin", label: "admin" }] : [])];
+  const items = [...itemsFor(account, isAdmin, areas, labels), ...(siteAdmin ? [{ href: "/admin", label: "admin" }] : [])];
   return (
     <header className="no-print border-b border-border bg-surface">
       <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 pt-4 pb-3 md:px-8">

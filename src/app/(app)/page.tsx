@@ -14,12 +14,12 @@ import { STATUS_LABEL, STATUS_TONE } from "@/lib/status";
 import { outsideArtistRows } from "@/components/outside-artists";
 import { SyncFooter } from "@/components/sync-status";
 import { setSetupHidden } from "@/server/actions";
-import { requireAdmin } from "@/server/context";
+import { requireAccess } from "@/server/context";
 import { computeAllTime } from "@/server/data";
 
 export default async function Dashboard() {
   await connection();
-  const { orgId } = await requireAdmin();
+  const { orgId } = await requireAccess("dashboard");
   const [bands, memberships, defaults, saleRows, periods, outside, { summary }, people, releaseRows, fundExpenses] = await Promise.all([
     db.select().from(schema.bands).where(eq(schema.bands.orgId, orgId)),
     db.select().from(schema.bandMemberships).where(eq(schema.bandMemberships.orgId, orgId)),
