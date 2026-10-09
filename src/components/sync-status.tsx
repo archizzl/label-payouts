@@ -22,7 +22,7 @@ export function ago(iso: string) {
 /**
  * Where the account stands with Bandcamp: what syncs when, when it last did and what that brought
  * in (or what went wrong), with a button to sync right now. The hourly sync also runs whenever
- * someone opens the app; on the live site, a Mac syncs the catalog every 10 minutes.
+ * someone opens the app locally; on the live site, a Mac syncs the catalog every 10 minutes.
  */
 export async function SyncStatus({ orgId }: { orgId: string }) {
   const s = await syncStatus(orgId);

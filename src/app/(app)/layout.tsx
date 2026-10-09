@@ -1,5 +1,6 @@
 import { after } from "next/server";
 import { Nav } from "@/components/nav";
+import { onCloudflare } from "@/db";
 import { AREAS, can } from "@/lib/permissions";
 import { syncAccount, syncStatus } from "@/server/auto-sync";
 import { getContext } from "@/server/context";
@@ -12,10 +13,11 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
   // A band account's admins see each label it's linked to.
   const labels = ctx.isAdmin && ctx.org.kind === "band" ? await labelsForBandAccount(ctx.orgId) : [];
 
-  // Opening the app keeps it in step with Bandcamp: at most once an hour, in the background, after
-  // the page has been sent (so it never slows the page down).
+  // Locally, opening the app keeps it in step with Bandcamp: at most once an hour, in the background,
+  // after the page has been sent. Not on Cloudflare: its hourly cron does that, and Workers cancel
+  // background work about 30 seconds after the response, which cut these syncs off halfway.
   const sync = await syncStatus(ctx.orgId);
-  const due = !!sync?.due;
+  const due = !onCloudflare && !!sync?.due;
   if (due) {
     const orgId = ctx.orgId;
     after(() =>
