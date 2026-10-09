@@ -9,9 +9,9 @@
   "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "label-payouts" }],
   "hyperdrive": [
     {
-      // The Neon database, through Hyperdrive. Replace with the id `wrangler hyperdrive create` prints (DEPLOY.md, step 3).
+      // The Neon database, through Hyperdrive (`wrangler hyperdrive create label-payouts-db`).
       "binding": "HYPERDRIVE",
-      "id": "REPLACE_WITH_HYPERDRIVE_ID",
+      "id": "611c1e7ea2f14243a998f8feeeeb12a7",
       // `npm run preview` uses the local database instead.
       "localConnectionString": "postgres://postgres:local@127.0.0.1:5433/label_payouts"
     }
