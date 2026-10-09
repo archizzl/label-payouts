@@ -52,6 +52,8 @@ export type MerchOrder = {
   preorderUntil: string | null;
   /** Payment didn't go through (e.g. a failed PayPal eCheck): don't ship. */
   failed: boolean;
+  /** Bandcamp's payment state, as it says it (e.g. "paid", "failed"). */
+  paymentState: string | null;
   bandIds: number[];
 };
 
@@ -95,6 +97,7 @@ export function groupOrders(items: RawOrderItem[], bands: { id: number; name: st
       currency: clean(first.currency) || "USD",
       preorderUntil: begins.length ? begins.sort().at(-1)! : null,
       failed: rows.some((r) => r.payment_state === "failed"),
+      paymentState: clean(first.payment_state) || null,
       bandIds: [...new Set(lines.map((l) => l.bandId).filter((b): b is number => b !== null))],
     };
   });

@@ -8,7 +8,7 @@ import { type MerchOrder, pickList, readyToShip } from "@/lib/merch-orders";
 import { formatCents } from "@/lib/money";
 import { bandScope, can, inBandScope } from "@/lib/permissions";
 import { requireAccess } from "@/server/context";
-import { loadOpenOrders } from "@/server/merch-orders";
+import { loadOpenOrders, type OrderSale, salesForOrders } from "@/server/merch-orders";
 import { markOrderShipped, refreshOrders } from "@/server/order-actions";
 
 const CARRIERS = ["USPS", "UPS", "FedEx", "DHL", "Royal Mail", "Canada Post", "Australia Post", "Deutsche Post"];
@@ -31,6 +31,8 @@ export default async function OrdersPage({ searchParams }: PageProps<"/orders">)
   ]);
   const bandName = new Map(bands.map((b) => [b.id, b.name]));
   if (open.status === "ok") open.orders = open.orders.filter((o) => inBandScope(scope, o.bandIds));
+  // The money side of each order (fees, shipping, tax, what you received), for those who can see sales.
+  const orderSales = open.status === "ok" && can(access, "sales") ? await salesForOrders(orgId, open.orders) : null;
 
   if (open.status !== "ok") {
     return (
@@ -152,18 +154,18 @@ export default async function OrdersPage({ searchParams }: PageProps<"/orders">)
           )}
 
           <Card title={`Waiting to ship (${ready.length})`}>
-            {ready.length === 0 ? <Empty>Nothing ready to ship.</Empty> : <OrderList orders={ready} bandName={bandName} slipHref={slipHref} people={people} canShip={shippable} />}
+            {ready.length === 0 ? <Empty>Nothing ready to ship.</Empty> : <OrderList orders={ready} bandName={bandName} slipHref={slipHref} people={people} canShip={shippable} sales={orderSales} />}
           </Card>
 
           {preorders.length > 0 && (
             <Card title={`Pre-orders not out yet (${preorders.length})`}>
-              <OrderList orders={preorders} bandName={bandName} slipHref={slipHref} people={people} canShip={shippable} />
+              <OrderList orders={preorders} bandName={bandName} slipHref={slipHref} people={people} canShip={shippable} sales={orderSales} />
             </Card>
           )}
           {failed.length > 0 && (
             <Card title={`Payment failed (${failed.length})`}>
               <p className="mb-3 text-sm text-muted">Bandcamp says these payments didn’t go through (e.g. a PayPal eCheck that failed). Don’t ship them.</p>
-              <OrderList orders={failed} bandName={bandName} slipHref={slipHref} people={people} canShip={shippable} />
+              <OrderList orders={failed} bandName={bandName} slipHref={slipHref} people={people} canShip={shippable} sales={orderSales} />
             </Card>
           )}
         </>
@@ -182,12 +184,15 @@ function OrderList({
   slipHref,
   people,
   canShip,
+  sales,
 }: {
   orders: MerchOrder[];
   bandName: Map<number, string>;
   slipHref: (ids: number[]) => string;
   people: { id: number; name: string }[];
   canShip: (o: MerchOrder) => boolean;
+  /** Sales behind each order, by payment id; null when they can't see sales. */
+  sales: Map<number, OrderSale[]> | null;
 }) {
   return (
     <ul className="divide-y divide-border border-y border-border">
@@ -222,6 +227,9 @@ function OrderList({
               <Link href={slipHref([o.paymentId])} className={buttonClass("secondary", "sm")}>
                 Packing slip
               </Link>
+              <Disclosure summary="Transaction details">
+                <OrderDetails order={o} sales={sales ? (sales.get(o.paymentId) ?? []) : null} bandName={bandName} />
+              </Disclosure>
               {!o.failed && canShip(o) && (
                 <Disclosure summary="Mark shipped">
                   <ActionForm action={markOrderShipped} className="grid gap-3 sm:grid-cols-2">
@@ -303,6 +311,126 @@ function Tile({ label, value }: { label: string; value: string }) {
     <div className="border border-border bg-surface px-4 py-3">
       <div className="text-2xl font-bold tabular-nums">{value}</div>
       <div className="text-xs text-muted">{label}</div>
+    </div>
+  );
+}
+
+/** Money as Bandcamp reported it ("10", "4.5"), or a dash. */
+function amount(v: string | undefined, currency: string) {
+  const n = Number(v);
+  return v === undefined || v === "" || !Number.isFinite(n) ? "–" : formatCents(Math.round(n * 100), currency);
+}
+
+/** Everything about one order: Bandcamp's payment, the buyer, where it's going, and (once synced) the money. */
+function OrderDetails({ order: o, sales, bandName }: { order: MerchOrder; sales: OrderSale[] | null; bandName: Map<number, string> }) {
+  const money: [string, string][] = [
+    ["Item price", "item price"],
+    ["Fan paid extra", "additional fan contribution"],
+    ["Shipping", "shipping"],
+    ["Tax", "marketplace tax"],
+    ["Item total", "item total"],
+    ["Payment fee", "transaction fee"],
+    ["Net (after Bandcamp)", "net amount"],
+    ["You received", "amount you received"],
+  ];
+  const shown = sales ? money.filter(([, k]) => sales.some((x) => x.raw[k] !== undefined && x.raw[k] !== "" && Number(x.raw[k]) !== 0)) : [];
+  return (
+    <div className="space-y-4 text-sm">
+      <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
+        <dt className="text-muted">Bandcamp payment</dt>
+        <dd className="tabular-nums">{o.paymentId}</dd>
+        <dt className="text-muted">Ordered</dt>
+        <dd>{o.date}</dd>
+        <dt className="text-muted">Payment</dt>
+        <dd>{o.failed ? <span className="text-bad">failed: don’t ship</span> : (o.paymentState ?? "paid")}</dd>
+        {o.preorderUntil && (
+          <>
+            <dt className="text-muted">Pre-order</dt>
+            <dd>ships from {o.preorderUntil}</dd>
+          </>
+        )}
+        {o.total !== null && (
+          <>
+            <dt className="text-muted">Order total</dt>
+            <dd>{formatCents(Math.round(o.total * 100), o.currency)}</dd>
+          </>
+        )}
+        <dt className="text-muted">Buyer</dt>
+        <dd>
+          {o.buyer.name || "–"}
+          {o.buyer.email && (
+            <>
+              {" · "}
+              <a href={`mailto:${o.buyer.email}`}>{o.buyer.email}</a>
+            </>
+          )}
+          {o.buyer.phone && ` · ${o.buyer.phone}`}
+        </dd>
+        <dt className="text-muted">Ship to</dt>
+        <dd>{o.address.length ? o.address.join(", ") : "–"}</dd>
+      </dl>
+
+      <table className="data">
+        <thead>
+          <tr>
+            <th>Item</th>
+            <th>Option</th>
+            <th>SKU</th>
+            <th>Band</th>
+            <th className="num">Qty</th>
+          </tr>
+        </thead>
+        <tbody>
+          {o.lines.map((l) => (
+            <tr key={l.saleItemId}>
+              <td>{l.name}</td>
+              <td>{l.option ?? "–"}</td>
+              <td className="text-xs text-muted">{l.sku ?? "–"}</td>
+              <td>{l.bandId ? bandName.get(l.bandId) : l.artist || "–"}</td>
+              <td className="num">{l.quantity}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {sales &&
+        (sales.length === 0 ? (
+          <p className="text-muted">The money side (fees, shipping, tax, what you received) shows here once the hourly sales sync brings this sale in.</p>
+        ) : (
+          <div>
+            <table className="data">
+              <thead>
+                <tr>
+                  <th>Sale</th>
+                  {shown.map(([label]) => (
+                    <th key={label} className="num">
+                      {label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {sales.map((x) => (
+                  <tr key={x.saleId}>
+                    <td>
+                      {x.itemName}
+                      {x.packageName && <span className="text-muted"> · {x.packageName}</span>}
+                      {x.raw["fee type"] && <div className="text-xs text-muted">paid by {x.raw["fee type"]}</div>}
+                    </td>
+                    {shown.map(([label, k]) => (
+                      <td key={label} className="num">
+                        {amount(x.raw[k], x.currency)}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <Link href={`/sales?q=${o.paymentId}`} className="mt-2 inline-block text-xs">
+              See {sales.length === 1 ? "this sale" : "these sales"} in Sales
+            </Link>
+          </div>
+        ))}
     </div>
   );
 }

@@ -15,6 +15,7 @@ import {
   setMemberRole,
   testBandcampConnection,
 } from "@/server/account-actions";
+import { InviteWhoFields } from "@/components/invite-fields";
 import { SyncFooter } from "@/components/sync-status";
 import { setSetupHidden } from "@/server/actions";
 import { bandcampApiOff } from "@/server/bandcamp-api";
@@ -268,20 +269,7 @@ export default async function AccountPage() {
 
         <Disclosure summary="+ Invite someone">
           <ActionForm action={inviteMember} className="grid gap-4 sm:grid-cols-3">
-            <Field label="Their email">
-              <input name="email" type="email" required />
-            </Field>
-            <Field label="They are" hint="Links their login to their earnings.">
-              <select name="personId" defaultValue="">
-                <option value="">Someone new</option>
-                {unlinked.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                    {p.email ? ` (${p.email})` : ""}
-                  </option>
-                ))}
-              </select>
-            </Field>
+            <InviteWhoFields people={unlinked.map((p) => ({ id: p.id, name: p.name, email: p.email }))} />
             <Field label="Role">
               <select name="role" defaultValue="member">
                 {roleOptions}

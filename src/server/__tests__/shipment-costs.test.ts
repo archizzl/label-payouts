@@ -14,6 +14,7 @@ beforeAll(async () => {
 
 const order = (bandIds: number[]): MerchOrder => ({
   paymentId: 1,
+  paymentState: null,
   date: "2026-10-02",
   daysWaiting: 4,
   buyer: { name: "Ann", email: null, phone: null },

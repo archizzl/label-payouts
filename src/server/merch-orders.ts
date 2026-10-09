@@ -1,5 +1,5 @@
 import "server-only";
-import { eq } from "drizzle-orm";
+import { and, eq, inArray, or, sql } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { groupOrders, type MerchOrder } from "@/lib/merch-orders";
 import { bandcampCredentials, openMerchOrders } from "./bandcamp-api";
@@ -35,4 +35,62 @@ export async function loadOpenOrders(orgId: string, { fresh = false } = {}): Pro
   }
   if (value.status === "ok") cache.set(orgId, { at: Date.now(), value });
   return value;
+}
+
+/** A sale behind an order's item, as Bandcamp reported it in the sales report. */
+export type OrderSale = {
+  saleId: number;
+  saleItemId: number | null;
+  itemName: string;
+  packageName: string;
+  quantity: number;
+  currency: string;
+  netCents: number;
+  raw: Record<string, string>;
+};
+
+/**
+ * The sales behind these orders (once the hourly sales sync has brought them in), by payment id.
+ * An order's payment is Bandcamp's transaction; each item, a transaction item.
+ */
+export async function salesForOrders(orgId: string, orders: MerchOrder[]): Promise<Map<number, OrderSale[]>> {
+  const out = new Map<number, OrderSale[]>();
+  if (!orders.length) return out;
+  const paymentIds = orders.map((o) => String(o.paymentId));
+  const itemIds = orders.flatMap((o) => o.lines.map((l) => String(l.saleItemId)));
+  const itemId = sql<string>`${schema.sales.raw}->>'bandcamp transaction item id'`;
+  const rows = await db
+    .select({
+      saleId: schema.sales.id,
+      transactionId: schema.sales.transactionId,
+      itemId,
+      itemName: schema.sales.itemName,
+      packageName: schema.sales.packageName,
+      quantity: schema.sales.quantity,
+      currency: schema.sales.currency,
+      netCents: schema.sales.netCents,
+      raw: schema.sales.raw,
+    })
+    .from(schema.sales)
+    .where(and(eq(schema.sales.orgId, orgId), or(inArray(schema.sales.transactionId, paymentIds), inArray(itemId, itemIds))));
+  for (const o of orders) {
+    const items = new Set(o.lines.map((l) => String(l.saleItemId)));
+    const mine = rows.filter((r) => r.transactionId === String(o.paymentId) || (r.itemId && items.has(r.itemId)));
+    if (mine.length) {
+      out.set(
+        o.paymentId,
+        mine.map((r) => ({
+          saleId: r.saleId,
+          saleItemId: r.itemId ? Number(r.itemId) : null,
+          itemName: r.itemName,
+          packageName: r.packageName,
+          quantity: r.quantity,
+          currency: r.currency,
+          netCents: r.netCents,
+          raw: r.raw,
+        })),
+      );
+    }
+  }
+  return out;
 }
