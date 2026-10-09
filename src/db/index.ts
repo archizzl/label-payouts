@@ -27,7 +27,12 @@ function forThisRequest(): DB {
   if (!db) {
     const hyperdrive = (env as unknown as { HYPERDRIVE: { connectionString: string } }).HYPERDRIVE;
     // A few connections for this request only (Hyperdrive does the real pooling); never reused by another request.
-    db = drizzle(new Pool({ connectionString: hyperdrive.connectionString, max: 5, idleTimeoutMillis: 2_000 }), { schema });
+    const pool = new Pool({ connectionString: hyperdrive.connectionString, max: 5, idleTimeoutMillis: 2_000 });
+    // Workers close a request's sockets once it's done; a connection still idling in the pool then
+    // reports "This socket has been closed". Harmless (nothing is using it), so don't let it surface
+    // as an unhandled error.
+    pool.on("error", () => {});
+    db = drizzle(pool, { schema });
     perRequest.set(ctx, db);
   }
   return db;
