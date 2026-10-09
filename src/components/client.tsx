@@ -48,6 +48,7 @@ export function SubmitButton({
   confirm,
   name,
   value,
+  disabled = false,
 }: {
   children: ReactNode;
   variant?: "primary" | "secondary" | "danger" | "ghost";
@@ -55,6 +56,7 @@ export function SubmitButton({
   confirm?: string;
   name?: string;
   value?: string;
+  disabled?: boolean;
 }) {
   const { pending } = useFormStatus();
   const ref = useRef<HTMLButtonElement>(null);
@@ -73,7 +75,7 @@ export function SubmitButton({
       type="submit"
       name={name}
       value={value}
-      disabled={pending}
+      disabled={pending || disabled}
       className={buttonClass(variant, size)}
       onClick={(e) => {
         if (confirm && !window.confirm(confirm)) e.preventDefault();

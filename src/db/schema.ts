@@ -521,6 +521,8 @@ export const expenses = pgTable(
     reimbursedReference: text("reimbursed_reference"),
     /** How they were paid back: "Venmo", "PayPal.me", "Cash App"… */
     reimbursedMethod: text("reimbursed_method"),
+    /** Its receipt files were downloaded and cleared out of storage once it was settled. */
+    filesRemovedAt: text("files_removed_at"),
     createdAt: text("created_at").notNull().default(now),
   },
   (t) => [index("expenses_org").on(t.orgId), index("expenses_band").on(t.bandId)],

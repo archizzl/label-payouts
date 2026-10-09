@@ -4,22 +4,27 @@ import { connection } from "next/server";
 import { ExpenseForm, ExpenseTable, expenseTotals } from "@/components/receipts";
 import { Card, Disclosure, MoneyList, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
+import { ClearFilesPart } from "@/components/receipt-cleanup";
+import { can } from "@/lib/permissions";
 import { requireAccess } from "@/server/context";
+import { clearableFiles } from "@/server/receipt-cleanup";
 import { accountExpenses, expenseFileList, owedReimbursement } from "@/server/expenses";
 import { accountProjects } from "@/server/projects";
 
 /** Every expense and its receipts: what's waiting for approval first, then everything else. */
 export default async function ReceiptsPage({ searchParams }: PageProps<"/receipts">) {
   await connection();
-  const { orgId } = await requireAccess("receipts");
+  const { orgId, access } = await requireAccess("receipts");
+  const canChange = can(access, "receipts", "edit");
   const bandFilter = Number((await searchParams).band) || undefined;
-  const [all, files, bands, releases, people, projects] = await Promise.all([
+  const [all, files, bands, releases, people, projects, clearable] = await Promise.all([
     accountExpenses(orgId, bandFilter ? { bandId: bandFilter } : undefined),
     expenseFileList(orgId),
     db.select().from(schema.bands).where(eq(schema.bands.orgId, orgId)).orderBy(asc(schema.bands.name)),
     db.select().from(schema.releases).where(eq(schema.releases.orgId, orgId)).orderBy(asc(schema.releases.title)),
     db.select().from(schema.people).where(eq(schema.people.orgId, orgId)).orderBy(asc(schema.people.name)),
     accountProjects(orgId),
+    canChange ? clearableFiles(orgId) : null,
   ]);
   const projectName = (pid: number) => projects.find((p) => p.id === pid)?.name;
   const personName = (id: number) => people.find((p) => p.id === id)?.name;
@@ -68,6 +73,25 @@ export default async function ReceiptsPage({ searchParams }: PageProps<"/receipt
         </div>
         <ExpenseTable rows={rest} files={files} personName={personName} bandName={bandName} projectName={projectName} mode="admin" edit={form} payees={payees} />
       </Card>
+
+      {clearable && clearable.files.length > 0 && (
+        <Card title="Clear out settled receipts’ files">
+          <p className="mb-3 text-sm text-muted">
+            {clearable.receipts} receipt{clearable.receipts === 1 ? " is" : "s are"} settled: approved, and paid back (or nothing to pay back).
+            Download their files to keep, then remove them from storage. The receipts themselves stay.
+          </p>
+          {clearable.batches.map((b, i) => (
+            <ClearFilesPart
+              key={b.map((f) => f.id).join(",")}
+              label={clearable.batches.length > 1 ? `Part ${i + 1} of ${clearable.batches.length}` : "All of them"}
+              ids={b.map((f) => f.id)}
+              count={b.length}
+              bytes={b.reduce((a, f) => a + f.size, 0)}
+              receipts={new Set(b.map((f) => f.expenseId)).size}
+            />
+          ))}
+        </Card>
+      )}
     </>
   );
 }

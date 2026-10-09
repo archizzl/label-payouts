@@ -7,6 +7,7 @@ import { parseCents } from "@/lib/money";
 import { getContext, requireAccess } from "./context";
 import { can } from "@/lib/permissions";
 import { readReceiptFiles as readFiles, recoupBands, recoupStartFor } from "./expenses";
+import { clearableFiles } from "./receipt-cleanup";
 import { discardStoredFiles, storeReceiptFiles } from "./receipt-store";
 
 /*
@@ -267,4 +268,30 @@ export async function deleteExpenseFile(fd: FormData) {
     .returning({ storageKey: expenseFiles.storageKey });
   await discardStoredFiles(removed);
   done();
+}
+
+/**
+ * Clear settled receipts' files out of storage, after they've been downloaded (one part of the
+ * clear-out on the Receipts page). Only files of settled receipts are removed; the receipts stay,
+ * marked with when their files were cleared.
+ */
+export async function clearReceiptFiles(_: ExpenseState, fd: FormData): Promise<ExpenseState> {
+  const { orgId } = await requireAccess("receipts", "edit");
+  const ids = str(fd, "ids").split(",").map(Number).filter(Number.isInteger);
+  const { files } = await clearableFiles(orgId, ids);
+  if (!files.length) return { error: "Nothing to clear: these may have been cleared already." };
+  const removed = await db
+    .delete(expenseFiles)
+    .where(and(eq(expenseFiles.orgId, orgId), inArray(expenseFiles.id, files.map((f) => f.id))))
+    .returning({ storageKey: expenseFiles.storageKey, expenseId: expenseFiles.expenseId });
+  await discardStoredFiles(removed);
+  // Receipts with no files left: note when they were cleared.
+  const touched = [...new Set(removed.map((r) => r.expenseId))];
+  const left = new Set(
+    (await db.select({ expenseId: expenseFiles.expenseId }).from(expenseFiles).where(inArray(expenseFiles.expenseId, touched))).map((r) => r.expenseId),
+  );
+  const cleared = touched.filter((id) => !left.has(id));
+  if (cleared.length) await db.update(expenses).set({ filesRemovedAt: now() }).where(inArray(expenses.id, cleared));
+  done();
+  return { ok: `Cleared ${removed.length} file${removed.length === 1 ? "" : "s"} from ${touched.length} receipt${touched.length === 1 ? "" : "s"}.` };
 }

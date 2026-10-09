@@ -141,6 +141,13 @@
       "when": 1791583312419,
       "tag": "0019_receipt_storage_key",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1791583800730,
+      "tag": "0020_receipt_files_removed",
+      "breakpoints": true
     }
   ]
 }

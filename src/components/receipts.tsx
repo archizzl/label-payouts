@@ -226,7 +226,8 @@ export function SubmitReceiptForm({ bands, projects = [] }: { bands: Band[]; pro
   );
 }
 
-function Files({ files, admin }: { files: ReceiptFile[]; admin: boolean }) {
+function Files({ files, admin, removedAt }: { files: ReceiptFile[]; admin: boolean; removedAt?: string | null }) {
+  if (!files.length && removedAt) return <span className="text-xs text-muted">files downloaded and cleared {removedAt.slice(0, 10)}</span>;
   if (!files.length) return <span className="text-xs text-muted">no receipt attached</span>;
   return (
     <span className="flex flex-wrap gap-2">
@@ -312,7 +313,7 @@ export function ExpenseTable({
               )}
               {e.reviewNote && <span>“{e.reviewNote}”</span>}
             </div>
-            <Files files={files.get(e.id) ?? []} admin={mode === "admin"} />
+            <Files files={files.get(e.id) ?? []} admin={mode === "admin"} removedAt={e.filesRemovedAt} />
 
             {mode === "admin" && e.status === "pending" && (
               <form action={reviewExpense} className="flex flex-wrap items-center gap-2 pt-1">

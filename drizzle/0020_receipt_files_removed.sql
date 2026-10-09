@@ -1,0 +1,1 @@
+ALTER TABLE "expenses" ADD COLUMN "files_removed_at" text;
