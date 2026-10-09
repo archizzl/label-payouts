@@ -4,6 +4,7 @@ import { db, schema } from "@/db";
 import { getContext } from "@/server/context";
 import { can } from "@/lib/permissions";
 import { canViewReceipt } from "@/server/expenses";
+import { readStoredFile } from "@/server/receipt-store";
 
 /**
  * A receipt photo or PDF. Only for: admins of the account it belongs to (and members who can see
@@ -27,7 +28,10 @@ export async function GET(_req: NextRequest, ctx: RouteContext<"/receipts/file/[
   );
   if (!allowed) return notFound;
 
-  return new Response(Buffer.from(file.data), {
+  // From the receipts bucket (R2) or the database, wherever it's kept.
+  const body = await readStoredFile(file);
+  if (!body) return notFound;
+  return new Response(body, {
     headers: {
       "Content-Type": file.contentType,
       "Content-Length": String(file.size),

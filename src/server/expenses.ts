@@ -2,6 +2,7 @@ import "server-only";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { db, schema } from "@/db";
 import type { Deduction } from "@/lib/splits";
+import type { ReceiptUpload } from "./receipt-store";
 
 export type Expense = typeof schema.expenses.$inferSelect;
 
@@ -9,17 +10,18 @@ const MAX_FILE_BYTES = 10 * 1024 * 1024;
 const MAX_FILES = 10;
 const ALLOWED = /^(image\/(jpeg|png|gif|webp|heic|heif)|application\/pdf)$/;
 
-/** Receipt photos and PDFs from a form; refuses anything else, or anything too big. */
-export async function readReceiptFiles(fd: FormData, field = "files") {
+/**
+ * Receipt photos and PDFs from a form; refuses anything else, or anything too big. Only checked
+ * here: storeReceiptFiles (receipt-store.ts) reads and keeps them.
+ */
+export async function readReceiptFiles(fd: FormData, field = "files"): Promise<ReceiptUpload[]> {
   const files = fd.getAll(field).filter((f): f is File => f instanceof File && f.size > 0);
   if (files.length > MAX_FILES) throw new Error(`Up to ${MAX_FILES} files at a time.`);
-  return Promise.all(
-    files.map(async (f) => {
-      if (!ALLOWED.test(f.type)) throw new Error(`“${f.name}” isn’t a photo or PDF.`);
-      if (f.size > MAX_FILE_BYTES) throw new Error(`“${f.name}” is over 10 MB.`);
-      return { filename: f.name.slice(0, 200), contentType: f.type, size: f.size, data: new Uint8Array(await f.arrayBuffer()) };
-    }),
-  );
+  return files.map((f) => {
+    if (!ALLOWED.test(f.type)) throw new Error(`“${f.name}” isn’t a photo or PDF.`);
+    if (f.size > MAX_FILE_BYTES) throw new Error(`“${f.name}” is over 10 MB.`);
+    return { file: f, filename: f.name.slice(0, 200), contentType: f.type, size: f.size };
+  });
 }
 
 

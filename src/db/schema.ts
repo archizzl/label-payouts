@@ -537,7 +537,10 @@ export const expenseFiles = pgTable(
     filename: text("filename").notNull(),
     contentType: text("content_type").notNull(),
     size: integer("size").notNull(),
-    data: bytea("data").notNull(),
+    /** The file itself, when it's kept in the database (locally; older files). */
+    data: bytea("data"),
+    /** Its key in the receipts bucket (R2), when it's kept there (the live site). */
+    storageKey: text("storage_key"),
     createdAt: text("created_at").notNull().default(now),
   },
   (t) => [index("expense_files_expense").on(t.expenseId)],

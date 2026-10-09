@@ -5,7 +5,9 @@ import { revalidatePath } from "next/cache";
 import { db, schema } from "@/db";
 import { parseCents } from "@/lib/money";
 import { getContext, requireAccess } from "./context";
+import { can } from "@/lib/permissions";
 import { readReceiptFiles as readFiles, recoupBands, recoupStartFor } from "./expenses";
+import { discardStoredFiles, storeReceiptFiles } from "./receipt-store";
 
 /*
  * Receipts. Admins add expenses directly (approved) and review what members submit. Members submit
@@ -99,6 +101,7 @@ export async function saveExpense(_: ExpenseState, fd: FormData): Promise<Expens
       recoup,
       recoupFrom,
     };
+    const stored = await storeReceiptFiles(orgId, files);
     await db.transaction(async (tx) => {
       let expenseId = id;
       if (id) {
@@ -114,7 +117,10 @@ export async function saveExpense(_: ExpenseState, fd: FormData): Promise<Expens
           .values({ ...values, orgId, status: "approved", reviewedAt: now(), submittedByUserId: ctx.user.id })
           .returning({ id: expenses.id });
       }
-      if (files.length) await tx.insert(expenseFiles).values(files.map((f) => ({ ...f, orgId, expenseId: expenseId! })));
+      if (stored.length) await tx.insert(expenseFiles).values(stored.map((f) => ({ ...f, orgId, expenseId: expenseId! })));
+    }).catch(async (e) => {
+      await discardStoredFiles(stored);
+      throw e;
     });
     done();
     return { ok: id ? "Saved." : "Added." };
@@ -163,6 +169,7 @@ export async function submitReceipt(_: ExpenseState, fd: FormData): Promise<Expe
         ).length > 0;
       if (!theirs) return { error: "You can only submit receipts for your own bands' projects." };
     }
+    const stored = await storeReceiptFiles(orgId, files);
     await db.transaction(async (tx) => {
       const [{ id }] = await tx
         .insert(expenses)
@@ -182,7 +189,10 @@ export async function submitReceipt(_: ExpenseState, fd: FormData): Promise<Expe
           submittedByUserId: ctx.user.id,
         })
         .returning({ id: expenses.id });
-      await tx.insert(expenseFiles).values(files.map((f) => ({ ...f, orgId, expenseId: id })));
+      await tx.insert(expenseFiles).values(stored.map((f) => ({ ...f, orgId, expenseId: id })));
+    }).catch(async (e) => {
+      await discardStoredFiles(stored);
+      throw e;
     });
     done();
     return { ok: "Submitted. An admin will review it." };
@@ -233,7 +243,7 @@ export async function setReimbursed(fd: FormData) {
   done();
 }
 
-/** Admins can delete any expense; members can withdraw their own while it's still pending. */
+/** Admins (and members who can change receipts) can delete any expense; members can withdraw their own while it's still pending. */
 export async function deleteExpense(fd: FormData) {
   const ctx = await getContext();
   const [e] = await db
@@ -242,13 +252,19 @@ export async function deleteExpense(fd: FormData) {
     .where(and(eq(expenses.orgId, ctx.orgId), eq(expenses.id, Number(str(fd, "id")))));
   if (!e) return;
   const ownPending = e.status === "pending" && e.submittedByUserId === ctx.user.id;
-  if (!ctx.isAdmin && !ownPending) throw new Error("Only admins can delete this.");
+  if (!can(ctx.access, "receipts", "edit") && !ownPending) throw new Error("Only admins can delete this.");
+  const files = await db.select({ storageKey: expenseFiles.storageKey }).from(expenseFiles).where(eq(expenseFiles.expenseId, e.id));
   await db.delete(expenses).where(eq(expenses.id, e.id));
+  await discardStoredFiles(files);
   done();
 }
 
 export async function deleteExpenseFile(fd: FormData) {
   const { orgId } = await requireAccess("receipts", "edit");
-  await db.delete(expenseFiles).where(and(eq(expenseFiles.orgId, orgId), inArray(expenseFiles.id, [Number(str(fd, "id"))])));
+  const removed = await db
+    .delete(expenseFiles)
+    .where(and(eq(expenseFiles.orgId, orgId), inArray(expenseFiles.id, [Number(str(fd, "id"))])))
+    .returning({ storageKey: expenseFiles.storageKey });
+  await discardStoredFiles(removed);
   done();
 }

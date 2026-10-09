@@ -134,6 +134,13 @@
       "when": 1791581458123,
       "tag": "0018_member_types",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1791583312419,
+      "tag": "0019_receipt_storage_key",
+      "breakpoints": true
     }
   ]
 }

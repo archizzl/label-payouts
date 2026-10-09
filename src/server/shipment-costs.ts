@@ -4,6 +4,7 @@ import { db, schema } from "@/db";
 import type { MerchOrder } from "@/lib/merch-orders";
 import { parseCents } from "@/lib/money";
 import { readReceiptFiles } from "./expenses";
+import { discardStoredFiles, storeReceiptFiles } from "./receipt-store";
 
 /*
  * What it cost to send a merch order (postage, packaging), recorded as receipts when it's marked
@@ -58,6 +59,7 @@ export async function recordShipmentCosts(orgId: string, userId: string | null, 
   const today = new Date().toLocaleDateString("en-CA");
   const what = order.lines.map((l) => `${l.quantity} × ${l.name}${l.option ? ` (${l.option})` : ""}`).join(", ");
   const now = new Date().toISOString();
+  const stored = await storeReceiptFiles(orgId, costs.files);
   await db.transaction(async (tx) => {
     for (const [i, c] of costs.costs.entries()) {
       const [{ id }] = await tx
@@ -79,8 +81,11 @@ export async function recordShipmentCosts(orgId: string, userId: string | null, 
           submittedByUserId: userId,
         })
         .returning({ id: schema.expenses.id });
-      if (i === 0 && costs.files.length) await tx.insert(schema.expenseFiles).values(costs.files.map((f) => ({ ...f, orgId, expenseId: id })));
+      if (i === 0 && stored.length) await tx.insert(schema.expenseFiles).values(stored.map((f) => ({ ...f, orgId, expenseId: id })));
     }
+  }).catch(async (e) => {
+    await discardStoredFiles(stored);
+    throw e;
   });
   return costs.costs.reduce((a, c) => a + c.amountCents, 0);
 }
