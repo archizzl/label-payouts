@@ -29,6 +29,13 @@ npx wrangler hyperdrive create label-payouts-db --caching-disabled true --connec
 Keep caching off: Hyperdrive's cache can show a page's old data for up to a minute after a change (it doesn't know when the app writes). To turn it off on an existing config: `npx wrangler hyperdrive update <id> --caching-disabled true`.
 Copy the `id` it prints into `wrangler.jsonc`, replacing `REPLACE_WITH_HYPERDRIVE_ID`.
 
+### Receipt files (R2)
+Receipt photos and PDFs are kept in a private R2 bucket. Enable R2 once in the Cloudflare dashboard **(you)**, then:
+```bash
+npx wrangler r2 bucket create label-payouts-receipts
+```
+It's bound as `RECEIPTS` in `wrangler.jsonc`. Leave its public access (r2.dev URL, custom domains) off: files are only served through the app, which checks who's asking.
+
 ## 4. Secrets (you)
 Set each one; it asks for the value.
 ```bash

@@ -18,6 +18,8 @@
   ],
   // "Sync now" requests for the catalog sync that runs on a Mac (npm run sync-catalog:schedule).
   "kv_namespaces": [{ "binding": "CATALOG_KV", "id": "cdc0461f45e14130b590ef665548ff7a" }],
+  // Receipt photos and PDFs (src/server/receipt-store.ts). Private: served only through the app.
+  "r2_buckets": [{ "binding": "RECEIPTS", "bucket_name": "label-payouts-receipts" }],
   // Served at labelmaker.ing (the domain is on this Cloudflare account).
   "routes": [{ "pattern": "labelmaker.ing", "custom_domain": true }],
   // Sync every account with Bandcamp once an hour, in the background.
