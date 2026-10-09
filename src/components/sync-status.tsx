@@ -7,14 +7,15 @@ import { bandcampApiOff } from "@/server/bandcamp-api";
 import { catalogSyncRequestedAt } from "@/server/catalog-requests";
 import { getContext } from "@/server/context";
 
-/** "5 minutes ago", "2 hours ago", "3 days ago". */
+/** "5 minutes ago", "1 hour 13 minutes ago", "3 days ago". */
 export function ago(iso: string) {
   const mins = Math.round((Date.now() - Date.parse(iso)) / 60_000);
   if (mins < 1) return "just now";
   if (mins < 60) return `${mins} minute${mins === 1 ? "" : "s"} ago`;
-  // Whole hours and days passed (1 hour 40 minutes is "1 hour ago", not "2 hours ago").
+  // Exact within the day: "1 hour 13 minutes ago", never rounded up or down to the hour.
   const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+  const rest = mins % 60;
+  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"}${rest ? ` ${rest} minute${rest === 1 ? "" : "s"}` : ""} ago`;
   const days = Math.floor(hours / 24);
   return `${days} day${days === 1 ? "" : "s"} ago`;
 }
