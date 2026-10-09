@@ -243,6 +243,10 @@ export async function saveMemberType(_: FormState, fd: FormData): Promise<FormSt
   // "Only their own bands" counts only where they can see the section at all.
   const bandAreas = normalizeBandAreas(AREAS.filter((a) => fd.get(`bands:${a.key}`) === "on" && permissions[a.key]).map((a): Area => a.key));
   const id = Number(str(fd, "id")) || null;
+  const existing = await db.select().from(schema.memberTypes).where(eq(schema.memberTypes.orgId, orgId));
+  if (existing.some((t) => t.id !== id && t.name.trim().toLowerCase() === name.toLowerCase())) {
+    return { error: `There’s already a member type called ${name}.` };
+  }
   if (id) {
     const updated = await db
       .update(schema.memberTypes)

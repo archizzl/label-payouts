@@ -18,16 +18,19 @@ export function ActionForm({
   action,
   children,
   className = "",
+  keepOpen = false,
 }: {
   action: (state: ActionState, fd: FormData) => Promise<ActionState>;
   children: ReactNode;
   className?: string;
+  /** Stay open after it works, so its confirmation stays in view (e.g. a form for adding one more). */
+  keepOpen?: boolean;
 }) {
   const [state, formAction] = useActionState(action, null);
   const ref = useRef<HTMLFormElement>(null);
   useEffect(() => {
-    if (state?.ok) closeEnclosingPanel(ref.current);
-  }, [state]);
+    if (state?.ok && !keepOpen) closeEnclosingPanel(ref.current);
+  }, [state, keepOpen]);
   return (
     // data-action-form: this form decides for itself when to close (only on success).
     <form ref={ref} action={formAction} className={className} data-action-form="">

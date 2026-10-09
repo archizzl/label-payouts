@@ -353,7 +353,8 @@ function MemberTypeForm({
   bandAreas?: Area[];
 }) {
   return (
-    <ActionForm action={saveMemberType} className="space-y-4">
+    // A new type's form stays open after adding, so "Added …" stays in view (and the fields clear for another).
+    <ActionForm action={saveMemberType} className="space-y-4" keepOpen={!id}>
       {id && <input type="hidden" name="id" value={id} />}
       <Field label="Name">
         <input name="name" required defaultValue={name} placeholder="Band manager" className="!w-64" maxLength={60} />
