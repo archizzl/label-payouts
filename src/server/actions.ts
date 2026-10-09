@@ -12,6 +12,7 @@ import { isSalePart, salePartLabel } from "@/lib/sale-parts";
 import { cleanCashtag, cleanVenmoHandle } from "@/lib/paypal-export";
 import { fetchPage, upsertRelease } from "./bandcamp";
 import { bandcampCredentials } from "./bandcamp-api";
+import { requestCatalogSync } from "./catalog-requests";
 import { syncAccount } from "./auto-sync";
 import { requireAdmin } from "./context";
 import { prepare, runSalesSync, saveSales } from "./sync";
@@ -558,6 +559,8 @@ export async function setSetupHidden(fd: FormData) {
 /** "Sync with Bandcamp now": artists, releases, merch and sales, right away (not waiting for the hour). */
 export async function syncWithBandcamp(): Promise<ActionState> {
   const { orgId } = await requireAdmin();
+  // On the live site, artists and releases come from the catalog sync on a Mac: ask it to run now.
+  await requestCatalogSync(orgId);
   const result = await syncAccount(orgId, { force: true });
   done();
   if (!result.ran) return { error: result.summary };

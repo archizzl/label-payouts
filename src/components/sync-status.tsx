@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { ActionForm, SubmitButton } from "@/components/client";
 import { syncWithBandcamp } from "@/server/actions";
+import { onCloudflare } from "@/db";
 import { CATALOG_SYNC_EVERY_MINUTES, syncStatus } from "@/server/auto-sync";
+import { bandcampApiOff } from "@/server/bandcamp-api";
+import { catalogSyncRequestedAt } from "@/server/catalog-requests";
 
 /** "5 minutes ago", "2 hours ago", "3 days ago". */
 export function ago(iso: string) {
@@ -15,9 +18,9 @@ export function ago(iso: string) {
 }
 
 /**
- * Where the account stands with Bandcamp: when it last synced and what that brought in (or what
- * went wrong), with a button to sync right now. Syncing also happens on its own, at most hourly,
- * whenever someone opens the app.
+ * Where the account stands with Bandcamp: what syncs when, when it last did and what that brought
+ * in (or what went wrong), with a button to sync right now. The hourly sync also runs whenever
+ * someone opens the app; on the live site, a Mac syncs the catalog every 10 minutes.
  */
 export async function SyncStatus({ orgId }: { orgId: string }) {
   const s = await syncStatus(orgId);
@@ -29,26 +32,42 @@ export async function SyncStatus({ orgId }: { orgId: string }) {
       </p>
     );
   }
+  const requestedAt = await catalogSyncRequestedAt(orgId);
+  // What the hourly sync covers here. On the live site Bandcamp's pages can't be read, so artists'
+  // details and releases come from the catalog sync on a Mac instead (the second line).
+  const apiOn = !!s.hasApi && !bandcampApiOff();
+  const hourly = onCloudflare
+    ? apiOn
+      ? "Sales, merch and new artists"
+      : "Bandcamp"
+    : apiOn
+      ? "Sales, merch, artists and releases"
+      : "Artists and releases";
+  const sentence = (summary: string | null) => (summary ? summary.charAt(0).toLowerCase() + summary.slice(1) : "");
   return (
-    <ActionForm action={syncWithBandcamp} className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
-      <span className="text-muted">
-        {s.running ? (
-          "Syncing with Bandcamp now…"
-        ) : s.finishedAt ? (
-          <>
-            Synced with Bandcamp {ago(s.finishedAt)}: {s.summary}
-            {s.error && <span className="text-warn"> {s.error}</span>}
-            {s.catalogSyncedAt && (
-              <>
-                {" "}
-                Artists and releases update every {CATALOG_SYNC_EVERY_MINUTES} minutes (last {ago(s.catalogSyncedAt)}).
-              </>
-            )}
-          </>
-        ) : (
-          "Not synced with Bandcamp yet."
-        )}{" "}
-      </span>
+    <ActionForm action={syncWithBandcamp} className="flex flex-wrap items-end justify-between gap-x-3 gap-y-2 text-sm">
+      <div className="space-y-1 text-muted">
+        <p>
+          {s.running ? (
+            `${hourly}: syncing now…`
+          ) : s.finishedAt ? (
+            <>
+              {hourly}: synced {ago(s.finishedAt)} (hourly), {sentence(s.summary)}
+              {s.error && <span className="text-warn"> {s.error}</span>}
+            </>
+          ) : (
+            `${hourly}: not synced yet.`
+          )}
+        </p>
+        {(s.catalogSyncedAt || requestedAt) && (
+          <p>
+            Releases, track lists, artwork and artist photos:{" "}
+            {requestedAt
+              ? "update on its way, usually within a minute."
+              : `synced ${ago(s.catalogSyncedAt!)} (every ${CATALOG_SYNC_EVERY_MINUTES} minutes).`}
+          </p>
+        )}
+      </div>
       <SubmitButton size="sm" variant="secondary">
         Sync now
       </SubmitButton>

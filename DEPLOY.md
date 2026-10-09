@@ -72,7 +72,7 @@ Bandcamp allows one active API sign-in per client, and the live site holds it. Y
 ```bash
 npm run sync-catalog:schedule
 ```
-It then runs every 10 minutes while the Mac is on and awake (log: `~/Library/Logs/labelmaker-sync-catalog.log`). It never uses the API, so it doesn't disturb the live site's sign-in. `npm run sync-catalog` runs it once by hand, `npm run sync-catalog:unschedule` stops it, and `npm run sync-catalog -- --local` updates your local copy instead.
+It then runs every 10 minutes while the Mac is on and awake, and within a minute or two when someone presses **Sync now** on the live site (log: `~/Library/Logs/labelmaker-sync-catalog.log`). For Sync now it needs `CATALOG_SYNC_SECRET` in `.deploy.local`, matching the Worker secret of the same name (`npx wrangler secret put CATALOG_SYNC_SECRET`). It never uses the API, so it doesn't disturb the live site's sign-in. `npm run sync-catalog` runs it once by hand, `npm run sync-catalog:unschedule` stops it, and `npm run sync-catalog -- --local` updates your local copy instead.
 
 ## 8. Your domain (you)
 1. In the Cloudflare dashboard: **Workers & Pages → label-payouts → Settings → Domains & Routes → Add → Custom domain**, e.g. `app.yourlabel.com`.
