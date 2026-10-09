@@ -16,7 +16,8 @@ const args = process.argv.slice(2);
 const accountName = args.includes("--account") ? args[args.indexOf("--account") + 1] : "Reaction Future Records";
 const go = args.includes("--go");
 
-const sourceUrl = process.env.DATABASE_URL;
+// The local database `npm run dev` runs, unless DATABASE_URL says otherwise.
+const sourceUrl = process.env.DATABASE_URL ?? `postgres://postgres:local@127.0.0.1:${process.env.LOCAL_PG_PORT ?? 5433}/label_payouts`;
 let targetUrl = process.env.PRODUCTION_DATABASE_URL;
 if (!targetUrl && existsSync(".deploy.local")) targetUrl = readFileSync(".deploy.local", "utf8").match(/^PRODUCTION_DATABASE_URL=(.+)$/m)?.[1]?.trim();
 if (!sourceUrl || !targetUrl) {
