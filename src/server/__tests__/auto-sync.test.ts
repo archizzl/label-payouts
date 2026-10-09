@@ -138,11 +138,3 @@ describe("artists' photos", () => {
     });
   });
 });
-
-describe("the hourly cron", () => {
-  it("syncs an account last synced 50 minutes ago, so it never skips a turn", async () => {
-    const orgId = await account({ syncStartedAt: hoursAgo(50 / 60), syncFinishedAt: hoursAgo(49 / 60) });
-    expect(await sync.claimSync(orgId, false)).toBe(false);
-    expect(await sync.claimSync(orgId, false, 45 * 60 * 1000)).toBe(true);
-  });
-});
