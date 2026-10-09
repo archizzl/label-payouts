@@ -16,7 +16,7 @@ import {
 } from "@/lib/bandcamp-label";
 import { parseReleasePage } from "@/lib/bandcamp-release";
 import { normalizeText, routeSale, routingKey } from "@/lib/routing";
-import { allBands, createBandFor, fetchPage, findBandFor, findExistingRelease, hostOf, rememberLabelPhoto, upsertRelease } from "./bandcamp";
+import { allBands, BLOCKED_MESSAGE, createBandFor, fetchPage, findBandFor, findExistingRelease, hostOf, isBotChallenge, rememberLabelPhoto, upsertRelease } from "./bandcamp";
 import { API_SYNC_PREFIX, bandcampCredentials, salesReport } from "./bandcamp-api";
 import { emailFingerprint } from "./secrets";
 import { loadCatalog, reRouteAll } from "./data";
@@ -143,7 +143,7 @@ export type LabelArtistRow = LabelArtist & {
   bandId: number | null;
 };
 
-export type LabelLookup = { label: string | null; source: string; artists: LabelArtistRow[] } | { error: string };
+export type LabelLookup = { label: string | null; source: string; artists: LabelArtistRow[] } | { error: string; blocked?: true };
 
 /** The label's artists page: each artist, and whether it's already a band here. Also fills in band photos and locations. */
 export async function lookupLabelArtists(orgId: string, input: string): Promise<LabelLookup> {
@@ -161,8 +161,9 @@ export async function lookupLabelArtists(orgId: string, input: string): Promise<
         error: `There’s no artists page at ${url}. That usually means it’s a single artist’s account rather than a label. Use your label’s own Bandcamp address.`,
       };
     }
-    if (!res.ok) return { error: `Bandcamp answered ${res.status} for ${url}. Check the address, or try again in a minute.` };
     html = await res.text();
+    if (isBotChallenge(html)) return { error: BLOCKED_MESSAGE, blocked: true };
+    if (!res.ok) return { error: `Bandcamp answered ${res.status} for ${url}. Check the address, or try again in a minute.` };
   } catch (e) {
     return { error: `Couldn't reach ${url} (${(e as Error).message}). Are you online?` };
   }
@@ -243,7 +244,7 @@ export type LabelReleaseRow = LabelRelease & {
 
 export type ReleaseLookup =
   | { label: string | null; source: string; labelHost: string; releases: LabelReleaseRow[] }
-  | { error: string };
+  | { error: string; blocked?: true };
 
 /** Every release and merch item on the label's page, and which band it belongs to (or would be created for). */
 export async function lookupLabelReleases(orgId: string, input: string): Promise<ReleaseLookup> {
@@ -252,6 +253,7 @@ export async function lookupLabelReleases(orgId: string, input: string): Promise
   if (!url || !merchUrl) return { error: "Enter your label's Bandcamp address, e.g. mylabel.bandcamp.com" };
   const [page, merchPage] = await Promise.all([fetchPage(url), fetchPage(merchUrl)]);
   if ("error" in page) {
+    if (page.blocked) return { error: page.error, blocked: true };
     return {
       error:
         page.status === 404

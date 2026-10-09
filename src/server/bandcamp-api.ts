@@ -286,3 +286,23 @@ export async function markMerchShipped(
     })),
   });
 }
+
+/** A merch item or physical format, from the Merch Orders API's get_merch_details. */
+export type MerchItem = {
+  package_id: number;
+  /** Set for music formats (CD, vinyl, cassette): the album it's a format of. */
+  album_title: string | null;
+  title: string;
+  image_url?: string | null;
+  price?: number | null;
+  currency?: string | null;
+  subdomain?: string | null;
+  sku?: string | null;
+  options?: { option_id: number; title: string; sku: string | null }[] | null;
+};
+
+/** Every merch item and physical format on sale for an account (for a label, its artists' too). */
+export async function merchDetails(orgId: string, creds: BandcampCredentials, bandId: number): Promise<MerchItem[]> {
+  const { items } = await call<{ items: MerchItem[] }>(orgId, creds, "merchorders/1/get_merch_details", { band_id: bandId, start_time: "2000-01-01" });
+  return items ?? [];
+}

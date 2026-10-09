@@ -68,6 +68,12 @@ This migrates the database, builds, and deploys. The first time, it gives you a 
 ## 7. Bandcamp: one sign-in at a time
 Bandcamp allows one active API sign-in per client, and the live site holds it. Your local copy has `BANDCAMP_API=off` in `.env.development.local`, so `npm run dev` never uses the API: no sales sync, merch orders or marking orders shipped locally, and it can't take the sign-in from the live site. Public-page syncing (new releases) still works locally. Keep that line in place on any machine you develop on.
 
+**The live catalog.** Bandcamp shows cloud servers a bot check instead of its public pages, so the live site keeps the catalog up to date through the API: artists, merch and physical formats, and new albums as they first sell. Track lists, artwork and release dates are only on the public pages. To bring those in, run this on your Mac now and then (say, after a release):
+```bash
+npm run sync-catalog
+```
+It reads the pages from your own connection and writes to the live database (`.deploy.local`). It never uses the API, so it doesn't disturb the live site's sign-in. `-- --local` updates your local copy instead.
+
 ## 8. Your domain (you)
 1. In the Cloudflare dashboard: **Workers & Pages → label-payouts → Settings → Domains & Routes → Add → Custom domain**, e.g. `app.yourlabel.com`.
 2. In `wrangler.jsonc`, set `"BETTER_AUTH_URL": "https://app.yourlabel.com"`.

@@ -9,8 +9,19 @@ const { bands, releases, tracks, outsideArtists } = schema;
 
 const UA = "Mozilla/5.0 (label-payouts; reading my own label's public pages)";
 
+/**
+ * Bandcamp shows some visitors (cloud servers, like the live site's) a "Client Challenge" bot check
+ * instead of the page. That isn't something to get around: catalog details then come from the API
+ * and from `npm run sync-catalog` on a Mac.
+ */
+export const isBotChallenge = (html: string) => /<title>\s*Client Challenge\s*<\/title>/i.test(html);
+
+export const BLOCKED_MESSAGE = "Bandcamp doesn't show its public pages to this server";
+
 /** GET a public Bandcamp page. Waits and retries once if Bandcamp says we're going too fast. */
-export async function fetchPage(url: string): Promise<{ html: string; finalUrl: string } | { status: number; error: string }> {
+export async function fetchPage(
+  url: string,
+): Promise<{ html: string; finalUrl: string } | { status: number; error: string; blocked?: true }> {
   for (let attempt = 0; attempt < 3; attempt++) {
     let res: Response;
     try {
@@ -23,8 +34,10 @@ export async function fetchPage(url: string): Promise<{ html: string; finalUrl: 
       await new Promise((r) => setTimeout(r, Math.min(wait, 20000)));
       continue;
     }
+    const html = await res.text().catch(() => "");
+    if (isBotChallenge(html)) return { status: res.status, error: BLOCKED_MESSAGE, blocked: true };
     if (!res.ok) return { status: res.status, error: `Bandcamp answered ${res.status} for ${url}` };
-    return { html: await res.text(), finalUrl: res.url || url };
+    return { html, finalUrl: res.url || url };
   }
   return { status: 429, error: "Bandcamp is rate-limiting requests. Wait a minute and try again." };
 }

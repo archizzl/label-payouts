@@ -77,3 +77,17 @@ describe("syncing on open, at most once an hour", () => {
     expect((await sync.syncAccount(orgId)).ran).toBe(false); // not again within the hour
   });
 });
+
+describe("when Bandcamp shows a bot check instead of its pages", () => {
+  it("isn't an error: the summary says where catalog details come from instead", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("<html><head><title>Client Challenge</title></head><body></body></html>", { status: 200 })),
+    );
+    const orgId = await account();
+    const result = await sync.syncAccount(orgId, { force: true });
+    expect(result.errors).toEqual([]);
+    expect(result.summary).toContain(sync.BLOCKED_NOTE);
+    expect((await settings(orgId)).syncError).toBeNull();
+  });
+});
