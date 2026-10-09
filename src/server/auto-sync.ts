@@ -55,9 +55,9 @@ const iso = (ms: number) => new Date(ms).toISOString();
  * Claim the account's next sync, so only one runs at a time (across server processes). Without
  * `force`, only if the last one started over an hour ago. Returns false if it shouldn't run now.
  */
-export async function claimSync(orgId: string, force: boolean): Promise<boolean> {
+export async function claimSync(orgId: string, force: boolean, dueAfterMs = AUTO_SYNC_EVERY_MS): Promise<boolean> {
   const now = Date.now();
-  const due = or(isNull(accountSettings.syncStartedAt), lt(accountSettings.syncStartedAt, iso(now - AUTO_SYNC_EVERY_MS)));
+  const due = or(isNull(accountSettings.syncStartedAt), lt(accountSettings.syncStartedAt, iso(now - dueAfterMs)));
   // Even when forced, don't start a second sync while one is (recently) running.
   const notRunning = or(
     isNull(accountSettings.syncStartedAt),
@@ -143,14 +143,18 @@ async function fromPublicPages(
   });
 }
 
-/** Bring in what's new on Bandcamp. With `force`, ignores the once-an-hour limit. */
-export async function syncAccount(orgId: string, { force = false } = {}): Promise<SyncResult> {
+/**
+ * Bring in what's new on Bandcamp. With `force`, ignores the once-an-hour limit. `dueAfterMs`
+ * shortens it (for the hourly cron, so a sync someone started 55 minutes earlier doesn't make it
+ * skip a turn and leave a two-hour gap).
+ */
+export async function syncAccount(orgId: string, { force = false, dueAfterMs = AUTO_SYNC_EVERY_MS } = {}): Promise<SyncResult> {
   const [settings] = await db.select().from(accountSettings).where(eq(accountSettings.orgId, orgId));
   const creds = await bandcampCredentials(orgId);
   if (!settings || (!settings.bandcampUrl && !creds)) {
     return { ran: false, summary: "Nothing to sync: add your Bandcamp address or API access under Settings.", errors: [] };
   }
-  if (!(await claimSync(orgId, force))) return { ran: false, summary: "Already synced recently.", errors: [] };
+  if (!(await claimSync(orgId, force, dueAfterMs))) return { ran: false, summary: "Already synced recently.", errors: [] };
 
   const [org] = await db.select().from(schema.organization).where(eq(schema.organization.id, orgId));
   const found: string[] = [];

@@ -5,7 +5,8 @@ import { syncAccount } from "@/server/auto-sync";
 
 /**
  * The hourly Bandcamp sync (called by the Worker's cron trigger, cloudflare/worker.ts). Syncs every
- * account with Bandcamp set up that's due (at most hourly, as when someone opens the app).
+ * account with Bandcamp set up that hasn't synced in the last 45 minutes (someone opening the app
+ * syncs it too), so none goes more than an hour without one.
  * Only with the CRON_SECRET; anything else gets a 404.
  */
 export async function POST(request: Request) {
@@ -21,7 +22,8 @@ export async function POST(request: Request) {
   const results: Record<string, string> = {};
   for (const { orgId } of accounts) {
     try {
-      const r = await syncAccount(orgId);
+      // Anything not synced in the last 45 minutes: so every account syncs at least once an hour.
+      const r = await syncAccount(orgId, { dueAfterMs: 45 * 60 * 1000 });
       results[orgId] = r.ran ? r.summary + (r.errors.length ? ` (${r.errors.length} problem(s))` : "") : "not due";
     } catch (e) {
       results[orgId] = `failed: ${(e as Error).message}`;
