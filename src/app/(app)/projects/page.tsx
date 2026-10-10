@@ -5,6 +5,7 @@ import { ProjectForm } from "@/components/project-form";
 import { Badge, Card, Disclosure, Empty, Money, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
 import { requireAdmin } from "@/server/context";
+import { requireProjects } from "@/server/features";
 import { projectReleaseMap } from "@/server/expenses";
 import { accountProjects, projectNumbers } from "@/server/projects";
 
@@ -12,6 +13,7 @@ import { accountProjects, projectNumbers } from "@/server/projects";
 export default async function ProjectsPage({ searchParams }: PageProps<"/projects">) {
   await connection();
   const { orgId } = await requireAdmin();
+  await requireProjects();
   const bandFilter = Number((await searchParams).band) || undefined;
   const [projects, numbers, links, bands, releases] = await Promise.all([
     accountProjects(orgId),

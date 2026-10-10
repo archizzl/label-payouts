@@ -21,6 +21,16 @@ export async function linkForLabelBand(labelOrgId: string, bandId: number) {
   return row ?? null;
 }
 
+/** Every link (or waiting code) from a label's bands to their own accounts, by label band id. */
+export async function bandLinksFor(labelOrgId: string) {
+  const rows = await db
+    .select({ link: accountLinks, bandAccount: organization })
+    .from(accountLinks)
+    .leftJoin(organization, eq(organization.id, accountLinks.bandOrgId))
+    .where(eq(accountLinks.labelOrgId, labelOrgId));
+  return new Map(rows.map((r) => [r.link.labelBandId, r]));
+}
+
 /** Active links from a label's bands to their own accounts, by label band id. */
 export async function linkedBandAccounts(labelOrgId: string) {
   const rows = await db

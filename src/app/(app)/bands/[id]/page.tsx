@@ -15,11 +15,13 @@ import { db, schema } from "@/db";
 import { ITEM_CATEGORIES } from "@/lib/bandcamp-csv";
 import { payHandlesSummary } from "@/lib/paypal-export";
 import { STATUS_LABEL, STATUS_TONE } from "@/lib/status";
-import { BandAccountLink } from "@/components/band-link";
+import { BandAccountNote } from "@/components/band-link";
+import { linkForLabelBand } from "@/server/links";
 import { LabelFunds } from "@/components/label-funds";
 import { ExpenseForm, ExpenseTable } from "@/components/receipts";
 import { addMember, deleteBand, removeMember, saveRelease, updateMembership } from "@/server/actions";
 import { requireAccess } from "@/server/context";
+import { projectsEnabled } from "@/server/features";
 import { accountExpenses, expenseFileList } from "@/server/expenses";
 import { accountProjects, projectNumbers } from "@/server/projects";
 import { bandAssociatedPeople, bandMembers, computeAllTime, labelHost, nameMaps, ruleFilter, rulesWhere } from "@/server/data";
@@ -35,6 +37,7 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
     .where(and(eq(schema.bands.orgId, orgId), eq(schema.bands.id, id)));
   if (!band) notFound();
 
+  const showProjects = await projectsEnabled();
   const [members, allPeople, releases, allReleases, orgDeductions, names, defaultRules, labelRules, bandPeople, periodRows, { summary }, bandExpenses, expenseFiles, allProjects, projectTotals] =
     await Promise.all([
       bandMembers(orgId, id),
@@ -54,8 +57,8 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
       computeAllTime(orgId),
       accountExpenses(orgId, { bandId: id }),
       expenseFileList(orgId),
-      accountProjects(orgId),
-      projectNumbers(orgId),
+      showProjects ? accountProjects(orgId) : [],
+      showProjects ? projectNumbers(orgId) : new Map<number, never>(),
     ]);
   const bandProjects = allProjects.filter((p) => p.bandId === id);
   const personOptions: PersonOption[] = [
@@ -250,47 +253,49 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
         )}
       </Card>
 
-      <Card title="Projects" actions={<LinkButton href={`/projects?band=${id}`} size="sm">All projects</LinkButton>}>
-        {bandProjects.length === 0 ? (
-          <p className="text-sm text-muted">
-            No projects yet. A project (an album, a tour…) collects what was spent on it and what its releases made back.{" "}
-            <Link href={`/projects?band=${id}`}>Create one</Link>.
-          </p>
-        ) : (
-          <table className="data">
-            <thead>
-              <tr>
-                <th>Project</th>
-                <th className="num">Spent</th>
-                <th className="num">Made back</th>
-                <th className="num">Balance</th>
-              </tr>
-            </thead>
-            <tbody>
-              {bandProjects.map((p) => {
-                const t = projectTotals.get(p.id)!;
-                return (
-                  <tr key={p.id}>
-                    <td>
-                      <Link href={`/projects/${p.id}`}>{p.name}</Link>
-                      {p.status === "done" && <span className="ml-2 text-xs text-muted">done</span>}
-                    </td>
-                    <td className="num">
-                      <Money cents={t.spent} currency={t.currency} />
-                    </td>
-                    <td className="num">
-                      <Money cents={t.madeBack} currency={t.currency} />
-                    </td>
-                    <td className={`num ${t.balance >= 0 && t.spent > 0 ? "text-good" : ""}`}>
-                      <Money cents={t.balance} currency={t.currency} />
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-      </Card>
+      {showProjects && (
+        <Card title="Projects" actions={<LinkButton href={`/projects?band=${id}`} size="sm">All projects</LinkButton>}>
+          {bandProjects.length === 0 ? (
+            <p className="text-sm text-muted">
+              No projects yet. A project (an album, a tour…) collects what was spent on it and what its releases made back.{" "}
+              <Link href={`/projects?band=${id}`}>Create one</Link>.
+            </p>
+          ) : (
+            <table className="data">
+              <thead>
+                <tr>
+                  <th>Project</th>
+                  <th className="num">Spent</th>
+                  <th className="num">Made back</th>
+                  <th className="num">Balance</th>
+                </tr>
+              </thead>
+              <tbody>
+                {bandProjects.map((p) => {
+                  const t = projectTotals.get(p.id)!;
+                  return (
+                    <tr key={p.id}>
+                      <td>
+                        <Link href={`/projects/${p.id}`}>{p.name}</Link>
+                        {p.status === "done" && <span className="ml-2 text-xs text-muted">done</span>}
+                      </td>
+                      <td className="num">
+                        <Money cents={t.spent} currency={t.currency} />
+                      </td>
+                      <td className="num">
+                        <Money cents={t.madeBack} currency={t.currency} />
+                      </td>
+                      <td className={`num ${t.balance >= 0 && t.spent > 0 ? "text-good" : ""}`}>
+                        <Money cents={t.balance} currency={t.currency} />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </Card>
+      )}
 
       <Card title="Receipts" actions={<LinkButton href={`/receipts?band=${id}`} size="sm">All receipts</LinkButton>}>
         {bandExpenses.length === 0 ? (
@@ -315,7 +320,7 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
 
       <LabelFunds bandId={id} />
 
-      {ctx.org.kind === "label" && !band.isLabel && <BandAccountLink labelOrgId={orgId} bandId={id} bandName={band.name} />}
+      {ctx.org.kind === "label" && !band.isLabel && <BandAccountNote bandId={id} row={await linkForLabelBand(orgId, id)} />}
 
       {band.isLabel && (
         <Callout tone="neutral">

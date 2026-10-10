@@ -7,6 +7,7 @@ import { db, schema } from "@/db";
 import { ClearFilesPart } from "@/components/receipt-cleanup";
 import { can } from "@/lib/permissions";
 import { requireAccess } from "@/server/context";
+import { projectsEnabled } from "@/server/features";
 import { clearableFiles } from "@/server/receipt-cleanup";
 import { accountExpenses, expenseFileList, owedReimbursement } from "@/server/expenses";
 import { accountProjects } from "@/server/projects";
@@ -23,7 +24,7 @@ export default async function ReceiptsPage({ searchParams }: PageProps<"/receipt
     db.select().from(schema.bands).where(eq(schema.bands.orgId, orgId)).orderBy(asc(schema.bands.name)),
     db.select().from(schema.releases).where(eq(schema.releases.orgId, orgId)).orderBy(asc(schema.releases.title)),
     db.select().from(schema.people).where(eq(schema.people.orgId, orgId)).orderBy(asc(schema.people.name)),
-    accountProjects(orgId),
+    projectsEnabled().then((on) => (on ? accountProjects(orgId) : [])),
     canChange ? clearableFiles(orgId) : null,
   ]);
   const projectName = (pid: number) => projects.find((p) => p.id === pid)?.name;

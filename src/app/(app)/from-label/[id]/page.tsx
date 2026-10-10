@@ -9,6 +9,7 @@ import { STATUS_LABEL, STATUS_TONE } from "@/lib/status";
 import { nameMaps } from "@/server/data";
 import { accountExpenses, expenseFileList } from "@/server/expenses";
 import { requireLinkedView } from "@/server/links";
+import { projectsEnabled } from "@/server/features";
 import { accountProjects, projectNumbers } from "@/server/projects";
 
 const PAYOUT_STATUS = { pending: "to be paid", paid: "paid", kept: "kept by the label account holder" } as const;
@@ -22,6 +23,7 @@ export default async function FromLabelPage({ params, searchParams }: PageProps<
   const linkId = Number((await params).id);
   const v = await requireLinkedView(linkId);
   const { labelOrgId, bandId } = v;
+  const showProjects = await projectsEnabled();
   const [periods, names, expenses, files, labelProjects, projectTotals] = await Promise.all([
     db
       .select()
@@ -31,8 +33,8 @@ export default async function FromLabelPage({ params, searchParams }: PageProps<
     nameMaps(labelOrgId),
     accountExpenses(labelOrgId, { bandId }),
     expenseFileList(labelOrgId),
-    accountProjects(labelOrgId),
-    projectNumbers(labelOrgId),
+    showProjects ? accountProjects(labelOrgId) : [],
+    showProjects ? projectNumbers(labelOrgId) : new Map<number, never>(),
   ]);
   const bandProjects = labelProjects.filter((p) => p.bandId === bandId);
   const payoutRows = periods.length

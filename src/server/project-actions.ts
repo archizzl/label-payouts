@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { db, schema } from "@/db";
 import { parseCents } from "@/lib/money";
 import { requireAdmin } from "./context";
+import { requireProjects } from "./features";
 
 const { projects, projectReleases, releases, bands } = schema;
 
@@ -16,6 +17,7 @@ const str = (fd: FormData, k: string) => String(fd.get(k) ?? "").trim();
 /** Create or edit a project: its name, band, releases, budget and status. */
 export async function saveProject(_: ProjectState, fd: FormData): Promise<ProjectState> {
   const { orgId } = await requireAdmin();
+  await requireProjects();
   const name = str(fd, "name");
   if (!name) return { error: "Give the project a name." };
   const bandId = Number(str(fd, "bandId")) || null;
@@ -72,6 +74,7 @@ export async function saveProject(_: ProjectState, fd: FormData): Promise<Projec
 /** Delete a project. Its expenses stay (they just aren't assigned to a project any more). */
 export async function deleteProject(fd: FormData) {
   const { orgId } = await requireAdmin();
+  await requireProjects();
   await db.delete(projects).where(and(eq(projects.orgId, orgId), eq(projects.id, Number(fd.get("id")))));
   revalidatePath("/", "layout");
   redirect("/projects");

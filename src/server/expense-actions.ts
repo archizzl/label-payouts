@@ -60,7 +60,15 @@ export async function saveExpense(_: ExpenseState, fd: FormData): Promise<Expens
     const paidByPersonId = paidByRaw.startsWith("person:") ? Number(paidByRaw.slice(7)) || null : null;
     const paidBy = paidByPersonId ? "person" : paidByRaw === "band_fund" ? "band_fund" : "label";
     const releaseId = optInt(fd, "releaseId");
-    const projectId = optInt(fd, "projectId");
+    // No project field on the form (Projects is switched off for this person): keep whatever it was.
+    const projectId = fd.has("projectId")
+      ? optInt(fd, "projectId")
+      : ((
+          await db
+            .select({ projectId: expenses.projectId })
+            .from(expenses)
+            .where(and(eq(expenses.orgId, orgId), eq(expenses.id, optInt(fd, "id") ?? -1)))
+        )[0]?.projectId ?? null);
     let bandId = optInt(fd, "bandId");
     await inAccount(orgId, releases, releaseId);
     await inAccount(orgId, bands, bandId);

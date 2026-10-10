@@ -22,7 +22,7 @@ export function Mark() {
 
 type Item = { href: string; label: string };
 
-function itemsFor(account: Account, isAdmin: boolean, areas: Area[], labels: Item[]): Item[] {
+function itemsFor(account: Account, isAdmin: boolean, areas: Area[], labels: Item[], projects: boolean): Item[] {
   const all: (Item & { area?: Area })[] = [
     { href: "/", label: "dashboard", area: "dashboard" },
     { href: "/sales", label: "sales", area: "sales" },
@@ -30,14 +30,13 @@ function itemsFor(account: Account, isAdmin: boolean, areas: Area[], labels: Ite
     { href: "/periods", label: "payouts", area: "payouts" },
     ...(account.kind === "label" ? [{ href: "/funds", label: "label funds", area: "funds" as const }] : []),
     { href: "/receipts", label: "receipts", area: "receipts" },
-    // { href: "/projects", label: "projects" },
     { href: "/bands", label: account.kind === "band" ? "band" : "bands", area: "roster" },
     { href: "/people", label: "people", area: "roster" },
     // { href: "/fans", label: "fans", area: "fans" },
     { href: "/catalog", label: "catalog", area: "catalog" },
     { href: "/rules", label: account.kind === "band" ? "rules" : "label rules", area: "rules" },
   ];
-  if (isAdmin) return [...all, ...labels, { href: "/account", label: "settings" }];
+  if (isAdmin) return [...all, ...(projects ? [{ href: "/projects", label: "projects" }] : []), ...labels, { href: "/account", label: "settings" }];
   // Members: their own earnings, plus whatever their member type lets them see.
   return [{ href: "/me", label: "my earnings" }, ...all.filter((i) => i.area && areas.includes(i.area))];
 }
@@ -95,7 +94,7 @@ export function Nav({
   siteAdmin?: boolean;
 }) {
   const path = usePathname();
-  const items = [...itemsFor(account, isAdmin, areas, labels), ...(siteAdmin ? [{ href: "/admin", label: "admin" }] : [])];
+  const items = [...itemsFor(account, isAdmin, areas, labels, siteAdmin), ...(siteAdmin ? [{ href: "/admin", label: "admin" }] : [])];
   return (
     <header className="no-print border-b border-border bg-surface">
       <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 pt-4 pb-3 md:px-8">

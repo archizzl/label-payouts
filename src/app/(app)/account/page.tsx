@@ -14,6 +14,7 @@ import {
   saveMemberType,
   testBandcampConnection,
 } from "@/server/account-actions";
+import { BandAccountsCard } from "@/components/band-link";
 import { InviteWhoFields } from "@/components/invite-fields";
 import { RolePicker } from "@/components/role-picker";
 import { SyncFooter } from "@/components/sync-status";
@@ -21,7 +22,7 @@ import { setSetupHidden } from "@/server/actions";
 import { bandcampApiOff } from "@/server/bandcamp-api";
 import { requireAdmin } from "@/server/context";
 import { acceptLinkCode, unlink } from "@/server/link-actions";
-import { labelsForBandAccount } from "@/server/links";
+import { bandLinksFor, labelsForBandAccount } from "@/server/links";
 import { inviteMemberTypes, listMemberTypes, memberTypeOf } from "@/server/member-types";
 
 const ROLE_LABEL: Record<string, string> = { owner: "owner", admin: "admin", member: "member" };
@@ -48,7 +49,17 @@ export default async function AccountPage() {
     listMemberTypes(orgId),
     memberTypeOf(orgId),
   ]);
-  const inviteTypes = await inviteMemberTypes(invites.map((i) => i.id));
+  const [inviteTypes, labelBands, bandLinks] = await Promise.all([
+    inviteMemberTypes(invites.map((i) => i.id)),
+    ctx.org.kind === "label"
+      ? db
+          .select({ id: schema.bands.id, name: schema.bands.name })
+          .from(schema.bands)
+          .where(and(eq(schema.bands.orgId, orgId), eq(schema.bands.isLabel, false)))
+          .orderBy(asc(schema.bands.name))
+      : [],
+    ctx.org.kind === "label" ? bandLinksFor(orgId) : new Map(),
+  ]);
   const typeName = (id: number | undefined) => types.find((t) => t.id === id)?.name;
   // The role picker's value for someone: "admin", "member", or "type:<id>".
   const roleValue = (role: string, typeId: number | undefined) => (role === "member" ? (typeId && typeName(typeId) ? `type:${typeId}` : "member") : "admin");
@@ -178,8 +189,8 @@ export default async function AccountPage() {
 
       <Card title="Who can sign in">
         <p className="mb-4 text-sm text-muted">
-          Admins manage everything. Members see their own earnings and payouts, plus their band’s sales totals, and whatever their member
-          type allows (see Member types below).
+          People who sign in to this account. Admins manage everything. Members see their own earnings and payouts, plus their band’s sales
+          totals, and whatever their member type allows (see Member types below).
         </p>
         <table className="data mb-6">
           <thead>
@@ -273,6 +284,8 @@ export default async function AccountPage() {
           </ActionForm>
         </Disclosure>
       </Card>
+
+      {ctx.org.kind === "label" && <BandAccountsCard bands={labelBands} links={bandLinks} />}
 
       <Card title="Member types">
         <p className="mb-4 text-sm text-muted">

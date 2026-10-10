@@ -7,6 +7,7 @@ import { Badge, Callout, Card, Disclosure, Empty, Money, MoneyList, PageHeader }
 import { db, schema } from "@/db";
 import { linkMyself } from "@/server/account-actions";
 import { getContext } from "@/server/context";
+import { projectsEnabled } from "@/server/features";
 import { computePayoutPeriod, nameMaps } from "@/server/data";
 import { expenseFileList } from "@/server/expenses";
 import { accountProjects } from "@/server/projects";
@@ -173,7 +174,7 @@ export default async function MyEarningsPage({ searchParams }: PageProps<"/me">)
           <Disclosure summary="+ Submit a receipt">
             <SubmitReceiptForm
               bands={myBands.map(({ band }) => band)}
-              projects={(await accountProjects(orgId)).filter((p) => myBands.some(({ band }) => band.id === p.bandId) && p.status !== "done")}
+              projects={(!(await projectsEnabled()) ? [] : await accountProjects(orgId)).filter((p) => myBands.some(({ band }) => band.id === p.bandId) && p.status !== "done")}
             />
           </Disclosure>
         </div>

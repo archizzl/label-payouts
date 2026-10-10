@@ -13,6 +13,7 @@ import type { ChartFormat } from "@/lib/chart-layout";
 import { formatCents } from "@/lib/money";
 import { loadLayout } from "@/server/chart-layouts";
 import { requireAdmin } from "@/server/context";
+import { requireProjects } from "@/server/features";
 import { nameMaps } from "@/server/data";
 import { expenseFileList } from "@/server/expenses";
 import { deleteProject } from "@/server/project-actions";
@@ -22,6 +23,7 @@ import { accountProjects, projectNumbers } from "@/server/projects";
 export default async function ProjectPage({ params }: PageProps<"/projects/[id]">) {
   await connection();
   const { orgId } = await requireAdmin();
+  await requireProjects();
   const id = Number((await params).id);
   const [project] = await db
     .select()
