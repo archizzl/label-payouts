@@ -45,6 +45,19 @@ describe("member types", () => {
     expect((await context.accessFor(orgId, userId, false, person.id)).access.permissions).toEqual({});
   });
 
+  it("doesn't look up their bands when nothing in their type is limited to them", async () => {
+    const orgId = await newAccount();
+    const userId = await login("Viewer");
+    const [band] = await db.insert(schema.bands).values({ orgId, name: "Flag Day" }).returning();
+    const [person] = await db.insert(schema.people).values({ orgId, name: "Viewer", userId }).returning();
+    await db.insert(schema.bandMemberships).values({ orgId, bandId: band.id, personId: person.id });
+    const [t] = await db.insert(schema.memberTypes).values({ orgId, name: "Viewer", permissions: { sales: "view" } }).returning();
+    await types.assignMemberType(orgId, userId, t.id);
+    const { access } = await context.accessFor(orgId, userId, false, person.id);
+    expect(access).toEqual({ admin: false, permissions: { sales: "view" }, bandAreas: [], bandIds: [] });
+    expect((await context.accessFor(orgId, userId, true, person.id)).access.admin).toBe(true);
+  });
+
   it("only accepts a member type from the same account", async () => {
     const orgA = await newAccount("A");
     const orgB = await newAccount("B");

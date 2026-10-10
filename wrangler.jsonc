@@ -25,6 +25,9 @@
   // Sync every account with Bandcamp once an hour, in the background.
   "triggers": { "crons": ["17 * * * *"] },
   "observability": { "enabled": true },
+  // Run next to the database (Neon, AWS us-east-2): every page makes many queries, so each one
+  // being a short hop matters far more than the one longer hop from the visitor.
+  "placement": { "region": "aws:us-east-2" },
   "vars": {
     // The site's address. Sign-ins are tied to it.
     "BETTER_AUTH_URL": "https://labelmaker.ing",

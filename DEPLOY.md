@@ -36,6 +36,10 @@ npx wrangler r2 bucket create label-payouts-receipts
 ```
 It's bound as `RECEIPTS` in `wrangler.jsonc`. Leave its public access (r2.dev URL, custom domains) off: files are only served through the app, which checks who's asking.
 
+### Speed settings
+- `wrangler.jsonc` has `"placement": { "region": "aws:us-east-2" }`, so the Worker runs next to the database. If the database moves region, change this to match.
+- Every page response has a `Server-Timing` header (time, database time and query count), and `npx wrangler tail` shows a `timing …` line per page.
+
 ## 4. Secrets (you)
 Set each one; it asks for the value.
 ```bash

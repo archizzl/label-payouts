@@ -10,13 +10,15 @@ import { isSiteAdminEmail } from "@/server/site-admin";
 /** Everything you see once signed in: the nav (with your accounts), then the page. */
 export default async function AppLayout({ children }: LayoutProps<"/">) {
   const ctx = await getContext();
-  // A band account's admins see each label it's linked to.
-  const labels = ctx.isAdmin && ctx.org.kind === "band" ? await labelsForBandAccount(ctx.orgId) : [];
+  const [labels, sync] = await Promise.all([
+    // A band account's admins see each label it's linked to.
+    ctx.isAdmin && ctx.org.kind === "band" ? labelsForBandAccount(ctx.orgId) : [],
+    syncStatus(ctx.orgId),
+  ]);
 
   // Locally, opening the app keeps it in step with Bandcamp: at most once an hour, in the background,
   // after the page has been sent. Not on Cloudflare: its hourly cron does that, and Workers cancel
   // background work about 30 seconds after the response, which cut these syncs off halfway.
-  const sync = await syncStatus(ctx.orgId);
   const due = !onCloudflare && !!sync?.due;
   if (due) {
     const orgId = ctx.orgId;

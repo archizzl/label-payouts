@@ -1,5 +1,6 @@
 import "server-only";
 import { and, asc, eq, isNull, lte, type SQL } from "drizzle-orm";
+import { cache } from "react";
 import { db, schema } from "@/db";
 import type { ReleasePackage } from "@/db/schema";
 import type { ItemCategory } from "@/lib/bandcamp-csv";
@@ -69,7 +70,8 @@ export async function reRouteAll(orgId: string) {
   });
 }
 
-export async function loadEngineContext(orgId: string): Promise<EngineContext> {
+/** The split rules, shares and deductions an account's sales are worked out with. Loaded once per request. */
+export const loadEngineContext = cache(async (orgId: string): Promise<EngineContext> => {
   const [shareRows, memberRows, trackRows, outsideRows, labelBands, ruleRows, deductionRows, releaseRows, expenseRows, projectReleases] =
     await Promise.all([
     db.select().from(splitShares).where(eq(splitShares.orgId, orgId)),
@@ -119,7 +121,7 @@ export async function loadEngineContext(orgId: string): Promise<EngineContext> {
       trackIds: trackRows.filter((t) => t.releaseId === r.id).map((t) => t.id),
     })),
   };
-}
+});
 
 export type SaleRow = typeof sales.$inferSelect;
 
@@ -238,9 +240,11 @@ export async function computePayoutPeriod(orgId: string, period: PeriodScope) {
   };
 }
 
-export function computeAllTime(orgId: string) {
-  return computePeriod(orgId, "0000-01-01", "9999-12-31");
-}
+/**
+ * Every sale's split, ever. Worked out once per request, however many parts of a page ask for it
+ * (the dashboard, who's owed, label funds and receipts all do). Callers must not change what it returns.
+ */
+export const computeAllTime = cache((orgId: string) => computePeriod(orgId, "0000-01-01", "9999-12-31"));
 
 export type NameMaps = Awaited<ReturnType<typeof nameMaps>>;
 

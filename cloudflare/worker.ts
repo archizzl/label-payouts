@@ -5,12 +5,47 @@
 import { default as handler } from "../.open-next/worker.js";
 
 type Env = { CRON_SECRET?: string };
+type Ctx = { waitUntil(p: Promise<unknown>): void };
+
+/**
+ * Timings for each request: how long it took and how much of that was the database (counted by
+ * src/db/index.ts, which finds this request's record through the same ctx object). They go in a
+ * Server-Timing header (visible in the browser's dev tools) and one log line per page.
+ */
+type DbStats = { queries: number; ms: number };
+const stats = ((globalThis as unknown as { __requestDbStats?: WeakMap<object, DbStats> }).__requestDbStats ??= new WeakMap());
+/** The first request this copy of the app has handled: it paid for loading the app. */
+let cold = true;
+
+async function timedFetch(request: Request, env: Env, ctx: Ctx): Promise<Response> {
+  const started = Date.now();
+  const wasCold = cold;
+  cold = false;
+  const db: DbStats = { queries: 0, ms: 0 };
+  stats.set(ctx, db);
+  const res: Response = await handler.fetch(request, env, ctx);
+  const url = new URL(request.url);
+  // Static files and Next's own assets aren't worth timing.
+  if (url.pathname.startsWith("/_next/") || !res.body) return res;
+  const headMs = Date.now() - started;
+  const headers = new Headers(res.headers);
+  headers.append("Server-Timing", `head;dur=${headMs}, db;dur=${Math.round(db.ms)};desc="${db.queries} queries"${wasCold ? ', cold;desc="first request"' : ""}`);
+  // Pages stream: log once the whole response has gone out.
+  const { readable, writable } = new TransformStream();
+  ctx.waitUntil(
+    res.body.pipeTo(writable).finally(() => {
+      const rsc = request.headers.get("rsc") ? " rsc" : "";
+      console.log(`timing ${request.method} ${url.pathname}${rsc} total=${Date.now() - started}ms head=${headMs}ms db=${Math.round(db.ms)}ms/${db.queries}q${wasCold ? " cold" : ""}`);
+    }),
+  );
+  return new Response(readable, { status: res.status, statusText: res.statusText, headers });
+}
 
 export default {
-  fetch: handler.fetch,
+  fetch: timedFetch,
 
   /** Cron trigger (wrangler.jsonc): ask the app to sync every account that's due, with up to 15 minutes to do it. */
-  async scheduled(_event: unknown, env: Env, ctx: { waitUntil(p: Promise<unknown>): void }) {
+  async scheduled(_event: unknown, env: Env, ctx: Ctx) {
     if (!env.CRON_SECRET) {
       console.error("CRON_SECRET isn't set, so the hourly Bandcamp sync can't run.");
       return;

@@ -1,5 +1,6 @@
 import "server-only";
 import { and, eq, isNull, lt, or, sql } from "drizzle-orm";
+import { cache } from "react";
 import { db, schema } from "@/db";
 import { artistsFromApi, merchFromApi, releasesFromSales } from "./api-catalog";
 import { type BandcampAccountBand, bandcampCredentials, myBands } from "./bandcamp-api";
@@ -236,8 +237,8 @@ export async function syncCatalog(orgId: string): Promise<{ summary: string; err
   return { summary: found.length ? `Brought in ${found.join(", ")}.` : "Up to date.", errors };
 }
 
-/** The account's last sync, for showing on the page. */
-export async function syncStatus(orgId: string) {
+/** The account's last sync, for showing on the page. (Once per request: the layout and the footer both ask.) */
+export const syncStatus = cache(async (orgId: string) => {
   const [s] = await db
     .select({
       startedAt: accountSettings.syncStartedAt,
@@ -256,4 +257,4 @@ export async function syncStatus(orgId: string) {
   /** Opening the app now should start a sync. */
   const due = configured && !running && (!s.startedAt || Date.parse(s.startedAt) < Date.now() - AUTO_SYNC_EVERY_MS);
   return { ...s, running, configured, due };
-}
+});

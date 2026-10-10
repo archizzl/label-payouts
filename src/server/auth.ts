@@ -1,4 +1,5 @@
 import "server-only";
+import { asc, eq } from "drizzle-orm";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
@@ -40,6 +41,28 @@ export const auth = betterAuth({
         },
       },
     },
+    // A new sign-in starts in their first account (alphabetically, as the account switcher lists
+    // them), so pages never have to pick one and save it on every request.
+    session: {
+      create: {
+        before: async (session) => {
+          if (session.activeOrganizationId) return;
+          const [first] = await db
+            .select({ id: schema.organization.id })
+            .from(schema.member)
+            .innerJoin(schema.organization, eq(schema.organization.id, schema.member.organizationId))
+            .where(eq(schema.member.userId, session.userId))
+            .orderBy(asc(schema.organization.name))
+            .limit(1);
+          if (first) return { data: { ...session, activeOrganizationId: first.id } };
+        },
+      },
+    },
+  },
+  // Who's signed in is checked from a signed cookie for up to 5 minutes before going back to the
+  // database: most pages skip that query. (Removing someone takes effect within those 5 minutes.)
+  session: {
+    cookieCache: { enabled: true, maxAge: 5 * 60 },
   },
   // Slow down password guessing. Kept in the database, so every server shares the count.
   rateLimit: {

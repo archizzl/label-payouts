@@ -27,6 +27,9 @@ const nextConfig: NextConfig = {
   experimental: {
     // Label-level Bandcamp exports can be several MB.
     serverActions: { bodySizeLimit: "50mb" },
+    // Keep pages you've just seen in the browser for 30 seconds, so going back to a tab is instant.
+    // Your own saves still refresh them straight away (actions revalidate).
+    staleTimes: { dynamic: 30, static: 180 },
   },
 };
 

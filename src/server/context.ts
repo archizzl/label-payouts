@@ -67,16 +67,20 @@ export const getContext = cache(async (): Promise<Context> => {
   const accounts = await accountsFor(session.user.id);
   if (accounts.length === 0) redirect("/welcome");
   const org = accounts.find((a) => a.id === session.session.activeOrganizationId) ?? accounts[0];
-  if (org.id !== session.session.activeOrganizationId) {
-    // Remember it, so the next request doesn't have to guess.
-    await db.update(schema.session).set({ activeOrganizationId: org.id }).where(eq(schema.session.id, session.session.id));
-  }
-  const [person] = await db
-    .select()
-    .from(schema.people)
-    .where(and(eq(schema.people.orgId, org.id), eq(schema.people.userId, session.user.id)));
   const isAdmin = org.role !== "member";
-  const { access, memberType } = await accessFor(org.id, session.user.id, isAdmin, person?.id ?? null);
+  // Everything else at once: their payee record, their member type, and (rarely) remembering the account.
+  const [[person], type] = await Promise.all([
+    db
+      .select()
+      .from(schema.people)
+      .where(and(eq(schema.people.orgId, org.id), eq(schema.people.userId, session.user.id))),
+    isAdmin ? null : memberTypeFor(org.id, session.user.id),
+    org.id !== session.session.activeOrganizationId
+      ? // Remember it, so the next request doesn't have to guess.
+        db.update(schema.session).set({ activeOrganizationId: org.id }).where(eq(schema.session.id, session.session.id))
+      : null,
+  ]);
+  const { access, memberType } = await accessFrom(org.id, isAdmin, type, person?.id ?? null);
   return {
     user: { id: session.user.id, name: session.user.name, email: session.user.email },
     org,
@@ -90,16 +94,24 @@ export const getContext = cache(async (): Promise<Context> => {
   };
 });
 
-/** What someone can do in an account: everything for admins, else what their member type grants. */
-export async function accessFor(orgId: string, userId: string, isAdmin: boolean, personId: number | null) {
-  if (isAdmin) return { access: { admin: true, permissions: {}, bandAreas: [], bandIds: [] } satisfies Access, memberType: null };
-  const [type] = await db
+type MemberTypeRow = typeof schema.memberTypes.$inferSelect;
+
+/** Their member type in an account, if they have one. */
+async function memberTypeFor(orgId: string, userId: string): Promise<MemberTypeRow | null> {
+  const [row] = await db
     .select({ type: schema.memberTypes })
     .from(schema.memberTypeAssignments)
     .innerJoin(schema.memberTypes, eq(schema.memberTypes.id, schema.memberTypeAssignments.memberTypeId))
     .where(and(eq(schema.memberTypeAssignments.orgId, orgId), eq(schema.memberTypeAssignments.userId, userId)));
+  return row?.type ?? null;
+}
+
+/** What a member type grants, with the bands they're in (looked up only if a section is limited to them). */
+async function accessFrom(orgId: string, isAdmin: boolean, type: MemberTypeRow | null, personId: number | null) {
+  if (isAdmin) return { access: { admin: true, permissions: {}, bandAreas: [], bandIds: [] } satisfies Access, memberType: null };
+  const bandAreas = normalizeBandAreas(type?.bandAreas);
   const bandIds =
-    personId === null
+    personId === null || !bandAreas.length
       ? []
       : (
           await db
@@ -107,13 +119,13 @@ export async function accessFor(orgId: string, userId: string, isAdmin: boolean,
             .from(schema.bandMemberships)
             .where(and(eq(schema.bandMemberships.orgId, orgId), eq(schema.bandMemberships.personId, personId), eq(schema.bandMemberships.active, true)))
         ).map((r) => r.bandId);
-  const access: Access = {
-    admin: false,
-    permissions: normalizePermissions(type?.type.permissions),
-    bandAreas: normalizeBandAreas(type?.type.bandAreas),
-    bandIds,
-  };
-  return { access, memberType: type?.type.name ?? null };
+  const access: Access = { admin: false, permissions: normalizePermissions(type?.permissions), bandAreas, bandIds };
+  return { access, memberType: type?.name ?? null };
+}
+
+/** What someone can do in an account: everything for admins, else what their member type grants. */
+export async function accessFor(orgId: string, userId: string, isAdmin: boolean, personId: number | null) {
+  return accessFrom(orgId, isAdmin, isAdmin ? null : await memberTypeFor(orgId, userId), personId);
 }
 
 /**

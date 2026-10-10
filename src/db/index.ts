@@ -26,8 +26,10 @@ function forThisRequest(): DB {
   let db = perRequest.get(ctx);
   if (!db) {
     const hyperdrive = (env as unknown as { HYPERDRIVE: { connectionString: string } }).HYPERDRIVE;
-    // A few connections for this request only (Hyperdrive does the real pooling); never reused by another request.
-    const pool = new Pool({ connectionString: hyperdrive.connectionString, max: 5, idleTimeoutMillis: 2_000 });
+    // Connections for this request only (Hyperdrive does the real pooling); never reused by another
+    // request. Enough that a page's parallel queries (the dashboard runs ~25) don't queue.
+    const pool = new Pool({ connectionString: hyperdrive.connectionString, max: 10, idleTimeoutMillis: 2_000 });
+    countQueries(pool, ctx);
     // Workers close a request's sockets once it's done; a connection still idling in the pool then
     // reports "This socket has been closed". Harmless (nothing is using it), so don't let it surface
     // as an unhandled error.
@@ -36,6 +38,25 @@ function forThisRequest(): DB {
     perRequest.set(ctx, db);
   }
   return db;
+}
+
+/**
+ * Count this request's queries and the time spent on them, for the timings cloudflare/worker.ts
+ * reports (it keys its record by the same ctx object).
+ */
+function countQueries(pool: Pool, ctx: object) {
+  const stats = (globalThis as unknown as { __requestDbStats?: WeakMap<object, { queries: number; ms: number }> }).__requestDbStats?.get(ctx);
+  if (!stats) return;
+  const query = pool.query.bind(pool) as (...args: unknown[]) => Promise<unknown>;
+  (pool as unknown as { query: (...args: unknown[]) => Promise<unknown> }).query = async (...args: unknown[]) => {
+    const t = performance.now();
+    try {
+      return await query(...args);
+    } finally {
+      stats.queries++;
+      stats.ms += performance.now() - t;
+    }
+  };
 }
 
 const current = (): DB => (onCloudflare ? forThisRequest() : local().db);
