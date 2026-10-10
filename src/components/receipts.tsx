@@ -319,13 +319,14 @@ export function ExpenseTable({
               <form action={reviewExpense} className="flex flex-wrap items-center gap-2 pt-1">
                 <input type="hidden" name="id" value={e.id} />
                 <label className="flex items-center gap-1.5 text-sm">
-                  <input type="checkbox" name="recoup" disabled={!e.bandId} /> pay it back from {e.bandId ? `${bandName(e.bandId)}’s` : "band"} sales
+                  <input type="checkbox" name="recoup" disabled={!e.bandId} />{" "}
+                  {e.bandId ? `pay it back from ${bandName(e.bandId)}’s sales` : "pay it back from sales (needs a band: edit it to choose one)"}
                 </label>
                 <input name="note" placeholder="Note (optional)" className="!w-48 !py-1 !text-xs" />
                 <SubmitButton size="sm" name="decision" value="approve">
                   Approve
                 </SubmitButton>
-                <SubmitButton size="sm" variant="ghost" name="decision" value="reject">
+                <SubmitButton size="sm" variant="ghost" name="decision" value="reject" confirm={`Reject “${e.description}”? Add a note first if you want to say why.`}>
                   Reject
                 </SubmitButton>
               </form>

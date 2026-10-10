@@ -12,10 +12,10 @@ import {
   removeAccountMember,
   saveAccountSettings,
   saveMemberType,
-  setMemberRole,
   testBandcampConnection,
 } from "@/server/account-actions";
 import { InviteWhoFields } from "@/components/invite-fields";
+import { RolePicker } from "@/components/role-picker";
 import { SyncFooter } from "@/components/sync-status";
 import { setSetupHidden } from "@/server/actions";
 import { bandcampApiOff } from "@/server/bandcamp-api";
@@ -208,16 +208,7 @@ export default async function AccountPage() {
                         {member.role === "member" ? (typeName(typeOf.get(user.id)) ?? "member") : (ROLE_LABEL[member.role] ?? member.role)}
                       </Badge>
                     ) : (
-                      // Keyed by the saved choice: React resets a form after it's sent, which would otherwise show the old one.
-                      <form key={roleValue(member.role, typeOf.get(user.id))} action={setMemberRole} className="flex items-center gap-2">
-                        <input type="hidden" name="memberId" value={member.id} />
-                        <select name="role" defaultValue={roleValue(member.role, typeOf.get(user.id))} aria-label={`What ${user.name} can do`} className="!w-auto">
-                          {roleOptions}
-                        </select>
-                        <SubmitButton variant="ghost" size="sm">
-                          Save
-                        </SubmitButton>
-                      </form>
+                      <RolePicker memberId={member.id} name={user.name} saved={roleValue(member.role, typeOf.get(user.id))} options={roleOptions} />
                     )}
                   </td>
                   <td className="text-right">
@@ -256,8 +247,8 @@ export default async function AccountPage() {
                     <CopyButton text={link} label="Copy invite link" />
                     <form action={cancelInvite}>
                       <input type="hidden" name="id" value={i.id} />
-                      <SubmitButton variant="ghost" size="sm">
-                        Cancel
+                      <SubmitButton variant="ghost" size="sm" confirm={`Cancel the invite for ${i.email}? Its link stops working.`}>
+                        Cancel invite
                       </SubmitButton>
                     </form>
                   </span>

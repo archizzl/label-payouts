@@ -391,7 +391,7 @@ export async function PayoutView({
                               <Badge tone="good">Paid {l.paidAt?.slice(0, 10)}</Badge>
                               {l.reference && <span className="text-xs text-muted">{l.reference}</span>}
                               <input type="hidden" name="status" value="pending" />
-                              <SubmitButton variant="ghost" size="sm">
+                              <SubmitButton variant="ghost" size="sm" confirm="Mark this payment as not paid yet? Its paid date and reference are cleared.">
                                 Undo
                               </SubmitButton>
                             </>

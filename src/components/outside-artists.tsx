@@ -134,7 +134,7 @@ export async function OutsideArtists() {
                     <input type="hidden" name="artistId" value={artist.id} />
                     <input type="hidden" name="dismissed" value="false" />
                     <SubmitButton variant="ghost" size="sm">
-                      undo
+                      Undo
                     </SubmitButton>
                   </form>
                 </li>

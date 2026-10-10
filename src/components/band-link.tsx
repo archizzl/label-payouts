@@ -35,8 +35,8 @@ export async function BandAccountLink({ labelOrgId, bandId, bandName }: { labelO
             <CopyButton text={row.link.code} label="Copy code" />
             <form action={unlink}>
               <input type="hidden" name="id" value={row.link.id} />
-              <SubmitButton variant="ghost" size="sm">
-                Cancel
+              <SubmitButton variant="ghost" size="sm" confirm="Cancel this link code? The band account won't be able to use it.">
+                Cancel code
               </SubmitButton>
             </form>
           </div>

@@ -276,7 +276,7 @@ export default async function ReleasePage({ params, searchParams }: PageProps<"/
                         <form action={deleteTrack} className="mt-3">
                           <input type="hidden" name="id" value={t.id} />
                           <SubmitButton variant="danger" size="sm" confirm={`Delete ${t.title}?`}>
-                            delete track
+                            Delete track
                           </SubmitButton>
                         </form>
                       </div>

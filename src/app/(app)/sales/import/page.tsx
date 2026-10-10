@@ -99,7 +99,7 @@ function Group({ g, mode, catalog }: { g: Awaited<ReturnType<typeof unroutedGrou
 
 export default async function ImportPage({ searchParams }: PageProps<"/sales/import">) {
   await connection();
-  const { orgId } = await requireAccess("sales", "edit");
+  const { orgId, isAdmin } = await requireAccess("sales", "edit");
   const importedId = Number((await searchParams).imported) || null;
   const [allImports, noBand, noRelease, bands, releases, tracks, creds] = await Promise.all([
     db.select().from(schema.imports).where(eq(schema.imports.orgId, orgId)).orderBy(desc(schema.imports.importedAt)),
@@ -132,8 +132,13 @@ export default async function ImportPage({ searchParams }: PageProps<"/sales/imp
       {!apiReady && (
         <Card>
           <p className="text-sm text-muted">
-            To pull sales automatically, add your Bandcamp API access (client ID and secret) under{" "}
-            <Link href="/account">Settings</Link>.
+            {isAdmin ? (
+              <>
+                To pull sales automatically, add your Bandcamp API access (client ID and secret) under <Link href="/account">Settings</Link>.
+              </>
+            ) : (
+              "To pull sales automatically, an admin needs to add Bandcamp API access in Settings. Until then, upload the sales report here."
+            )}
           </p>
         </Card>
       )}

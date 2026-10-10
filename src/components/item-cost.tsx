@@ -40,7 +40,7 @@ export function ItemCosts({
             <form action={deleteDeduction}>
               <input type="hidden" name="id" value={d.id} />
               <SubmitButton variant="ghost" size="sm" confirm="Remove this cost?">
-                remove
+                Remove
               </SubmitButton>
             </form>
           )}

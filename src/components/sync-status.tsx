@@ -28,10 +28,17 @@ export function ago(iso: string) {
 export async function SyncStatus({ orgId }: { orgId: string }) {
   const s = await syncStatus(orgId);
   if (!s?.configured) {
+    const { isAdmin: canSetUp } = await getContext();
     return (
       <p className="text-sm text-muted">
-        Add your Bandcamp address (and API access, for sales) under <Link href="/account">Settings</Link> to keep artists, releases
-        and sales in sync automatically.
+        {canSetUp ? (
+          <>
+            Add your Bandcamp address (and API access, for sales) under <Link href="/account">Settings</Link> to keep artists, releases
+            and sales in sync automatically.
+          </>
+        ) : (
+          "Not syncing with Bandcamp yet: an admin can set that up in Settings."
+        )}
       </p>
     );
   }

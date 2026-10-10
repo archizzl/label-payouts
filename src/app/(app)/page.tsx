@@ -19,7 +19,7 @@ import { computeAllTime } from "@/server/data";
 
 export default async function Dashboard() {
   await connection();
-  const { orgId } = await requireAccess("dashboard");
+  const { orgId, isAdmin } = await requireAccess("dashboard");
   const [bands, memberships, defaults, saleRows, periods, outside, { summary }, people, releaseRows, fundExpenses] = await Promise.all([
     db.select().from(schema.bands).where(eq(schema.bands.orgId, orgId)),
     db.select().from(schema.bandMemberships).where(eq(schema.bandMemberships.orgId, orgId)),
@@ -135,7 +135,7 @@ export default async function Dashboard() {
         </Callout>
       )}
 
-      {!setupDone && !setupHidden && (
+      {isAdmin && !setupDone && !setupHidden && (
         <Card
           title="Getting started"
           actions={
@@ -210,7 +210,7 @@ export default async function Dashboard() {
         </Card>
       </div>
 
-      {!setupDone && setupHidden && !setupGone && (
+      {isAdmin && !setupDone && setupHidden && !setupGone && (
         <div className="mt-6 flex items-center justify-center gap-2 text-xs text-muted">
           <form action={setSetupHidden}>
             <input type="hidden" name="hidden" value="0" />
