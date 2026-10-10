@@ -1,7 +1,7 @@
 import { asc, eq } from "drizzle-orm";
 import Link from "next/link";
 import { connection } from "next/server";
-import { ActionForm, SubmitButton } from "@/components/client";
+import { ActionForm, Fading, SubmitButton } from "@/components/client";
 import { Badge, buttonClass, Callout, Card, Disclosure, Empty, Field, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
 import { type MerchOrder, PICKUP_MESSAGE, pickList, readyToShip } from "@/lib/merch-orders";
@@ -102,22 +102,26 @@ export default async function OrdersPage({ searchParams }: PageProps<"/orders">)
       />
 
       {pickedUp && (
-        <Callout tone="good">
-          Marked {pickedUp}’s order shipped on Bandcamp as an in-person pickup{sp.emailed ? " and emailed them" : ""}. It’s under Waiting for
-          pickup until you hand it over.
-        </Callout>
+        <Fading clearParams={["pickup", "emailed"]}>
+          <Callout tone="good">
+            Marked {pickedUp}’s order shipped on Bandcamp as an in-person pickup{sp.emailed ? " and emailed them" : ""}. It’s under Waiting for
+            pickup until you hand it over.
+          </Callout>
+        </Fading>
       )}
       {shipped && (
-        <Callout tone="good">
-          Marked {shipped}’s order shipped on Bandcamp{sp.emailed ? " and emailed them" : ""}
-          {Number(sp.costs) > 0 && (
-            <>
-              , and added {formatCents(Number(sp.costs), typeof sp.currency === "string" ? sp.currency : "USD")} of shipping costs to{" "}
-              <Link href="/receipts">Receipts</Link>
-            </>
-          )}
-          .
-        </Callout>
+        <Fading clearParams={["shipped", "emailed", "costs", "currency"]}>
+          <Callout tone="good">
+            Marked {shipped}’s order shipped on Bandcamp{sp.emailed ? " and emailed them" : ""}
+            {Number(sp.costs) > 0 && (
+              <>
+                , and added {formatCents(Number(sp.costs), typeof sp.currency === "string" ? sp.currency : "USD")} of shipping costs to{" "}
+                <Link href="/receipts">Receipts</Link>
+              </>
+            )}
+            .
+          </Callout>
+        </Fading>
       )}
       {typeof sp.costError === "string" && (
         <Callout tone="bad">The order was marked shipped, but its shipping costs couldn’t be saved ({sp.costError}). Add them on Receipts.</Callout>

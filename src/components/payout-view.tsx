@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import Link from "next/link";
-import { ActionForm, CopyButton, SubmitButton } from "@/components/client";
+import { ActionForm, CopyButton, Fading, SubmitButton } from "@/components/client";
 import { outsideArtistRows } from "@/components/outside-artists";
 import { Badge, Callout, Card, Disclosure, Empty, Field, LinkButton, Money, PageHeader, buttonClass } from "@/components/ui";
 import { db, schema } from "@/db";
@@ -145,16 +145,18 @@ export async function PayoutView({
           <b>Sync from Bandcamp</b> again before finalizing.
         </Callout>
       ) : sync?.synced != null ? (
-        <Callout tone="good">
-          {sync.synced > 0 ? (
-            <>
-              Synced with Bandcamp first: {sync.synced} new sale{sync.synced === 1 ? "" : "s"} imported (see{" "}
-              <Link href="/sales/import">Import sales</Link>).
-            </>
-          ) : (
-            "Synced with Bandcamp first: no new sales, you’re up to date."
-          )}
-        </Callout>
+        <Fading clearParams={["synced"]}>
+          <Callout tone="good">
+            {sync.synced > 0 ? (
+              <>
+                Synced with Bandcamp first: {sync.synced} new sale{sync.synced === 1 ? "" : "s"} imported (see{" "}
+                <Link href="/sales/import">Import sales</Link>).
+              </>
+            ) : (
+              "Synced with Bandcamp first: no new sales, you’re up to date."
+            )}
+          </Callout>
+        </Fading>
       ) : null}
 
       {live.alreadyPaid.length > 0 && (

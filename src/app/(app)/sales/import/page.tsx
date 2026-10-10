@@ -1,7 +1,7 @@
 import { asc, desc, eq } from "drizzle-orm";
 import Link from "next/link";
 import { connection } from "next/server";
-import { SubmitButton } from "@/components/client";
+import { Fading, SubmitButton } from "@/components/client";
 import { ImportForm } from "@/components/import-form";
 import { Badge, Callout, Card, Empty, MoneyList, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
@@ -122,10 +122,12 @@ export default async function ImportPage({ searchParams }: PageProps<"/sales/imp
       <PageHeader title="Sales" subtitle="Pull the label-wide sales report from Bandcamp, or upload it as a CSV. Overlapping reports are safe: sales already imported are skipped." />
       <SalesTabs active="import" />
       {justImported && (
-        <Callout tone="good">
-          Imported {justImported.addedCount} new sales from {justImported.filename}
-          {justImported.duplicateCount > 0 && ` (${justImported.duplicateCount} already imported, skipped)`}.
-        </Callout>
+        <Fading clearParams={["imported"]}>
+          <Callout tone="good">
+            Imported {justImported.addedCount} new sales from {justImported.filename}
+            {justImported.duplicateCount > 0 && ` (${justImported.duplicateCount} already imported, skipped)`}.
+          </Callout>
+        </Fading>
       )}
       {bandCount === 0 && <Callout>Tip: add your bands first so sales can be matched automatically. You can still import now and match later.</Callout>}
 
