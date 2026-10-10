@@ -9,6 +9,8 @@ import { createSignupInvite, revokeSignupInvite } from "@/server/admin-actions";
 import { inviteStatus, listInvites } from "@/server/signup-invites";
 import { requireSiteAdmin } from "@/server/site-admin";
 
+export const metadata = { title: "admin" };
+
 const STATUS_TONE = { open: "accent", used: "good", expired: "neutral", revoked: "neutral" } as const;
 
 /** The whole site: invite links for new logins, everyone's logins, and every label and band account. Site admins only. */

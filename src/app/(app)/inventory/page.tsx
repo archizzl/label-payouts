@@ -10,6 +10,8 @@ import { bandScope, can } from "@/lib/permissions";
 import { requireAccess } from "@/server/context";
 import { addFromCatalog, adjustInventory, archiveInventoryItem, saveInventoryItem } from "@/server/inventory-actions";
 
+export const metadata = { title: "inventory" };
+
 type Item = typeof schema.inventoryItems.$inferSelect;
 type Move = typeof schema.inventoryMoves.$inferSelect;
 type Option = { id: number; name: string };

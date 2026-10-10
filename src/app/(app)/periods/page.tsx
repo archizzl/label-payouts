@@ -13,6 +13,8 @@ import { previewPayout } from "@/server/actions";
 import { bandcampCredentials } from "@/server/bandcamp-api";
 import { requireAccess } from "@/server/context";
 
+export const metadata = { title: "payouts" };
+
 export default async function PeriodsPage({ searchParams }: PageProps<"/periods">) {
   await connection();
   const { orgId } = await requireAccess("payouts");

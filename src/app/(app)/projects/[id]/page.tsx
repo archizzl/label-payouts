@@ -19,6 +19,8 @@ import { expenseFileList } from "@/server/expenses";
 import { deleteProject } from "@/server/project-actions";
 import { accountProjects, projectNumbers } from "@/server/projects";
 
+export const metadata = { title: "project" };
+
 /** One project: what it cost, what its releases made back on Bandcamp, and where it stands. */
 export default async function ProjectPage({ params }: PageProps<"/projects/[id]">) {
   await connection();

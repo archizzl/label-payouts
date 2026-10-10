@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { ResetPasswordForm } from "@/components/auth-forms";
 
+export const metadata = { title: "reset password" };
+
 /** Choosing a new password from a reset link a site admin sent. */
 export default async function ResetPasswordPage({ searchParams }: PageProps<"/reset-password">) {
   const q = await searchParams;

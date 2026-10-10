@@ -12,6 +12,8 @@ import { computePayoutPeriod, nameMaps } from "@/server/data";
 import { expenseFileList } from "@/server/expenses";
 import { accountProjects } from "@/server/projects";
 
+export const metadata = { title: "my earnings" };
+
 const STATUS = {
   pending: { label: "To be paid", tone: "warn" },
   paid: { label: "Paid", tone: "good" },

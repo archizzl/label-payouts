@@ -10,6 +10,8 @@ import { saveRelease } from "@/server/actions";
 import { SyncFooter } from "@/components/sync-status";
 import { requireAccess } from "@/server/context";
 
+export const metadata = { title: "catalog" };
+
 export default async function CatalogPage({ searchParams }: PageProps<"/catalog">) {
   await connection();
   const bandFilter = Number((await searchParams).band) || null;

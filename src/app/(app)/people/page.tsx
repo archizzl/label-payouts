@@ -9,6 +9,8 @@ import { payHandlesSummary } from "@/lib/paypal-export";
 import { requireAccess } from "@/server/context";
 import { possibleDuplicates } from "@/server/people";
 
+export const metadata = { title: "people" };
+
 function PersonFields({ person }: { person?: typeof schema.people.$inferSelect }) {
   return (
     <form action={savePerson} className="grid gap-4 sm:grid-cols-2">

@@ -10,6 +10,8 @@ import { deleteRoutingOverride, rerouteAction } from "@/server/actions";
 import { requireAccess } from "@/server/context";
 import { nameMaps, ruleFilter, rulesWhere } from "@/server/data";
 
+export const metadata = { title: "rules" };
+
 export default async function RulesPage() {
   await connection();
   const { orgId } = await requireAccess("rules");

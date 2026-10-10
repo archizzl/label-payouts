@@ -20,11 +20,21 @@ import { linkForLabelBand } from "@/server/links";
 import { LabelFunds } from "@/components/label-funds";
 import { ExpenseForm, ExpenseTable } from "@/components/receipts";
 import { addMember, deleteBand, removeMember, saveRelease, updateMembership } from "@/server/actions";
-import { requireAccess } from "@/server/context";
+import { getContext, requireAccess } from "@/server/context";
 import { projectsEnabled } from "@/server/features";
 import { accountExpenses, expenseFileList } from "@/server/expenses";
 import { accountProjects, projectNumbers } from "@/server/projects";
 import { bandAssociatedPeople, bandMembers, computeAllTime, labelHost, nameMaps, ruleFilter, rulesWhere } from "@/server/data";
+
+/** The tab's title: the band's name. */
+export async function generateMetadata({ params }: PageProps<"/bands/[id]">) {
+  const { orgId } = await getContext();
+  const [band] = await db
+    .select({ name: schema.bands.name })
+    .from(schema.bands)
+    .where(and(eq(schema.bands.orgId, orgId), eq(schema.bands.id, Number((await params).id))));
+  return { title: band?.name ?? "band" };
+}
 
 export default async function BandPage({ params, searchParams }: PageProps<"/bands/[id]">) {
   await connection();

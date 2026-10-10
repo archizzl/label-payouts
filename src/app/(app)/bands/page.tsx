@@ -9,6 +9,8 @@ import { requireAccess } from "@/server/context";
 import { linkedBandAccounts } from "@/server/links";
 import { computeAllTime, labelHost } from "@/server/data";
 
+export const metadata = { title: "bands" };
+
 export default async function BandsPage() {
   await connection();
   const { orgId } = await requireAccess("roster");

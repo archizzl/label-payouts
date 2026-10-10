@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { SignInForm } from "@/components/auth-forms";
 import { getSession } from "@/server/context";
 
+export const metadata = { title: "sign in" };
+
 export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   const q = await searchParams;
   const next = typeof q.next === "string" ? q.next : "/";

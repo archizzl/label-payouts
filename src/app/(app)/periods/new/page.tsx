@@ -4,6 +4,8 @@ import { PayoutView } from "@/components/payout-view";
 import { requireAccess } from "@/server/context";
 import { payoutName, previewView } from "@/server/period-view";
 
+export const metadata = { title: "new payout" };
+
 /** A payout before it's finalized: computed from the band and dates in the address, nothing stored. */
 export default async function PayoutPreviewPage({ searchParams }: PageProps<"/periods/new">) {
   await connection();

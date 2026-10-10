@@ -12,6 +12,8 @@ import { clearableFiles } from "@/server/receipt-cleanup";
 import { accountExpenses, expenseFileList, owedReimbursement } from "@/server/expenses";
 import { accountProjects } from "@/server/projects";
 
+export const metadata = { title: "receipts" };
+
 /** Every expense and its receipts: what's waiting for approval first, then everything else. */
 export default async function ReceiptsPage({ searchParams }: PageProps<"/receipts">) {
   await connection();

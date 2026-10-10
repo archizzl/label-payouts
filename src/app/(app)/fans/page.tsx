@@ -14,6 +14,8 @@ import { requireAccess } from "@/server/context";
 import { deleteFans } from "@/server/fan-actions";
 import { type FanFilter, fanStats, listFans, type Purchase } from "@/server/fans";
 
+export const metadata = { title: "fans" };
+
 /** The mailing list, from Bandcamp's mailing-list export. Admins only: it's fans' personal data. */
 export default async function FansPage({ searchParams }: PageProps<"/fans">) {
   await connection();

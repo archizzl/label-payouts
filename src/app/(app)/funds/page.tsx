@@ -11,6 +11,8 @@ import { requireAccess } from "@/server/context";
 import { nameMaps } from "@/server/data";
 import { LABEL_RELEASES_SOURCE, labelIncome, SHIPPING_SOURCE, type Totals } from "@/server/label-income";
 
+export const metadata = { title: "label funds" };
+
 /** Why each source of label money is there, in a few words. */
 function explain(source: string) {
   if (source === SHIPPING_SOURCE) return "what fans paid for shipping; never split, it pays for postage";

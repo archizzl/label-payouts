@@ -12,6 +12,8 @@ import { requireLinkedView } from "@/server/links";
 import { projectsEnabled } from "@/server/features";
 import { accountProjects, projectNumbers } from "@/server/projects";
 
+export const metadata = { title: "from label" };
+
 const PAYOUT_STATUS = { pending: "to be paid", paid: "paid", kept: "kept by the label account holder" } as const;
 
 /**

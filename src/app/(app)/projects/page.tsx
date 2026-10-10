@@ -9,6 +9,8 @@ import { requireProjects } from "@/server/features";
 import { projectReleaseMap } from "@/server/expenses";
 import { accountProjects, projectNumbers } from "@/server/projects";
 
+export const metadata = { title: "projects" };
+
 /** Every project, with what it cost against what its releases have made back. */
 export default async function ProjectsPage({ searchParams }: PageProps<"/projects">) {
   await connection();

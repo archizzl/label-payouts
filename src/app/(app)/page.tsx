@@ -17,6 +17,8 @@ import { setSetupHidden } from "@/server/actions";
 import { requireAccess } from "@/server/context";
 import { computeAllTime } from "@/server/data";
 
+export const metadata = { title: "dashboard" };
+
 export default async function Dashboard() {
   await connection();
   const { orgId, isAdmin } = await requireAccess("dashboard");

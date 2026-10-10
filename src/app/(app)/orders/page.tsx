@@ -11,6 +11,8 @@ import { requireAccess } from "@/server/context";
 import { loadOpenOrders, type OrderSale, salesForOrders } from "@/server/merch-orders";
 import { markHandedOff, markOrderPickup, markOrderShipped, refreshOrders, savePickupNote } from "@/server/order-actions";
 
+export const metadata = { title: "orders" };
+
 const CARRIERS = ["USPS", "UPS", "FedEx", "DHL", "Royal Mail", "Canada Post", "Australia Post", "Deutsche Post"];
 
 /** Open merch orders from Bandcamp: what to pack, who's waiting, packing slips, and marking them shipped. */

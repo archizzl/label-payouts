@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "labelmaker",
+  // Each page names itself: "labelmaker - orders".
+  title: { template: "labelmaker - %s", default: "labelmaker" },
   description: "Run your indie label: split earnings between bands and members, pay everyone out, and ship your merch.",
   // A private app: keep it out of search engines.
   robots: { index: false, follow: false },

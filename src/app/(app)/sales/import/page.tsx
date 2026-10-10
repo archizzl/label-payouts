@@ -12,6 +12,8 @@ import { SyncFooter } from "@/components/sync-status";
 import { requireAccess } from "@/server/context";
 import { unroutedGroups } from "@/server/data";
 
+export const metadata = { title: "import sales" };
+
 /** The account's bands, releases and tracks, for choosing where unmatched sales belong. */
 type Catalog = {
   bands: (typeof schema.bands.$inferSelect)[];

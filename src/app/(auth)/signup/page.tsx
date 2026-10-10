@@ -4,6 +4,8 @@ import { SignUpForm } from "@/components/auth-forms";
 import { getSession } from "@/server/context";
 import { checkSignup, usableInvite } from "@/server/signup-invites";
 
+export const metadata = { title: "sign up" };
+
 /**
  * Creating a login: only with an invite link (/signup?code=…), or for someone invited into an
  * existing account (they arrive from their invite with ?email=…). Anyone else is told it's by invitation.

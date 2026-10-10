@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import { CreateAccountForm } from "@/components/auth-forms";
 import { accountsFor, getSession } from "@/server/context";
 
+export const metadata = { title: "welcome" };
+
 /** After signing up: set up a label or band account (or, if you were invited, accept the invite). */
 export default async function WelcomePage() {
   const session = await getSession();

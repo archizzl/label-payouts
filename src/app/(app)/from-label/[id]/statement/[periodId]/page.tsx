@@ -6,6 +6,8 @@ import { BandStatement } from "@/components/statement";
 import { requireLinkedView } from "@/server/links";
 import { periodView } from "@/server/period-view";
 
+export const metadata = { title: "statement" };
+
 /** The label's statement for this band for one payout, as the label sees it. */
 export default async function FromLabelStatementPage({ params }: PageProps<"/from-label/[id]/statement/[periodId]">) {
   await connection();

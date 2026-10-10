@@ -6,6 +6,8 @@ import { bandScope, inBandScope } from "@/lib/permissions";
 import { requireAccess } from "@/server/context";
 import { loadOpenOrders } from "@/server/merch-orders";
 
+export const metadata = { title: "packing slips" };
+
 /** Printable packing slips, one per page: where it's going, and what's in the box. */
 export default async function SlipsPage({ searchParams }: PageProps<"/orders/slips">) {
   await connection();

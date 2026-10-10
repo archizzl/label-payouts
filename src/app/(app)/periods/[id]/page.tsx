@@ -4,6 +4,8 @@ import { PayoutView } from "@/components/payout-view";
 import { requireAccess } from "@/server/context";
 import { periodView } from "@/server/period-view";
 
+export const metadata = { title: "payout" };
+
 /** A finalized payout. (Before finalizing, a payout is only a preview at /periods/new.) */
 export default async function PeriodPage({ params }: PageProps<"/periods/[id]">) {
   await connection();

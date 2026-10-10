@@ -10,8 +10,18 @@ import { SharesSummary, SplitRules, currentRule } from "@/components/split-rules
 import { Card, Disclosure, Empty, Field, MoneyList } from "@/components/ui";
 import { db, schema } from "@/db";
 import { addTracks, deleteRelease, deleteTrack, refreshReleaseFromBandcamp, saveRelease, saveTrack } from "@/server/actions";
-import { requireAccess } from "@/server/context";
+import { getContext, requireAccess } from "@/server/context";
 import { bandAssociatedPeople, costDeductionsFor, nameMaps, personOptionsFor, ruleFilter, rulesWhere } from "@/server/data";
+
+/** The tab's title: the release's (or merch item's) name. */
+export async function generateMetadata({ params }: PageProps<"/catalog/[id]">) {
+  const { orgId } = await getContext();
+  const [release] = await db
+    .select({ title: schema.releases.title })
+    .from(schema.releases)
+    .where(and(eq(schema.releases.orgId, orgId), eq(schema.releases.id, Number((await params).id))));
+  return { title: release?.title ?? "release" };
+}
 
 export default async function ReleasePage({ params, searchParams }: PageProps<"/catalog/[id]">) {
   await connection();

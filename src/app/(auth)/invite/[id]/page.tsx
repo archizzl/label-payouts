@@ -5,6 +5,8 @@ import { db, schema } from "@/db";
 import { getSession } from "@/server/context";
 import { normalizeEmail } from "@/server/people";
 
+export const metadata = { title: "invite" };
+
 /** Someone was invited to a label or band account: sign up or in with that email, then accept. */
 export default async function InvitePage({ params }: PageProps<"/invite/[id]">) {
   const { id } = await params;

@@ -25,6 +25,8 @@ import { acceptLinkCode, unlink } from "@/server/link-actions";
 import { bandLinksFor, labelsForBandAccount } from "@/server/links";
 import { inviteMemberTypes, listMemberTypes, memberTypeOf } from "@/server/member-types";
 
+export const metadata = { title: "settings" };
+
 const ROLE_LABEL: Record<string, string> = { owner: "owner", admin: "admin", member: "member" };
 
 /** Account settings, and who can sign in to this account. */

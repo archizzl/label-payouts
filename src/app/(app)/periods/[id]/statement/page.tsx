@@ -6,6 +6,8 @@ import { BandStatement } from "@/components/statement";
 import { requireAccess } from "@/server/context";
 import { periodView } from "@/server/period-view";
 
+export const metadata = { title: "statement" };
+
 export default async function StatementPage({ params, searchParams }: PageProps<"/periods/[id]/statement">) {
   await connection();
   const id = Number((await params).id);

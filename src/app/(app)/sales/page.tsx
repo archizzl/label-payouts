@@ -24,6 +24,8 @@ import {
   summarizeSales,
 } from "@/server/sales-browse";
 
+export const metadata = { title: "sales" };
+
 const TYPE_LABEL: Record<string, string> = { album: "Album", track: "Track", merch: "Merch", other: "Other" };
 
 /** Every sale, filterable and sortable, with totals and breakdowns of what's filtered. */
