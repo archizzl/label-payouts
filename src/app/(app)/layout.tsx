@@ -5,15 +5,17 @@ import { AREAS, can } from "@/lib/permissions";
 import { syncAccount, syncStatus } from "@/server/auto-sync";
 import { getContext } from "@/server/context";
 import { labelsForBandAccount } from "@/server/links";
+import { navBadges } from "@/server/nav-badges";
 import { isSiteAdminEmail } from "@/server/site-admin";
 
 /** Everything you see once signed in: the nav (with your accounts), then the page. */
 export default async function AppLayout({ children }: LayoutProps<"/">) {
   const ctx = await getContext();
-  const [labels, sync] = await Promise.all([
+  const [labels, sync, badges] = await Promise.all([
     // A band account's admins see each label it's linked to.
     ctx.isAdmin && ctx.org.kind === "band" ? labelsForBandAccount(ctx.orgId) : [],
     syncStatus(ctx.orgId),
+    navBadges(ctx),
   ]);
 
   // Locally, opening the app keeps it in step with Bandcamp: at most once an hour, in the background,
@@ -36,6 +38,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
         accounts={ctx.accounts}
         isAdmin={ctx.isAdmin}
         areas={AREAS.filter((a) => can(ctx.access, a.key)).map((a) => a.key)}
+        badges={badges}
         siteAdmin={isSiteAdminEmail(ctx.user.email)}
         syncing={due || !!sync?.running}
         labels={labels.map(({ link, label }) => ({ href: `/from-label/${link.id}`, label: `from ${label.name}` }))}

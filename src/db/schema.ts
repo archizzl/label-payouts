@@ -55,6 +55,11 @@ export const accountSettings = pgTable("account_settings", {
   syncError: text("sync_error"),
   /** When `npm run sync-catalog` (on a Mac) last read the public Bandcamp pages for this account. */
   catalogSyncedAt: text("catalog_synced_at"),
+  /**
+   * How many merch orders were waiting to ship when they were last fetched from Bandcamp (orders
+   * page, dashboard, hourly sync), in total and per band: the number on the Orders tab.
+   */
+  openOrders: jsonb("open_orders").$type<{ ready: number; byBand: Record<string, number>; at: string }>(),
   /** An admin closed the dashboard's "Getting started" checklist (it can be brought back). */
   setupHidden: boolean("setup_hidden").notNull().default(false),
   /** …and asked for no reminder either: nothing checklist-related on the dashboard (Settings brings it back). */
@@ -805,4 +810,19 @@ export const inventoryMoves = pgTable(
     createdAt: text("created_at").notNull().default(now),
   },
   (t) => [index("inventory_moves_item").on(t.itemId)],
+);
+
+/** When someone last opened a section (e.g. Sales), so its tab can show what's new since. */
+export const navSeen = pgTable(
+  "nav_seen",
+  {
+    id: id(),
+    orgId: orgId(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    area: text("area").notNull(),
+    seenAt: text("seen_at").notNull().default(now),
+  },
+  (t) => [uniqueIndex("nav_seen_org_user_area").on(t.orgId, t.userId, t.area)],
 );

@@ -1,7 +1,7 @@
 import "server-only";
 import { and, eq, inArray, or, sql } from "drizzle-orm";
 import { db, schema } from "@/db";
-import { groupOrders, type MerchOrder } from "@/lib/merch-orders";
+import { groupOrders, type MerchOrder, readyToShip } from "@/lib/merch-orders";
 import { bandcampCredentials, openMerchOrders } from "./bandcamp-api";
 
 /*
@@ -16,6 +16,17 @@ const cache = ((globalThis as unknown as { merchOrders?: Map<string, { at: numbe
 
 export function forgetOpenOrders(orgId: string) {
   cache.delete(orgId);
+}
+
+/** Save how many orders are waiting to ship (in total and per band), for the Orders tab's number. */
+async function rememberOpenOrders(orgId: string, orders: MerchOrder[]) {
+  const ready = orders.filter(readyToShip);
+  const byBand: Record<string, number> = {};
+  for (const o of ready) for (const b of o.bandIds) byBand[b] = (byBand[b] ?? 0) + 1;
+  await db
+    .update(schema.accountSettings)
+    .set({ openOrders: { ready: ready.length, byBand, at: new Date().toISOString() } })
+    .where(eq(schema.accountSettings.orgId, orgId));
 }
 
 export async function loadOpenOrders(orgId: string, { fresh = false } = {}): Promise<OpenOrders> {
@@ -33,7 +44,10 @@ export async function loadOpenOrders(orgId: string, { fresh = false } = {}): Pro
   } catch (e) {
     value = { status: "error", message: (e as Error).message };
   }
-  if (value.status === "ok") cache.set(orgId, { at: Date.now(), value });
+  if (value.status === "ok") {
+    cache.set(orgId, { at: Date.now(), value });
+    await rememberOpenOrders(orgId, value.orders);
+  }
   return value;
 }
 

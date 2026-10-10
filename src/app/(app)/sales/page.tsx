@@ -11,6 +11,7 @@ import { formatCents } from "@/lib/money";
 import { loadLayout } from "@/server/chart-layouts";
 import { bandScope, can } from "@/lib/permissions";
 import { requireAccess } from "@/server/context";
+import { markSeen } from "@/server/nav-badges";
 import {
   browseSales,
   filterQuery,
@@ -28,7 +29,10 @@ const TYPE_LABEL: Record<string, string> = { album: "Album", track: "Track", mer
 /** Every sale, filterable and sortable, with totals and breakdowns of what's filtered. */
 export default async function SalesPage({ searchParams }: PageProps<"/sales">) {
   await connection();
-  const { orgId, access } = await requireAccess("sales");
+  const ctx = await requireAccess("sales");
+  const { orgId, access } = ctx;
+  // Opening Sales clears its "new sales" number.
+  await markSeen(ctx, "sales");
   // A member type can limit this to their own bands' sales.
   const scope = bandScope(access, "sales");
   const f = { ...parseSalesFilter(await searchParams), onlyBands: scope ?? undefined };

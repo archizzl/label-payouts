@@ -5,6 +5,7 @@ import { db, schema } from "@/db";
 import { artistsFromApi, merchFromApi, releasesFromSales } from "./api-catalog";
 import { type BandcampAccountBand, bandcampCredentials, myBands } from "./bandcamp-api";
 import { reRouteAll } from "./data";
+import { loadOpenOrders } from "./merch-orders";
 import { addArtists, importReleases, lookupLabelArtists, lookupLabelReleases, refreshBandPhotos, type ReleaseImportRow, runSalesSync } from "./sync";
 
 /*
@@ -189,6 +190,10 @@ export async function syncAccount(orgId: string, { force = false } = {}): Promis
     await step("Sales", async () => {
       const { added } = await runSalesSync(orgId);
       if (added) found.push(plural(added, "new sale"));
+    });
+    // Open merch orders: refreshes the number on the Orders tab.
+    await step("Orders", async () => {
+      await loadOpenOrders(orgId, { fresh: true });
     });
     await step("Releases from sales", async () => {
       const { added } = await releasesFromSales(orgId);

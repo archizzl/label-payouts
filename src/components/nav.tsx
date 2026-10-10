@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import type { Area } from "@/lib/permissions";
 import { signOut, switchAccount } from "@/server/account-actions";
 import type { Account } from "@/server/context";
@@ -77,6 +77,7 @@ export function Nav({
   accounts,
   isAdmin,
   areas = [],
+  badges = {},
   labels = [],
   syncing = false,
   siteAdmin = false,
@@ -87,6 +88,8 @@ export function Nav({
   isAdmin: boolean;
   /** For members: the sections their member type lets them see. */
   areas?: Area[];
+  /** Numbers on tabs: orders to ship, new sales, receipts to approve. */
+  badges?: Partial<Record<"orders" | "sales" | "receipts", number>>;
   /** Band accounts: a link to each label they're linked to. */
   labels?: Item[];
   /** A background sync with Bandcamp is running (or about to). */
@@ -95,6 +98,15 @@ export function Nav({
   siteAdmin?: boolean;
 }) {
   const path = usePathname();
+  // "New sales" counts from your last look at Sales: once you've opened it, stop showing the number
+  // (the header isn't reloaded on every click, so it would otherwise linger).
+  const [seenSales, setSeenSales] = useState(false);
+  if (path === "/sales" && !seenSales) setSeenSales(true);
+  const countFor = (href: string) => {
+    const key = href.slice(1) as "orders" | "sales" | "receipts";
+    if (key === "sales" && seenSales) return 0;
+    return badges[key] ?? 0;
+  };
   const items = [...itemsFor(account, isAdmin, areas, labels, siteAdmin), ...(siteAdmin ? [{ href: "/admin", label: "admin" }] : [])];
   return (
     <header className="no-print border-b border-border bg-surface">
@@ -120,15 +132,26 @@ export function Nav({
         <ul className="-mb-px flex gap-5 overflow-x-auto">
           {items.map((it) => {
             const active = it.href === "/" ? path === "/" : path.startsWith(it.href);
+            const n = countFor(it.href);
+            const what = { "/orders": "to ship or hand over", "/sales": "new", "/receipts": "to approve" }[it.href] ?? "";
             return (
               <li key={it.href}>
                 <Link
                   href={it.href}
-                  className={`block border-b-[3px] pt-1 pb-2 whitespace-nowrap hover:no-underline ${
+                  className={`flex items-center gap-1.5 border-b-[3px] pt-1 pb-2 whitespace-nowrap hover:no-underline ${
                     active ? "border-accent font-bold text-text" : "border-transparent text-muted hover:text-text"
                   }`}
                 >
                   {it.label}
+                  {n > 0 && (
+                    <span
+                      className="min-w-[1.15rem] rounded-full bg-accent px-1.5 text-center text-[11px] leading-[1.15rem] font-bold text-accent-fg tabular-nums"
+                      title={`${n} ${what}`}
+                      aria-label={`${n} ${what}`}
+                    >
+                      {n > 99 ? "99+" : n}
+                    </span>
+                  )}
                 </Link>
               </li>
             );
