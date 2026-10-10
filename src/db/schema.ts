@@ -751,3 +751,58 @@ export const pickupOrders = pgTable(
   },
   (t) => [uniqueIndex("pickup_orders_org_payment").on(t.orgId, t.paymentId)],
 );
+
+/**
+ * Inventory: what a label or band has on hand. Either something it sells (a format or merch item,
+ * optionally linked to the catalog) or a supply that isn't for sale (jewel cases, blank CDs,
+ * mailers). Counts change through moves (inventoryMoves), so each item has a history.
+ */
+export const inventoryItems = pgTable(
+  "inventory_items",
+  {
+    id: id(),
+    orgId: orgId(),
+    kind: text("kind", { enum: ["product", "supply"] }).notNull().default("product"),
+    name: text("name").notNull(),
+    bandId: integer("band_id").references(() => bands.id, { onDelete: "set null" }),
+    /** The catalog item it's stock of (a release's format, or a merch item). */
+    releaseId: integer("release_id").references(() => releases.id, { onDelete: "set null" }),
+    /** Which of that release's packages (Bandcamp package id), for a format. */
+    packageId: bigint("package_id", { mode: "number" }),
+    /** A size or colour, e.g. "M". */
+    option: text("option"),
+    sku: text("sku"),
+    onHand: integer("on_hand").notNull().default(0),
+    /** Flag it as running low at or below this many. */
+    lowAt: integer("low_at"),
+    unitCostCents: integer("unit_cost_cents"),
+    currency: text("currency").notNull().default("USD"),
+    /** Where it's kept. */
+    location: text("location"),
+    notes: text("notes"),
+    archived: boolean("archived").notNull().default(false),
+    createdAt: text("created_at").notNull().default(now),
+  },
+  (t) => [index("inventory_items_org").on(t.orgId)],
+);
+
+/** A change to an item's count: received, used, sold, recounted… */
+export const inventoryMoves = pgTable(
+  "inventory_moves",
+  {
+    id: id(),
+    orgId: orgId(),
+    itemId: integer("item_id")
+      .notNull()
+      .references(() => inventoryItems.id, { onDelete: "cascade" }),
+    /** + in, − out. A recount stores the difference it made. */
+    delta: integer("delta").notNull(),
+    reason: text("reason", { enum: ["received", "sold", "used", "given", "damaged", "recount", "other"] }).notNull(),
+    note: text("note"),
+    /** The count afterwards, for the history. */
+    onHandAfter: integer("on_hand_after").notNull(),
+    byUserId: text("by_user_id").references(() => user.id, { onDelete: "set null" }),
+    createdAt: text("created_at").notNull().default(now),
+  },
+  (t) => [index("inventory_moves_item").on(t.itemId)],
+);

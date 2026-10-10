@@ -27,6 +27,7 @@ function itemsFor(account: Account, isAdmin: boolean, areas: Area[], labels: Ite
     { href: "/", label: "dashboard", area: "dashboard" },
     { href: "/sales", label: "sales", area: "sales" },
     { href: "/orders", label: "orders", area: "orders" },
+    { href: "/inventory", label: "inventory", area: "inventory" },
     { href: "/periods", label: "payouts", area: "payouts" },
     ...(account.kind === "label" ? [{ href: "/funds", label: "label funds", area: "funds" as const }] : []),
     { href: "/receipts", label: "receipts", area: "receipts" },

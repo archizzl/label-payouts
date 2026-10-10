@@ -9,6 +9,7 @@ export const AREAS = [
   { key: "dashboard", label: "Dashboard", hint: "The overview: who's owed what, recent sales, charts.", edit: false, bands: false },
   { key: "sales", label: "Sales", hint: "Browsing sales; changing means importing and matching them.", edit: true, bands: true },
   { key: "orders", label: "Orders", hint: "Open merch orders; changing means marking them shipped.", edit: true, bands: true },
+  { key: "inventory", label: "Inventory", hint: "Stock of merch, formats and supplies; changing means adding items and counts.", edit: true, bands: true },
   { key: "payouts", label: "Payouts", hint: "Payout periods and statements; changing means making and paying them.", edit: true, bands: false },
   { key: "funds", label: "Label funds", hint: "What the label holds and has sent on.", edit: true, bands: false },
   { key: "receipts", label: "Receipts", hint: "Everyone's receipts; changing means approving and reimbursing.", edit: true, bands: false },
