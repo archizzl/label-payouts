@@ -4,12 +4,12 @@ import { connection } from "next/server";
 import { ActionForm, SubmitButton } from "@/components/client";
 import { Badge, buttonClass, Callout, Card, Disclosure, Empty, Field, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
-import { type MerchOrder, pickList, readyToShip } from "@/lib/merch-orders";
+import { type MerchOrder, PICKUP_MESSAGE, pickList, readyToShip } from "@/lib/merch-orders";
 import { formatCents } from "@/lib/money";
 import { bandScope, can, inBandScope } from "@/lib/permissions";
 import { requireAccess } from "@/server/context";
 import { loadOpenOrders, type OrderSale, salesForOrders } from "@/server/merch-orders";
-import { markOrderShipped, refreshOrders } from "@/server/order-actions";
+import { markHandedOff, markOrderPickup, markOrderShipped, refreshOrders, savePickupNote } from "@/server/order-actions";
 
 const CARRIERS = ["USPS", "UPS", "FedEx", "DHL", "Royal Mail", "Canada Post", "Australia Post", "Deutsche Post"];
 
@@ -19,11 +19,13 @@ export default async function OrdersPage({ searchParams }: PageProps<"/orders">)
   const { orgId, access } = await requireAccess("orders");
   // A member type can limit this to their own bands' orders, and to looking (not marking shipped).
   const scope = bandScope(access, "orders");
+  const canEdit = can(access, "orders", "edit");
   // Marking shipped covers the whole order, so someone limited to their bands can only mark orders that are all theirs.
   const shippable = (o: MerchOrder) => can(access, "orders", "edit") && (scope === null || o.lines.every((l) => l.bandId !== null && scope.includes(l.bandId)));
   const sp = await searchParams;
   const band = Number(sp.band) || null;
   const shipped = typeof sp.shipped === "string" ? sp.shipped.slice(0, 80) : null;
+  const pickedUp = typeof sp.pickup === "string" ? sp.pickup.slice(0, 80) : null;
   const [open, bands, people] = await Promise.all([
     loadOpenOrders(orgId),
     db.select({ id: schema.bands.id, name: schema.bands.name }).from(schema.bands).where(eq(schema.bands.orgId, orgId)).orderBy(asc(schema.bands.name)),
@@ -33,6 +35,11 @@ export default async function OrdersPage({ searchParams }: PageProps<"/orders">)
   if (open.status === "ok") open.orders = open.orders.filter((o) => inBandScope(scope, o.bandIds));
   // The money side of each order (fees, shipping, tax, what you received), for those who can see sales.
   const orderSales = open.status === "ok" && can(access, "sales") ? await salesForOrders(orgId, open.orders) : null;
+
+  // Orders marked for in-person pickup, not handed over yet.
+  const pickups = (
+    await db.select().from(schema.pickupOrders).where(eq(schema.pickupOrders.orgId, orgId)).orderBy(asc(schema.pickupOrders.orderDate))
+  ).filter((p) => inBandScope(scope, p.bandIds) && (!band || p.bandIds.includes(band)));
 
   if (open.status !== "ok") {
     return (
@@ -59,6 +66,9 @@ export default async function OrdersPage({ searchParams }: PageProps<"/orders">)
             </form>
           </Callout>
         )}
+        <div className="mt-8">
+          <PickupList pickups={pickups} bandName={bandName} canEdit={canEdit} />
+        </div>
       </>
     );
   }
@@ -91,6 +101,12 @@ export default async function OrdersPage({ searchParams }: PageProps<"/orders">)
         }
       />
 
+      {pickedUp && (
+        <Callout tone="good">
+          Marked {pickedUp}’s order shipped on Bandcamp as an in-person pickup{sp.emailed ? " and emailed them" : ""}. It’s under Waiting for
+          pickup until you hand it over.
+        </Callout>
+      )}
       {shipped && (
         <Callout tone="good">
           Marked {shipped}’s order shipped on Bandcamp{sp.emailed ? " and emailed them" : ""}
@@ -126,6 +142,8 @@ export default async function OrdersPage({ searchParams }: PageProps<"/orders">)
         <Tile label="Oldest waiting" value={ready.length ? `${ready[0].daysWaiting} day${ready[0].daysWaiting === 1 ? "" : "s"}` : "–"} />
         <Tile label="Pre-orders not out yet" value={String(preorders.length)} />
       </div>
+
+      <PickupList pickups={pickups} bandName={bandName} canEdit={canEdit} />
 
       {all.length === 0 ? (
         <Card>
@@ -293,6 +311,29 @@ function OrderList({
                   </ActionForm>
                 </Disclosure>
               )}
+              {!o.failed && canShip(o) && (
+                <Disclosure summary="Pickup">
+                  <ActionForm action={markOrderPickup} className="grid gap-3 sm:grid-cols-2">
+                    <input type="hidden" name="paymentId" value={o.paymentId} />
+                    <p className="text-sm text-muted sm:col-span-2">
+                      For an order collected in person. It’s marked shipped on Bandcamp now (so it isn’t late), then waits under Waiting for
+                      pickup until you hand it over.
+                    </p>
+                    <label className="flex items-center gap-2 text-sm sm:col-span-2">
+                      <input type="checkbox" name="notify" defaultChecked /> Email {o.buyer.name || "the buyer"} that it’s ready
+                    </label>
+                    <Field label="Message to them" className="sm:col-span-2">
+                      <input name="message" defaultValue={PICKUP_MESSAGE} maxLength={1000} />
+                    </Field>
+                    <Field label="Note for you (optional)" hint="When, where, who’s collecting. Only shown here." className="sm:col-span-2">
+                      <input name="note" maxLength={500} />
+                    </Field>
+                    <div className="sm:col-span-2">
+                      <SubmitButton confirm={`Mark ${o.buyer.name || "this order"}’s order shipped on Bandcamp as an in-person pickup?`}>Mark as pickup</SubmitButton>
+                    </div>
+                  </ActionForm>
+                </Disclosure>
+              )}
             </div>
           </div>
           <div className="text-sm">
@@ -439,5 +480,58 @@ function OrderDetails({ order: o, sales, bandName }: { order: MerchOrder; sales:
           </div>
         ))}
     </div>
+  );
+}
+
+type PickupRow = typeof schema.pickupOrders.$inferSelect;
+
+/** Orders marked for in-person pickup and not handed over yet (these don't need Bandcamp to show). */
+function PickupList({ pickups, bandName, canEdit }: { pickups: PickupRow[]; bandName: Map<number, string>; canEdit: boolean }) {
+  if (!pickups.length) return null;
+  return (
+    <Card title={`Waiting for pickup (${pickups.length})`}>
+      <ul className="divide-y divide-border border-y border-border">
+        {pickups.map((p) => (
+          <li key={p.id} className="grid gap-3 py-3 md:grid-cols-[minmax(0,1fr)_auto]">
+            <div className="min-w-0 space-y-1">
+              <div className="flex flex-wrap items-baseline gap-x-3">
+                <span className="font-bold">{p.buyerName}</span>
+                <span className="text-sm text-muted">ordered {p.orderDate}</span>
+                <Badge>marked shipped {p.createdAt.slice(0, 10)}</Badge>
+              </div>
+              <ul className="text-sm">
+                {p.items.map((it, i) => (
+                  <li key={i}>
+                    <span className="font-bold tabular-nums">{it.quantity} ×</span> {it.name}
+                    {it.option && <span> — {it.option}</span>}
+                    {it.bandId && bandName.get(it.bandId) && <span className="text-muted"> · {bandName.get(it.bandId)}</span>}
+                  </li>
+                ))}
+              </ul>
+              {canEdit ? (
+                <form action={savePickupNote} className="flex flex-wrap items-center gap-2">
+                  <input type="hidden" name="id" value={p.id} />
+                  <input name="note" defaultValue={p.note ?? ""} placeholder="Note: when, where, who’s collecting" className="!w-72 !py-1 !text-sm" maxLength={500} />
+                  <SubmitButton variant="ghost" size="sm">
+                    Save note
+                  </SubmitButton>
+                </form>
+              ) : (
+                p.note && <p className="text-sm text-muted">{p.note}</p>
+              )}
+            </div>
+            {canEdit && (
+              <form action={markHandedOff} className="self-start">
+                <input type="hidden" name="id" value={p.id} />
+                <SubmitButton size="sm" confirm={`Mark ${p.buyerName}’s order as handed over? It leaves this list.`}>
+                  Handed over
+                </SubmitButton>
+              </form>
+            )}
+          </li>
+        ))}
+      </ul>
+      <p className="mt-2 text-xs text-muted">Already marked shipped on Bandcamp. Only the buyer’s name and items are kept here, until it’s handed over.</p>
+    </Card>
   );
 }

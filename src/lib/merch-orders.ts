@@ -57,6 +57,9 @@ export type MerchOrder = {
   bandIds: number[];
 };
 
+/** The default message to a buyer collecting their order in person. */
+export const PICKUP_MESSAGE = "Your order is ready for pickup! We'll be in touch to sort out when and where.";
+
 const clean = (s: string | null | undefined) => (s ?? "").trim();
 
 /** Group item rows into orders (oldest first), matching each item's artist to a band. */

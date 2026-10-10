@@ -724,3 +724,30 @@ export const invitationMemberTypes = pgTable("invitation_member_types", {
     .notNull()
     .references(() => memberTypes.id, { onDelete: "cascade" }),
 });
+
+/**
+ * Merch orders someone will collect in person: marked shipped on Bandcamp straight away (so the
+ * order isn't late and the buyer hears it's ready), then kept here until it's handed over. Holds
+ * only what's needed to hand it over (no address, email or phone), and is deleted on hand-off.
+ */
+export const pickupOrders = pgTable(
+  "pickup_orders",
+  {
+    id: id(),
+    orgId: orgId(),
+    /** Bandcamp's payment id for the order. */
+    paymentId: bigint("payment_id", { mode: "number" }).notNull(),
+    buyerName: text("buyer_name").notNull(),
+    orderDate: text("order_date").notNull(),
+    /** What to hand over. */
+    items: jsonb("items")
+      .$type<{ name: string; option: string | null; quantity: number; sku: string | null; bandId: number | null }[]>()
+      .notNull(),
+    bandIds: jsonb("band_ids").$type<number[]>().notNull().default([]),
+    /** For whoever hands it over: where, when, who's collecting. */
+    note: text("note"),
+    markedByUserId: text("marked_by_user_id").references(() => user.id, { onDelete: "set null" }),
+    createdAt: text("created_at").notNull().default(now),
+  },
+  (t) => [uniqueIndex("pickup_orders_org_payment").on(t.orgId, t.paymentId)],
+);
