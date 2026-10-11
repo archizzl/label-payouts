@@ -316,12 +316,12 @@ function AddMenu({ charts, layout, onAdd, onReset }: { charts: BoardChart[]; lay
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
-        className="rounded-lg border border-dashed border-border px-3 py-1.5 text-sm text-muted hover:border-muted hover:text-text"
+        className="rounded-sm border border-dashed border-border px-3 py-1.5 text-sm text-muted hover:border-muted hover:text-text"
       >
         + Add chart
       </button>
       {open && (
-        <div role="menu" className="absolute left-0 z-20 mt-1 w-64 rounded-xl border border-border bg-surface p-1 text-sm shadow-md">
+        <div role="menu" className="absolute left-0 z-20 mt-1 w-64 rounded-sm border border-border bg-surface p-1 text-sm shadow-md">
           {charts.map((c) => {
             const shown = layout.some((l) => l.kind === c.spec.kind);
             return (
@@ -425,8 +425,8 @@ export function ChartBoard({
   const shown = layout.map((item) => ({ item, chart: charts.find((c) => c.spec.kind === item.kind)! })).filter((x) => x.chart);
 
   return (
-    <div className={plain ? "" : "mb-6"}>
-      <div className={`grid md:grid-cols-2 ${plain ? "gap-x-8 gap-y-2" : "gap-6"}`}>
+    <div className={plain ? "" : "mb-10"}>
+      <div className="grid gap-x-8 gap-y-2 md:grid-cols-2">
         {shown.map(({ item, chart }, i) => {
           const wide =
             chart.spec.wide ||
@@ -435,12 +435,9 @@ export function ChartBoard({
             chart.data.shape === "held-sent" ||
             chart.data.shape === "spent-made";
           return (
-            <section
-              key={item.uid}
-              className={`min-w-0 ${wide ? "md:col-span-2" : ""} ${plain ? "mb-6" : "rounded-2xl border border-border bg-surface p-5 shadow-[0_1px_2px_rgba(28,27,25,0.04)]"}`}
-            >
-              <div className="mb-3 flex items-center justify-between gap-2">
-                <h3 className={plain ? "text-sm font-bold" : "text-[17px] font-semibold tracking-tight"}>
+            <section key={item.uid} className={`${plain ? "mb-6" : "mb-8"} min-w-0 ${wide ? "md:col-span-2" : ""}`}>
+              <div className={`mb-3 flex items-center justify-between gap-2 ${plain ? "" : "border-b border-border pb-2"}`}>
+                <h3 className={plain ? "text-sm font-bold" : "text-base font-bold"}>
                   {chart.spec.title}
                   {chart.subtitle && <span className="ml-2 text-xs font-normal text-muted">{chart.subtitle}</span>}
                 </h3>
@@ -452,9 +449,7 @@ export function ChartBoard({
         })}
       </div>
       {shown.length === 0 && <p className="mb-3 text-sm text-muted">All charts here are hidden.</p>}
-      <div className={plain ? "" : "mt-4"}>
-        <AddMenu charts={charts} layout={layout} onAdd={add} onReset={reset} />
-      </div>
+      <AddMenu charts={charts} layout={layout} onAdd={add} onReset={reset} />
     </div>
   );
 }

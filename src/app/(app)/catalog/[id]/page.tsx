@@ -169,7 +169,7 @@ export default async function ReleasePage({ params, searchParams }: PageProps<"/
               <ActionForm action={refreshReleaseFromBandcamp} className="text-sm">
                 <input type="hidden" name="id" value={id} />
                 <SubmitButton variant="secondary" size="sm">
-                  Refresh from Bandcamp
+                  refresh from Bandcamp
                 </SubmitButton>
               </ActionForm>
             )} */}
@@ -280,7 +280,7 @@ export default async function ReleasePage({ params, searchParams }: PageProps<"/
                             </select>
                           </Field>
                           <div className="flex items-end gap-2">
-                            <SubmitButton size="sm">Save track</SubmitButton>
+                            <SubmitButton size="sm">save track</SubmitButton>
                           </div>
                         </form>
                         <form action={deleteTrack} className="mt-3">

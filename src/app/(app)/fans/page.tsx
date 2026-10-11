@@ -275,7 +275,7 @@ function Bought({ purchases, bandName }: { purchases: Purchase[]; bandName: Map<
 
 function Tile({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-border bg-surface px-4 py-3">
+    <div className="border border-border bg-surface px-4 py-3">
       <div className="text-2xl font-bold tabular-nums">{value}</div>
       <div className="text-xs text-muted">{label}</div>
     </div>

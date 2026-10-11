@@ -5,22 +5,22 @@ import { formatCents } from "@/lib/money";
 export function PageHeader({ title, subtitle, actions }: { title: ReactNode; subtitle?: ReactNode; actions?: ReactNode }) {
   return (
     <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
-      <div className="max-w-3xl">
-        <h1 className="font-brand text-[34px] leading-tight font-bold tracking-tight">{title}</h1>
-        {subtitle && <p className="mt-1.5 text-[15px] text-muted">{subtitle}</p>}
+      <div>
+        <h1 className="text-[28px] leading-tight font-bold">{title}</h1>
+        {subtitle && <p className="mt-1 text-muted">{subtitle}</p>}
       </div>
       {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
     </div>
   );
 }
 
-/** A section: a rounded card on the page, its heading inside. */
+/** A section: bold heading over a hairline rule, content on the page (no heavy boxes). */
 export function Card({ title, actions, children, className = "" }: { title?: ReactNode; actions?: ReactNode; children: ReactNode; className?: string }) {
   return (
-    <section className={`mb-6 rounded-2xl border border-border bg-surface p-5 shadow-[0_1px_2px_rgba(28,27,25,0.04)] md:p-6 ${className}`}>
+    <section className={`mb-10 ${className}`}>
       {(title || actions) && (
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-[17px] font-semibold tracking-tight">{title}</h2>
+        <div className="mb-3 flex flex-wrap items-end justify-between gap-2 border-b border-border pb-2">
+          <h2 className="text-base font-bold">{title}</h2>
           {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
         </div>
       )}
@@ -37,7 +37,8 @@ const buttonStyles = {
 };
 
 export function buttonClass(variant: keyof typeof buttonStyles = "secondary", size: "sm" | "md" = "md") {
-  return `inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-md whitespace-nowrap transition hover:no-underline disabled:cursor-default disabled:opacity-50 ${
+  // Bandcamp's controls speak in lowercase: "buy now", "share / embed".
+  return `inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-sm lowercase whitespace-nowrap transition hover:no-underline disabled:cursor-default disabled:opacity-50 ${
     size === "sm" ? "px-2.5 py-[3px] text-xs" : "px-4 py-[7px] text-sm font-bold"
   } ${buttonStyles[variant]}`;
 }
@@ -101,7 +102,7 @@ const badgeTones = {
 };
 
 export function Badge({ tone = "neutral", children }: { tone?: keyof typeof badgeTones; children: ReactNode }) {
-  return <span className={`inline-flex items-center rounded-full border px-2 py-px text-xs font-medium ${badgeTones[tone]}`}>{children}</span>;
+  return <span className={`inline-flex items-center rounded-sm border px-1.5 py-px text-xs lowercase ${badgeTones[tone]}`}>{children}</span>;
 }
 
 export function Callout({ tone = "warn", children }: { tone?: "warn" | "bad" | "good" | "neutral"; children: ReactNode }) {
@@ -111,7 +112,7 @@ export function Callout({ tone = "warn", children }: { tone?: "warn" | "bad" | "
     good: "border-good/30 bg-good-bg text-good",
     neutral: "border-border bg-surface-2 text-muted",
   }[tone];
-  return <div className={`mb-5 rounded-xl border px-4 py-3 text-sm ${t}`}>{children}</div>;
+  return <div className={`mb-5 border border-l-4 px-4 py-2.5 text-sm ${t}`}>{children}</div>;
 }
 
 /** What an empty section says. Quiet and left-aligned, like the rest of the page's text. */
@@ -124,7 +125,7 @@ export function Disclosure({ summary, children }: { summary: ReactNode; children
   return (
     <details className="group">
       <summary className={buttonClass("secondary", "sm")}>{summary}</summary>
-      <div className="mt-3 rounded-xl border border-border bg-surface-2 p-4 text-left">{children}</div>
+      <div className="mt-3 border border-border bg-surface-2 p-4 text-left">{children}</div>
     </details>
   );
 }

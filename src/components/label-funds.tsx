@@ -259,7 +259,7 @@ export async function LabelFunds({ bandId, showTotals = true }: { bandId?: numbe
 
 function Stat({ label, cents, currency, emphasis }: { label: string; cents: number; currency: string; emphasis?: boolean }) {
   return (
-    <div className={`rounded-xl border bg-surface px-4 py-3 ${emphasis ? "border-accent" : "border-border"}`}>
+    <div className={`border-l-2 pl-3 ${emphasis ? "border-accent" : "border-border"}`}>
       <div className="text-xs text-muted lowercase">{label}</div>
       <div className={`mt-0.5 text-xl font-bold ${emphasis ? "text-accent" : ""}`}>
         <Money cents={cents} currency={currency} />

@@ -66,7 +66,7 @@ export function ItemCosts({
               ))}
             </select>
           </label>
-          <SubmitButton size="sm">Add cost</SubmitButton>
+          <SubmitButton size="sm">add cost</SubmitButton>
         </form>
       </Disclosure>
     </div>
