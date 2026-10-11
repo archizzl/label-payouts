@@ -24,22 +24,22 @@ type Item = { href: string; label: string };
 
 function itemsFor(account: Account, isAdmin: boolean, areas: Area[], labels: Item[], projects: boolean): Item[] {
   const all: (Item & { area?: Area })[] = [
-    { href: "/", label: "dashboard", area: "dashboard" },
-    { href: "/sales", label: "sales", area: "sales" },
-    { href: "/orders", label: "orders", area: "orders" },
-    { href: "/inventory", label: "inventory", area: "inventory" },
-    { href: "/periods", label: "payouts", area: "payouts" },
-    ...(account.kind === "label" ? [{ href: "/funds", label: "label funds", area: "funds" as const }] : []),
-    { href: "/receipts", label: "receipts", area: "receipts" },
-    { href: "/bands", label: account.kind === "band" ? "band" : "bands", area: "roster" },
-    { href: "/people", label: "people", area: "roster" },
-    // { href: "/fans", label: "fans", area: "fans" },
-    { href: "/catalog", label: "catalog", area: "catalog" },
-    { href: "/rules", label: account.kind === "band" ? "rules" : "label rules", area: "rules" },
+    { href: "/", label: "Dashboard", area: "dashboard" },
+    { href: "/sales", label: "Sales", area: "sales" },
+    { href: "/orders", label: "Orders", area: "orders" },
+    { href: "/inventory", label: "Inventory", area: "inventory" },
+    { href: "/periods", label: "Payouts", area: "payouts" },
+    ...(account.kind === "label" ? [{ href: "/funds", label: "Label funds", area: "funds" as const }] : []),
+    { href: "/receipts", label: "Receipts", area: "receipts" },
+    { href: "/bands", label: account.kind === "band" ? "Band" : "Bands", area: "roster" },
+    { href: "/people", label: "People", area: "roster" },
+    // { href: "/fans", label: "Fans", area: "fans" },
+    { href: "/catalog", label: "Catalog", area: "catalog" },
+    { href: "/rules", label: account.kind === "band" ? "Rules" : "Label rules", area: "rules" },
   ];
-  if (isAdmin) return [...all, ...(projects ? [{ href: "/projects", label: "projects" }] : []), ...labels, { href: "/account", label: "settings" }];
+  if (isAdmin) return [...all, ...(projects ? [{ href: "/projects", label: "Projects" }] : []), ...labels, { href: "/account", label: "Settings" }];
   // Members: their own earnings, plus whatever their member type lets them see.
-  return [{ href: "/me", label: "my earnings" }, ...all.filter((i) => i.area && areas.includes(i.area))];
+  return [{ href: "/me", label: "My earnings" }, ...all.filter((i) => i.area && areas.includes(i.area))];
 }
 
 /** Pick which of your accounts (labels and bands) you're working in. */
@@ -107,13 +107,13 @@ export function Nav({
     if (key === "sales" && seenSales) return 0;
     return badges[key] ?? 0;
   };
-  const items = [...itemsFor(account, isAdmin, areas, labels, siteAdmin), ...(siteAdmin ? [{ href: "/admin", label: "admin" }] : [])];
+  const items = [...itemsFor(account, isAdmin, areas, labels, siteAdmin), ...(siteAdmin ? [{ href: "/admin", label: "Admin" }] : [])];
   return (
     <header className="no-print border-b border-border bg-surface">
       <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 pt-4 pb-3 md:px-8">
         <Link href="/" className="flex items-center gap-2 text-text hover:no-underline">
           <Mark />
-          <span className="text-xl font-bold tracking-tight lowercase">labelmaker</span>
+          <span className="font-brand text-[22px] font-bold tracking-tight lowercase">labelmaker</span>
         </Link>
         <div className="flex flex-wrap items-center gap-3">
           <SyncIndicator active={syncing} />
@@ -123,7 +123,7 @@ export function Nav({
           </span>
           <form action={signOut}>
             <button type="submit" className="text-sm text-link hover:underline">
-              sign out
+              Sign out
             </button>
           </form>
         </div>

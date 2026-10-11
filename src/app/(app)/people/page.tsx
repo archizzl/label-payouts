@@ -97,7 +97,7 @@ export default async function PeoplePage() {
                       </span>
                     </span>
                     <SubmitButton size="sm" variant="secondary">
-                      keep this one
+                      Keep this one
                     </SubmitButton>
                   </form>
                 ))}
@@ -221,7 +221,7 @@ export default async function PeoplePage() {
                           </select>
                         </Field>
                         <SubmitButton size="sm" variant="secondary" confirm={`Merge ${p.name} into the chosen person? This can’t be undone.`}>
-                          merge
+                          Merge
                         </SubmitButton>
                       </form>
                     )}

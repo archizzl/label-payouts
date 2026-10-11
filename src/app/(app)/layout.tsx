@@ -41,7 +41,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
         badges={badges}
         siteAdmin={isSiteAdminEmail(ctx.user.email)}
         syncing={due || !!sync?.running}
-        labels={labels.map(({ link, label }) => ({ href: `/from-label/${link.id}`, label: `from ${label.name}` }))}
+        labels={labels.map(({ link, label }) => ({ href: `/from-label/${link.id}`, label: `From ${label.name}` }))}
       />
       <main className="min-w-0 flex-1 px-4 py-8 md:px-8">
         <div className="mx-auto max-w-5xl">{children}</div>

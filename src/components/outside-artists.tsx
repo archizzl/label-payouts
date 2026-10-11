@@ -65,7 +65,7 @@ export async function OutsideArtists() {
                 <input key={r.artist.id} type="hidden" name="artistId" value={r.artist.id} />
               ))}
               <SubmitButton variant="secondary" size="sm" confirm={`Don’t pay any of these ${waiting.length} artists? The label keeps their share. You can undo this per artist.`}>
-                don’t pay any of these
+                Don’t pay any of these
               </SubmitButton>
             </form>
           )
@@ -93,7 +93,7 @@ export async function OutsideArtists() {
                     <form action={clearOutsideArtistContact}>
                       <input type="hidden" name="artistId" value={artist.id} />
                       <SubmitButton variant="ghost" size="sm">
-                        change
+                        Change
                       </SubmitButton>
                     </form>
                   </div>
@@ -103,13 +103,13 @@ export async function OutsideArtists() {
                       <input type="hidden" name="artistId" value={artist.id} />
                       <input name="name" required defaultValue={artist.name} aria-label={`Contact name for ${artist.name}`} className="!w-44" />
                       <input name="email" type="email" required placeholder="PayPal email" aria-label={`PayPal email for ${artist.name}`} className="!w-56" />
-                      <SubmitButton size="sm">save</SubmitButton>
+                      <SubmitButton size="sm">Save</SubmitButton>
                     </form>
                     <form action={setOutsideArtistDismissed}>
                       <input type="hidden" name="artistId" value={artist.id} />
                       <input type="hidden" name="dismissed" value="true" />
                       <SubmitButton variant="ghost" size="sm">
-                        don’t pay
+                        Don’t pay
                       </SubmitButton>
                     </form>
                   </div>

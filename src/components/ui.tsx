@@ -37,8 +37,7 @@ const buttonStyles = {
 };
 
 export function buttonClass(variant: keyof typeof buttonStyles = "secondary", size: "sm" | "md" = "md") {
-  // Bandcamp's controls speak in lowercase: "buy now", "share / embed".
-  return `inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-sm lowercase whitespace-nowrap transition hover:no-underline disabled:cursor-default disabled:opacity-50 ${
+  return `inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-md whitespace-nowrap transition hover:no-underline disabled:cursor-default disabled:opacity-50 ${
     size === "sm" ? "px-2.5 py-[3px] text-xs" : "px-4 py-[7px] text-sm font-bold"
   } ${buttonStyles[variant]}`;
 }
