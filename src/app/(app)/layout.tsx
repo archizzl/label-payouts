@@ -31,7 +31,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
     );
   }
   return (
-    <>
+    <div className="flex min-h-full flex-1 flex-col md:flex-row">
       <Nav
         user={{ name: ctx.user.name, email: ctx.user.email }}
         account={ctx.org}
@@ -43,12 +43,14 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
         syncing={due || !!sync?.running}
         labels={labels.map(({ link, label }) => ({ href: `/from-label/${link.id}`, label: `From ${label.name}` }))}
       />
-      <main className="min-w-0 flex-1 px-4 py-8 md:px-8">
-        <div className="mx-auto max-w-5xl">{children}</div>
-      </main>
-      {/* <footer className="no-print border-t border-border px-4 py-5 text-center text-xs text-muted">
-        labelmaker · an independent tool for indie labels, not affiliated with or endorsed by Bandcamp
-      </footer> */}
-    </>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <main className="flex-1 px-4 py-6 md:px-10 md:py-10">
+          <div className="mx-auto max-w-6xl">{children}</div>
+        </main>
+        <footer className="no-print px-4 py-5 text-center text-xs text-muted md:px-10">
+          labelmaker · an independent tool for indie labels, not affiliated with or endorsed by Bandcamp
+        </footer>
+      </div>
+    </div>
   );
 }

@@ -101,7 +101,7 @@
     color: var(--text);
     font-family: var(--font-sans);
   }
-  /* Links are blue and underline on hover, like Bandcamp. Utility classes still win. */
+  /* Links in the accent ink, underlined on hover. Utility classes still win. */
   a {
     color: var(--link);
   }
@@ -115,8 +115,8 @@ select,
 textarea {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 2px;
-  padding: 5px 8px;
+  border-radius: 8px;
+  padding: 7px 10px;
   font-size: 14px;
   width: 100%;
   color: var(--text);
@@ -139,15 +139,23 @@ table.data {
 }
 table.data th {
   text-align: left;
-  font-weight: normal;
+  font-weight: 600;
   color: var(--muted);
-  font-size: 12px;
-  padding: 6px 10px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 8px 12px;
+  background: var(--surface-2);
   border-bottom: 1px solid var(--border);
-  text-transform: lowercase;
+}
+table.data th:first-child {
+  border-top-left-radius: 8px;
+}
+table.data th:last-child {
+  border-top-right-radius: 8px;
 }
 table.data td {
-  padding: 9px 10px;
+  padding: 11px 12px;
   border-bottom: 1px solid var(--border);
   vertical-align: top;
 }

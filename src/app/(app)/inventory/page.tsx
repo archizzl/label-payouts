@@ -144,7 +144,7 @@ const itemLabel = (i: Item) => `${i.name}${i.option ? ` (${i.option})` : ""}`;
 
 function Tile({ label, value, warn }: { label: string; value: string; warn?: boolean }) {
   return (
-    <div className={`border bg-surface px-4 py-3 ${warn ? "border-warn" : "border-border"}`}>
+    <div className={`rounded-xl border bg-surface px-4 py-3 ${warn ? "border-warn" : "border-border"}`}>
       <div className={`text-2xl font-bold tabular-nums ${warn ? "text-warn" : ""}`}>{value}</div>
       <div className="text-xs text-muted">{label}</div>
     </div>

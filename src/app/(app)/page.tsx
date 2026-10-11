@@ -177,7 +177,7 @@ export default async function Dashboard() {
         const dest = (k: string) => [...s.byDestination].filter(([key]) => key === k || key.startsWith(`${k}:`)).reduce((a, [, v]) => a + v, 0);
         return (
           <Card key={cur} title={`All-time${summary.currencies.length > 1 ? ` (${cur})` : ""}`}>
-            <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
               <Figure label="Net sales" cents={s.grossCents} currency={cur} />
               <Figure label="Label income" cents={dest("label")} currency={cur} />
               <Figure

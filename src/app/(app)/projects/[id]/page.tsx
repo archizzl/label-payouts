@@ -221,7 +221,7 @@ function Stat({
 }) {
   const color = tone === "good" ? "text-good" : tone === "warn" ? "text-warn" : emphasis ? "text-accent" : "";
   return (
-    <div className={`border-l-2 pl-3 ${emphasis ? "border-accent" : "border-border"}`}>
+    <div className={`rounded-xl border bg-surface px-4 py-3 ${emphasis ? "border-accent" : "border-border"}`}>
       <div className="text-xs text-muted lowercase">{label}</div>
       <div className={`mt-0.5 text-xl font-bold tabular-nums ${color}`}>{value}</div>
       {hint && <div className="text-xs text-muted">{hint}</div>}

@@ -199,7 +199,7 @@ export default async function MyEarningsPage({ searchParams }: PageProps<"/me">)
 
 function Stat({ label, totals, emphasis }: { label: string; totals: Map<string, number>; emphasis?: boolean }) {
   return (
-    <div className={`border-l-2 pl-3 ${emphasis ? "border-accent" : "border-border"}`}>
+    <div className={`rounded-xl border bg-surface px-4 py-3 ${emphasis ? "border-accent" : "border-border"}`}>
       <div className="text-xs text-muted lowercase">{label}</div>
       <div className={`mt-0.5 text-xl font-bold ${emphasis ? "text-accent" : ""}`}>
         {totals.size ? <MoneyList totals={totals} /> : <Money cents={0} />}

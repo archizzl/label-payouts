@@ -487,7 +487,7 @@ function SortHeader({ f, k, label, num = false }: { f: SalesFilter; k: SortKey; 
 
 function Tile({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
-    <div className="border border-border bg-surface px-4 py-3">
+    <div className="rounded-xl border border-border bg-surface px-4 py-3">
       <div className="text-2xl font-bold tabular-nums">{value}</div>
       <div className="text-xs text-muted">
         {label}

@@ -101,7 +101,7 @@ export default async function ReceiptsPage({ searchParams }: PageProps<"/receipt
 
 function Stat({ label, totals, warn }: { label: string; totals: Map<string, number>; warn?: boolean }) {
   return (
-    <div className={`border-l-2 pl-3 ${warn ? "border-warn" : "border-border"}`}>
+    <div className={`rounded-xl border bg-surface px-4 py-3 ${warn ? "border-warn" : "border-border"}`}>
       <div className="text-xs text-muted lowercase">{label}</div>
       <div className={`mt-0.5 text-xl font-bold ${warn ? "text-warn" : ""}`}>{totals.size ? <MoneyList totals={totals} /> : "—"}</div>
     </div>

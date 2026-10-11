@@ -92,7 +92,7 @@ export async function SyncStatus({ orgId }: { orgId: string }) {
 /** The sync status as a quiet footer at the bottom of a page. */
 export function SyncFooter({ orgId }: { orgId: string }) {
   return (
-    <div className="mt-10 border-t border-border pt-4">
+    <div className="mt-8 rounded-xl bg-surface-2 px-4 py-3">
       <SyncStatus orgId={orgId} />
     </div>
   );
