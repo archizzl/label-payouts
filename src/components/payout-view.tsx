@@ -461,9 +461,9 @@ export async function PayoutView({
           <p className="mt-3 text-xs text-muted">
             {holderLine.name} holds the label’s bank account, so their <Money cents={holderLine.amountCents} currency={holderLine.currency} />{" "}
             {finalized ? "is recorded as theirs but stays in the account" : "will be recorded as theirs but stays in the account"}: no
-            PayPal payment needed. Change who holds the account on the{" "}
-            <Link href="/directory" className="underline">
-              Directory
+            PayPal payment needed. Change who holds the account in{" "}
+            <Link href="/account#label-bank-account" className="underline">
+              Settings
             </Link>
             .
           </p>

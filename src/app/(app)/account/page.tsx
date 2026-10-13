@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import Link from "next/link";
 import { connection } from "next/server";
 import { ActionForm, SubmitButton } from "@/components/client";
@@ -7,7 +7,7 @@ import { db, schema } from "@/db";
 import { saveAccountSettings, testBandcampConnection } from "@/server/account-actions";
 import { WhoCanSignIn } from "@/components/who-can-sign-in";
 import { SyncFooter } from "@/components/sync-status";
-import { setSetupHidden } from "@/server/actions";
+import { setLabelAccountHolder, setSetupHidden } from "@/server/actions";
 import { bandcampApiOff } from "@/server/bandcamp-api";
 import { type Context, requireAdmin } from "@/server/context";
 import { unlink } from "@/server/link-actions";
@@ -15,16 +15,18 @@ import { labelsForBandAccount } from "@/server/links";
 
 export const metadata = { title: "settings" };
 
-/** Account settings: the account, Bandcamp, and (band accounts) the labels it's linked to. People, logins, member types and bands' accounts are in the Directory. */
+/** Account settings: the account, Bandcamp, who holds the label's bank account, and (band accounts) the labels it's linked to. People, logins, member types and bands' accounts are in the Directory. */
 export default async function AccountPage() {
   await connection();
   const ctx = await requireAdmin();
   const { orgId } = ctx;
   if (ctx.managedBy) return <SubAccountSettings ctx={ctx} />;
-  const [[settings], labels] = await Promise.all([
+  const [[settings], labels, people] = await Promise.all([
     db.select().from(schema.accountSettings).where(eq(schema.accountSettings.orgId, orgId)),
     ctx.org.kind === "band" ? labelsForBandAccount(orgId) : Promise.resolve([]),
+    ctx.org.kind === "label" ? db.select().from(schema.people).where(eq(schema.people.orgId, orgId)).orderBy(asc(schema.people.name)) : [],
   ]);
+  const holder = people.find((p) => p.holdsLabelAccount);
   const kind = ctx.org.kind;
 
   return (
@@ -88,6 +90,29 @@ export default async function AccountPage() {
           </div>
         )}
       </Card>
+
+      {kind === "label" && people.length > 0 && (
+        <div id="label-bank-account" className="scroll-mt-4">
+          <Card title="Label bank account">
+            <p className="mb-3 text-sm text-muted">
+              Whoever the label’s bank account belongs to doesn’t need to pay themselves. Their share of each payout is recorded as theirs, but
+              marked <i>kept in label account</i> instead of being sent through PayPal.
+            </p>
+            <form action={setLabelAccountHolder} className="flex flex-wrap items-center gap-2">
+              <select key={holder?.id ?? "none"} name="personId" defaultValue={holder?.id ?? ""} className="!w-64" aria-label="Who holds the label’s bank account">
+                <option value="">Nobody (pay everyone out)</option>
+                {people.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+              <SubmitButton variant="secondary">Save</SubmitButton>
+            </form>
+            <p className="mt-2 text-xs text-muted">Choosing someone also marks their unpaid payouts so far as kept.</p>
+          </Card>
+        </div>
+      )}
 
       {settings?.setupHidden && (
         <div className="mb-6 flex flex-wrap items-center gap-2 text-sm text-muted">

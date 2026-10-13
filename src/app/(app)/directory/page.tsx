@@ -10,8 +10,8 @@ import { ViewAsButton } from "@/components/viewing-as";
 import { WhoCanSignIn } from "@/components/who-can-sign-in";
 import { db, schema } from "@/db";
 import { payHandlesSummary } from "@/lib/paypal-export";
-import { bandScope, can } from "@/lib/permissions";
-import { deletePerson, mergePeopleAction, savePerson, setLabelAccountHolder } from "@/server/actions";
+import { bandScope } from "@/lib/permissions";
+import { deletePerson, mergePeopleAction, savePerson } from "@/server/actions";
 import { type Context, requireAccess } from "@/server/context";
 import { computeAllTime, labelHost } from "@/server/data";
 import { type BandAccountSummary, bandAccountSummaries, ensureBandAccounts } from "@/server/band-accounts";
@@ -63,7 +63,6 @@ export default async function DirectoryPage() {
   if (ctx.org.kind === "band" && bands.length === 0) redirect("/");
   const people = scope ? everyone.filter((p) => memberships.some((m) => m.personId === p.id && scope.includes(m.band.id))) : everyone;
   const inNoBand = scope ? [] : people.filter((p) => !memberships.some((m) => m.personId === p.id));
-  const holder = everyone.find((p) => p.holdsLabelAccount);
 
   const sumBy = (rows: typeof payoutRows, personId: number) => {
     const m: Totals = new Map();
@@ -265,27 +264,6 @@ export default async function DirectoryPage() {
         </div>
       )}
       <p className="mt-3 text-xs text-muted">To add someone to a band, open the band and use its People tab.</p>
-
-      {can(ctx.access, "funds", "edit") && !scope && ctx.org.kind === "label" && people.length > 0 && (
-        <Card title="Label bank account" className="mt-10">
-          <p className="mb-3 text-sm text-muted">
-            Whoever the label’s bank account belongs to doesn’t need to pay themselves. Their share of each payout is recorded as theirs, but
-            marked <i>kept in label account</i> instead of being sent through PayPal.
-          </p>
-          <form action={setLabelAccountHolder} className="flex flex-wrap items-center gap-2">
-            <select key={holder?.id ?? "none"} name="personId" defaultValue={holder?.id ?? ""} className="!w-64" aria-label="Who holds the label’s bank account">
-              <option value="">Nobody (pay everyone out)</option>
-              {people.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-            <SubmitButton variant="secondary">Save</SubmitButton>
-          </form>
-          <p className="mt-2 text-xs text-muted">Choosing someone also marks their unpaid payouts so far as kept.</p>
-        </Card>
-      )}
 
       {/* Logins, invites and member types: admins only (it's who can see and change the books). */}
       {ctx.isAdmin && (
