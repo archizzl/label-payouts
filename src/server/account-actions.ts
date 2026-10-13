@@ -209,14 +209,14 @@ export async function inviteMember(_: FormState, fd: FormData): Promise<FormStat
   } catch (e) {
     return { error: messageOf(e, "Couldn't create the invite.") };
   }
-  revalidatePath("/account");
+  revalidatePath("/people");
   return { ok: `Invited ${email}. Copy their invite link below and send it to them.` };
 }
 
 export async function cancelInvite(fd: FormData) {
   await requireAdmin();
   await auth.api.cancelInvitation({ body: { invitationId: str(fd, "id") }, headers: await headers() });
-  revalidatePath("/account");
+  revalidatePath("/people");
 }
 
 /** Change what someone can do here: admin, a plain member, or a member with a member type. */
@@ -258,7 +258,7 @@ export async function saveMemberType(_: FormState, fd: FormData): Promise<FormSt
     await db.insert(schema.memberTypes).values({ orgId, name, permissions, bandAreas });
   }
   revalidatePath("/", "layout");
-  return { ok: id ? `Saved ${name}.` : `Added ${name}. Choose it for someone under Who can sign in.` };
+  return { ok: id ? `Saved ${name}.` : `Added ${name}. Choose it for someone under People → Who can sign in.` };
 }
 
 /** Delete a member type. Anyone who had it goes back to seeing just their own earnings. */
@@ -283,7 +283,7 @@ export async function removeAccountMember(fd: FormData) {
     .update(schema.people)
     .set({ userId: null })
     .where(and(eq(schema.people.orgId, orgId), eq(schema.people.userId, m.userId)));
-  revalidatePath("/account");
+  revalidatePath("/people");
 }
 
 /** Accept an invite as the signed-in user, and link their login to their payee record. */

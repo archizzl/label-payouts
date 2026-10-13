@@ -6,6 +6,7 @@ import { Badge, Card, Disclosure, Empty, Field, MoneyList, PageHeader, RolesList
 import { db, schema } from "@/db";
 import { deletePerson, mergePeopleAction, savePerson, setLabelAccountHolder } from "@/server/actions";
 import { payHandlesSummary } from "@/lib/paypal-export";
+import { WhoCanSignIn } from "@/components/who-can-sign-in";
 import { requireAccess } from "@/server/context";
 import { possibleDuplicates } from "@/server/people";
 
@@ -42,7 +43,8 @@ function PersonFields({ person }: { person?: typeof schema.people.$inferSelect }
 
 export default async function PeoplePage() {
   await connection();
-  const { orgId } = await requireAccess("roster");
+  const ctx = await requireAccess("roster");
+  const { orgId } = ctx;
   const [people, memberships, payoutRows, duplicates, outsideRows] = await Promise.all([
     db.select().from(schema.people).where(eq(schema.people.orgId, orgId)).orderBy(asc(schema.people.name)),
     db
@@ -241,6 +243,13 @@ export default async function PeoplePage() {
       <Disclosure summary="+ Add person">
         <PersonFields />
       </Disclosure>
+
+      {/* Logins and invites: admins only (it's who can see and change the books). */}
+      {ctx.isAdmin && (
+        <div id="who-can-sign-in">
+          <WhoCanSignIn ctx={ctx} />
+        </div>
+      )}
     </>
   );
 }

@@ -15,8 +15,8 @@ export function BandAccountsCard({ bands, links }: { bands: { id: number; name: 
     <Card title="Bands’ own accounts">
       <p className="mb-4 text-sm text-muted">
         Some bands keep their own labelmaker account for their own books. Linking it lets that band see, from their account, what the label
-        has for them: their sales, payouts, statements and receipts. They can’t change anything. This is separate from Who can sign in
-        above, which is about people signing in to this label’s account.
+        has for them: their sales, payouts, statements and receipts. They can’t change anything. This is separate from People → Who can
+        sign in, which is about people signing in to this label’s account.
       </p>
       {bands.length === 0 ? (
         <Empty>No bands yet.</Empty>

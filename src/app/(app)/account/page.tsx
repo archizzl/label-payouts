@@ -1,40 +1,28 @@
 import { and, asc, eq } from "drizzle-orm";
 import Link from "next/link";
 import { connection } from "next/server";
-import { ActionForm, CopyButton, SubmitButton } from "@/components/client";
-import { Badge, Callout, Card, Disclosure, Empty, Field, PageHeader } from "@/components/ui";
+import { ActionForm, SubmitButton } from "@/components/client";
+import { Callout, Card, Disclosure, Empty, Field, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
 import { AREAS, type Area, describePermissions, normalizeBandAreas, normalizePermissions } from "@/lib/permissions";
-import {
-  cancelInvite,
-  deleteMemberType,
-  inviteMember,
-  removeAccountMember,
-  saveAccountSettings,
-  saveMemberType,
-  testBandcampConnection,
-} from "@/server/account-actions";
+import { deleteMemberType, saveAccountSettings, saveMemberType, testBandcampConnection } from "@/server/account-actions";
 import { BandAccountsCard } from "@/components/band-link";
-import { InviteWhoFields } from "@/components/invite-fields";
-import { RolePicker } from "@/components/role-picker";
 import { SyncFooter } from "@/components/sync-status";
 import { setSetupHidden } from "@/server/actions";
 import { bandcampApiOff } from "@/server/bandcamp-api";
 import { requireAdmin } from "@/server/context";
 import { acceptLinkCode, unlink } from "@/server/link-actions";
 import { bandLinksFor, labelsForBandAccount } from "@/server/links";
-import { inviteMemberTypes, listMemberTypes, memberTypeOf } from "@/server/member-types";
+import { listMemberTypes, memberTypeOf } from "@/server/member-types";
 
 export const metadata = { title: "settings" };
 
-const ROLE_LABEL: Record<string, string> = { owner: "owner", admin: "admin", member: "member" };
-
-/** Account settings, and who can sign in to this account. */
+/** Account settings: the account, Bandcamp, linked labels or bands' accounts, and member types. (Who can sign in is on People.) */
 export default async function AccountPage() {
   await connection();
   const ctx = await requireAdmin();
   const { orgId } = ctx;
-  const [[settings], members, invites, people, labels, types, typeOf] = await Promise.all([
+  const [[settings], members, labels, types, typeOf] = await Promise.all([
     db.select().from(schema.accountSettings).where(eq(schema.accountSettings.orgId, orgId)),
     db
       .select({ member: schema.member, user: schema.user })
@@ -42,17 +30,11 @@ export default async function AccountPage() {
       .innerJoin(schema.user, eq(schema.user.id, schema.member.userId))
       .where(eq(schema.member.organizationId, orgId))
       .orderBy(asc(schema.user.name)),
-    db
-      .select()
-      .from(schema.invitation)
-      .where(and(eq(schema.invitation.organizationId, orgId), eq(schema.invitation.status, "pending"))),
-    db.select().from(schema.people).where(eq(schema.people.orgId, orgId)).orderBy(asc(schema.people.name)),
     ctx.org.kind === "band" ? labelsForBandAccount(orgId) : Promise.resolve([]),
     listMemberTypes(orgId),
     memberTypeOf(orgId),
   ]);
-  const [inviteTypes, labelBands, bandLinks] = await Promise.all([
-    inviteMemberTypes(invites.map((i) => i.id)),
+  const [labelBands, bandLinks] = await Promise.all([
     ctx.org.kind === "label"
       ? db
           .select({ id: schema.bands.id, name: schema.bands.name })
@@ -62,24 +44,6 @@ export default async function AccountPage() {
       : [],
     ctx.org.kind === "label" ? bandLinksFor(orgId) : new Map(),
   ]);
-  const typeName = (id: number | undefined) => types.find((t) => t.id === id)?.name;
-  // The role picker's value for someone: "admin", "member", or "type:<id>".
-  const roleValue = (role: string, typeId: number | undefined) => (role === "member" ? (typeId && typeName(typeId) ? `type:${typeId}` : "member") : "admin");
-  const roleOptions = (
-    <>
-      <option value="member">Member: their own earnings</option>
-      {types.map((t) => (
-        <option key={t.id} value={`type:${t.id}`}>
-          {t.name}
-        </option>
-      ))}
-      <option value="admin">Admin: manages everything</option>
-    </>
-  );
-  const personOf = (userId: string) => people.find((p) => p.userId === userId);
-  const base = process.env.BETTER_AUTH_URL ?? "";
-  const openInvites = invites.filter((i) => i.expiresAt > new Date());
-  const unlinked = people.filter((p) => !p.userId);
   const kind = ctx.org.kind;
 
   return (
@@ -189,110 +153,14 @@ export default async function AccountPage() {
         </Card>
       )}
 
-      <Card title="Who can sign in">
-        <p className="mb-4 text-sm text-muted">
-          People who sign in to this account. Admins manage everything. Members see their own earnings and payouts, plus their band’s sales
-          totals, and whatever their member type allows (see Member types below).
-        </p>
-        <table className="data mb-6">
-          <thead>
-            <tr>
-              <th>Person</th>
-              <th>Paid as</th>
-              <th>Role</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {members.map(({ member, user }) => {
-              const self = user.id === ctx.user.id;
-              return (
-                <tr key={member.id}>
-                  <td>
-                    <div className="font-medium">
-                      {user.name} {self && <span className="text-xs font-normal text-muted">(you)</span>}
-                    </div>
-                    <div className="text-xs text-muted">{user.email}</div>
-                  </td>
-                  <td className="text-sm">{personOf(user.id)?.name ?? <span className="text-muted">not linked</span>}</td>
-                  <td>
-                    {member.role === "owner" || self ? (
-                      <Badge tone={member.role === "member" ? "neutral" : "accent"}>
-                        {member.role === "member" ? (typeName(typeOf.get(user.id)) ?? "member") : (ROLE_LABEL[member.role] ?? member.role)}
-                      </Badge>
-                    ) : (
-                      <RolePicker memberId={member.id} name={user.name} saved={roleValue(member.role, typeOf.get(user.id))} options={roleOptions} />
-                    )}
-                  </td>
-                  <td className="text-right">
-                    {member.role !== "owner" && !self && (
-                      <div className="flex justify-end gap-2">
-                        <form action={removeAccountMember}>
-                          <input type="hidden" name="memberId" value={member.id} />
-                          <SubmitButton variant="ghost" size="sm" confirm={`Remove ${user.name}'s access? Their payout history stays.`}>
-                            Remove
-                          </SubmitButton>
-                        </form>
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-
-        <h3 className="mb-2 text-sm font-medium">Invites waiting</h3>
-        {openInvites.length === 0 ? (
-          <Empty>No open invites.</Empty>
-        ) : (
-          <ul className="mb-6 space-y-2">
-            {openInvites.map((i) => {
-              const link = `${base}/invite/${i.id}`;
-              const who = i.personId ? people.find((p) => p.id === i.personId)?.name : null;
-              return (
-                <li key={i.id} className="flex flex-wrap items-center gap-2 text-sm">
-                  <span className="font-medium">{i.email}</span>
-                  {who && <span className="text-muted">as {who}</span>}
-                  <Badge>{i.role === "member" ? (typeName(inviteTypes.get(i.id)) ?? "member") : (i.role ?? "member")}</Badge>
-                  <span className="text-xs text-muted">expires {i.expiresAt.toISOString().slice(0, 10)}</span>
-                  <span className="ml-auto flex gap-2">
-                    <CopyButton text={link} label="Copy invite link" />
-                    <form action={cancelInvite}>
-                      <input type="hidden" name="id" value={i.id} />
-                      <SubmitButton variant="ghost" size="sm" confirm={`Cancel the invite for ${i.email}? Its link stops working.`}>
-                        Cancel invite
-                      </SubmitButton>
-                    </form>
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-
-        <Disclosure summary="+ Invite someone">
-          <ActionForm action={inviteMember} className="grid gap-4 sm:grid-cols-3">
-            <InviteWhoFields people={unlinked.map((p) => ({ id: p.id, name: p.name, email: p.email }))} />
-            <Field label="Role">
-              <select name="role" defaultValue="member">
-                {roleOptions}
-              </select>
-            </Field>
-            <div className="sm:col-span-3">
-              <SubmitButton>Create invite</SubmitButton>
-              <p className="mt-2 text-xs text-muted">There’s no email sending yet: copy the invite link from the list above and send it to them.</p>
-            </div>
-          </ActionForm>
-        </Disclosure>
-      </Card>
 
       {ctx.org.kind === "label" && <BandAccountsCard bands={labelBands} links={bandLinks} />}
 
+      <div id="member-types" />
       <Card title="Member types">
         <p className="mb-4 text-sm text-muted">
           Give some members more than their own earnings, e.g. a band’s manager who sees and ships that band’s orders. Make a type, choose what it
-          can see and change, then pick it for someone under Who can sign in (or when you invite them).
+          can see and change, then pick it for someone under <Link href="/people#who-can-sign-in">People → Who can sign in</Link> (or when you invite them).
         </p>
         {types.length === 0 ? (
           <Empty>No member types yet.</Empty>
