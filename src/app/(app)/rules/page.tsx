@@ -4,9 +4,9 @@ import { connection } from "next/server";
 import { SubmitButton } from "@/components/client";
 import { DeductionForm, DeductionList, describeDeduction } from "@/components/deductions";
 import { SplitRules } from "@/components/split-rules";
-import { Card, Disclosure, Empty, PageHeader } from "@/components/ui";
+import { Card, Disclosure, Empty, Field, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
-import { deleteRoutingOverride, rerouteAction, setLabelKeepsNothing } from "@/server/actions";
+import { deleteRoutingOverride, rerouteAction, saveDeduction, setLabelKeepsNothing } from "@/server/actions";
 import { requireAccess } from "@/server/context";
 import { nameMaps, ruleFilter, rulesWhere } from "@/server/data";
 
@@ -73,16 +73,29 @@ export default async function RulesPage() {
               </div>
             ) : (
               <>
-                <p className="mb-3 text-sm">
-                  Nothing yet, so every sale goes entirely to its band. To take a cut (say 30%), add a deduction that goes to the label under
-                  Label-wide deductions below.
-                </p>
-                <form action={setLabelKeepsNothing}>
-                  <input type="hidden" name="value" value="1" />
-                  <SubmitButton variant="secondary" size="sm">
-                    The label keeps nothing
-                  </SubmitButton>
-                </form>
+                <p className="mb-3 text-sm">Nothing yet, so every sale goes entirely to its band (after Bandcamp’s fees).</p>
+                <div className="flex flex-wrap items-end gap-3">
+                  <form action={saveDeduction} className="flex items-end gap-2">
+                    <input type="hidden" name="label" value="Label’s cut" />
+                    <input type="hidden" name="kind" value="percent" />
+                    <input type="hidden" name="destination" value="label" />
+                    <Field label="The label keeps">
+                      <span className="flex items-center gap-1">
+                        <input name="percent" inputMode="decimal" required placeholder="30" className="!w-20 text-right" />
+                        <span className="text-sm text-muted">% of every sale</span>
+                      </span>
+                    </Field>
+                    <SubmitButton size="sm">Save</SubmitButton>
+                  </form>
+                  <span className="pb-1 text-sm text-muted">or</span>
+                  <form action={setLabelKeepsNothing}>
+                    <input type="hidden" name="value" value="1" />
+                    <SubmitButton variant="secondary" size="sm">
+                      The label keeps nothing
+                    </SubmitButton>
+                  </form>
+                </div>
+                <p className="mt-2 text-xs text-muted">For a cut on only some bands, releases or kinds of item, add it under Label-wide deductions below.</p>
               </>
             )}
           </Card>

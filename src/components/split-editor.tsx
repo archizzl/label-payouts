@@ -23,6 +23,16 @@ type Props = {
 const toPct = (bps: number) => (bps / 100).toString();
 const toBps = (pct: string) => Math.round((Number.parseFloat(pct) || 0) * 100);
 
+type Row = { personId: number; pct: string };
+
+/** 100% divided equally between everyone listed; leftover basis points go to the first rows. */
+function evenly(rows: Row[]): Row[] {
+  const n = rows.length;
+  const base = Math.floor(10000 / n);
+  let extra = 10000 - base * n;
+  return rows.map((r) => ({ ...r, pct: toPct(base + (extra-- > 0 ? 1 : 0)) }));
+}
+
 export function SplitEditor(props: Props) {
   const [state, action, pending] = useActionState(saveSplitRule, null);
   // The label-wide default takes optional carve-outs; the rest goes evenly to each band's members.
@@ -34,10 +44,18 @@ export function SplitEditor(props: Props) {
       ...props.people.filter((p) => p.inBand !== false).map((p) => p.id),
       ...[...byPerson.keys()],
     ].filter((id, i, a) => a.indexOf(id) === i);
+    // A new split (not carve-outs) starts with the band's members sharing evenly.
+    if (!byPerson.size && !carveOuts && ids.length) return evenly(ids.map((id) => ({ personId: id, pct: "" })));
     return ids.map((id) => ({ personId: id, pct: byPerson.has(id) ? toPct(byPerson.get(id)!) : "" }));
-  }, [props.people, props.initial]);
+  }, [props.people, props.initial, carveOuts]);
 
   const [rows, setRows] = useState(initialRows);
+  // Members added or removed on the page since: start again from them (not from what was first shown).
+  const [shownFor, setShownFor] = useState(initialRows);
+  if (shownFor !== initialRows) {
+    setShownFor(initialRows);
+    setRows(initialRows);
+  }
   const formRef = useRef<HTMLFormElement>(null);
   // Collapse the surrounding disclosure after a successful save so it can't be submitted twice.
   useEffect(() => {
@@ -49,13 +67,8 @@ export function SplitEditor(props: Props) {
   const rolesOf = (id: number) => props.people.find((p) => p.id === id)?.roles ?? [];
   const others = props.people.filter((p) => !rows.some((r) => r.personId === p.id));
 
-  /** 100% divided equally between everyone listed; leftover basis points go to the first rows. */
   const splitEvenly = () => {
-    const n = rows.length;
-    if (!n) return;
-    const base = Math.floor(10000 / n);
-    let extra = 10000 - base * n;
-    setRows(rows.map((r) => ({ ...r, pct: toPct(base + (extra-- > 0 ? 1 : 0)) })));
+    if (rows.length) setRows(evenly(rows));
   };
 
   const shares = rows.map((r) => ({ personId: r.personId, bps: toBps(r.pct) })).filter((s) => s.bps > 0);

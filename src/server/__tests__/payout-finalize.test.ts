@@ -99,16 +99,23 @@ describe("finalizing a payout", () => {
   });
 
   it("lets an older payout let go of sales it took in without paying anyone", async () => {
-    await setup();
-    // As payouts used to: every sale in the dates listed, paid or not.
+    const { a, b, p } = await setup();
+    // As payouts used to: every sale in the dates listed, paid or not. Only Band A was paid.
     const [period] = await db
       .insert(schema.periods)
       .values({ orgId, name: "Old", startDate: "2026-01-01", endDate: "2026-01-31", status: "finalized" })
       .returning();
     await db.insert(schema.periodSales).values(["a-1", "b-1"].map((dedupeKey) => ({ orgId, periodId: period.id, dedupeKey })));
+    await db.insert(schema.payouts).values({ orgId, periodId: period.id, personId: p.id, currency: "USD", amountCents: 1000, byBand: { [String(a.id)]: 1000 } });
+    // Band B got its split after that payout: its sale would be paid now, but that payout paid nobody for it.
+    const [q] = await db.insert(schema.people).values({ orgId, name: "B member" }).returning();
+    const [rule] = await db.insert(schema.splitRules).values({ orgId, scope: "band_default", bandId: b.id }).returning();
+    await db.insert(schema.splitShares).values({ orgId, ruleId: rule.id, personId: q.id, bps: 10000 });
 
+    expect(await data.strandedSales(orgId, period)).toEqual(["b-1"]);
     await actions.releaseUnpaidSales(form({ id: String(period.id) }));
     const listed = await db.select().from(schema.periodSales).where(eq(schema.periodSales.periodId, period.id));
     expect(listed.map((l) => l.dedupeKey)).toEqual(["a-1"]);
+    expect(await data.strandedSales(orgId, period)).toEqual([]);
   });
 });

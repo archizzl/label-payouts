@@ -3,7 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { db, schema } from "@/db";
 import type { PayoutLine } from "@/lib/paypal-export";
 import { periodName } from "@/lib/dates";
-import { computePayoutPeriod, nameMaps } from "./data";
+import { computePayoutPeriod, nameMaps, strandedSales } from "./data";
 import { expenseDeductions, projectReleaseMap } from "./expenses";
 
 /** What a payout covers: one band (or the whole label) over a date range. */
@@ -59,7 +59,8 @@ export async function periodView(orgId: string, periodId: number) {
     .from(schema.periods)
     .where(and(eq(schema.periods.orgId, orgId), eq(schema.periods.id, periodId)));
   if (!period) return null;
-  return { ...(await buildView(orgId, period, period)), period };
+  const [view, stranded] = await Promise.all([buildView(orgId, period, period), strandedSales(orgId, period)]);
+  return { ...view, period, stranded: stranded.length };
 }
 
 /** A payout that hasn't been finalized: computed on the fly, nothing stored. */

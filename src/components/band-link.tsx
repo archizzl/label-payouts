@@ -30,7 +30,7 @@ export function BandAccountsCard({ bands, links }: { bands: { id: number; name: 
             const row = links.get(b.id) ?? null;
             return (
               <li key={b.id} id={`band-account-${b.id}`} className="flex flex-wrap items-center gap-x-3 gap-y-2 py-3 text-sm">
-                <Link href={`/bands/${b.id}#band-account`} className="min-w-32 font-medium">
+                <Link href={`/bands/${b.id}?tab=people#band-account`} className="min-w-32 font-medium">
                   {b.name}
                 </Link>
                 {row?.link.status === "active" && row.link.managed ? (
@@ -83,7 +83,7 @@ export async function BandAccountSection({
     <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
       <span className="text-muted">See what each member sees in {row ? "the label" : "your account"}:</span>
       {members.map((m) => (
-        <ViewAsButton key={m.id} kind="person" id={m.id} label={m.name} />
+        <ViewAsButton key={m.id} kind="person" id={m.id} name={m.name} prefix="" />
       ))}
     </div>
   );
@@ -123,7 +123,7 @@ export async function BandAccountSection({
 
   return (
     <div id="band-account" className="scroll-mt-4">
-      <Card title={`${band.name}’s account`} actions={<ViewAsButton kind="band" id={band.id} label={`View as ${band.name}`} />}>
+      <Card title={`${band.name}’s account`} actions={<ViewAsButton kind="band" id={band.id} name={band.name} />}>
         <p className="mb-4 text-sm text-muted">
           The label made this account for {band.name}. People you invite sign in to it and see this band’s sales, payouts, statements and
           receipts from the label. They can’t change anything here.

@@ -42,8 +42,9 @@ export async function PayoutView({
   sync?: { synced: number | null; error: string | null };
 }) {
   const { period, scope, live, lines, bands, names, problems, drift, finalized } = view;
+  const stranded = "stranded" in view ? view.stranded : 0;
   const id = period?.id ?? null;
-  const bandName = (bid: number | null) => (bid === null ? "Unrouted" : (names.band.get(bid) ?? `#${bid}`));
+  const bandName = (bid: number | null) => (bid === null ? "No band yet" : (names.band.get(bid) ?? `#${bid}`));
   const currencies = live.summary.currencies;
   const pending = lines.filter((l) => l.status === "pending" && l.amountCents > 0);
   const ctx = await getContext();
@@ -189,10 +190,10 @@ export async function PayoutView({
           .
         </Callout>
       )}
-      {finalized && problems.unrouted + problems.noRule > 0 && (
+      {stranded > 0 && (
         <Callout tone="bad">
           <p>
-            This payout took in {plural(problems.unrouted + problems.noRule, "sale")} that nobody was paid for, so they aren’t owed to anyone
+            This payout took in {plural(stranded, "sale")} that nobody was paid for, so they aren’t owed to anyone
             now. Let go of them and they’re owed again: the next payout pays them once they have a band and a split.
           </p>
           <form action={releaseUnpaidSales} className="mt-2">
@@ -234,7 +235,7 @@ export async function PayoutView({
               {splitlessBands.map((b, i) => (
                 <span key={b}>
                   {i > 0 && ", "}
-                  <Link href={`/bands/${b}`} className="underline">
+                  <Link href={`/bands/${b}?tab=money`} className="underline">
                     {bandName(b)}
                   </Link>
                 </span>

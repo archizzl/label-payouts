@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { formatCents } from "@/lib/money";
 import { commitImport, type ImportPreview, previewImport } from "@/server/actions";
+import { plural } from "@/lib/plural";
 import { buttonClass } from "./ui";
 
 export function ImportForm() {
@@ -83,7 +84,7 @@ export function ImportForm() {
                 <Stat label="Sales in file" value={preview.total} />
                 <Stat label="New" value={preview.fresh} />
                 <Stat label="Already imported" value={preview.duplicates} />
-                <Stat label="Needs routing" value={preview.unrouted} tone={preview.unrouted ? "warn" : undefined} />
+                <Stat label="Needs a band" value={preview.unrouted} tone={preview.unrouted ? "warn" : undefined} />
               </div>
               {preview.dateRange && (
                 <p className="mb-3 text-sm text-muted">
@@ -116,7 +117,7 @@ export function ImportForm() {
               )}
               {preview.skipped.length > 0 && (
                 <details className="mb-4 text-sm text-muted">
-                  <summary>{preview.skipped.length} row(s) skipped (payouts, blank or summary rows)</summary>
+                  <summary>{plural(preview.skipped.length, "row")} skipped (payouts, blank or summary rows)</summary>
                   <ul className="mt-2 list-disc pl-5">
                     {preview.skipped.slice(0, 30).map((s) => (
                       <li key={s.row}>
@@ -128,8 +129,8 @@ export function ImportForm() {
               )}
               {preview.unrouted > 0 && (
                 <p className="mb-4 text-sm text-warn">
-                  {preview.unrouted} sale(s) couldn’t be matched to a band. Import anyway and assign them below; the app remembers
-                  your choices for next time.
+                  {plural(preview.unrouted, "sale")} didn’t match a band. Import anyway: below, you can add their artists as bands or
+                  say which band they’re on, and the app remembers for next time.
                 </p>
               )}
               <div className="flex gap-2">

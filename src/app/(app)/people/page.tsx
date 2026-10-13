@@ -230,7 +230,7 @@ export default async function PeoplePage() {
                     )}
                     {ctx.isAdmin && ctx.org.kind === "label" && (
                       <div className="flex flex-wrap items-center gap-2 border-t border-border pt-4 text-sm">
-                        <ViewAsButton kind="person" id={p.id} label={`View as ${p.name}`} />
+                        <ViewAsButton kind="person" id={p.id} name={p.name} />
                         <span className="text-xs text-muted">See {ctx.org.name} as they would when they sign in. Nothing can be changed while viewing.</span>
                       </div>
                     )}

@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { plural } from "@/lib/plural";
 import { commitFans, type FanPreview, previewFans } from "@/server/fan-actions";
 import { buttonClass } from "./ui";
 
@@ -88,8 +89,8 @@ export function FanImportForm({ bands, isBandAccount }: { bands: { id: number; n
               )}
               {(plan.skipped > 0 || plan.repeats > 0) && (
                 <p className="mb-3 text-muted">
-                  {plan.skipped > 0 && `${plan.skipped} row(s) without a valid email skipped. `}
-                  {plan.repeats > 0 && `${plan.repeats} repeated email(s) merged.`}
+                  {plan.skipped > 0 && `${plural(plan.skipped, "row")} without a valid email skipped. `}
+                  {plan.repeats > 0 && `${plural(plan.repeats, "repeated email")} merged.`}
                 </p>
               )}
               {perRow && (

@@ -58,7 +58,7 @@ export async function SalesSection({
     report.marketplaceTax;
   const other = report.gross - accounted;
   const segments: Segment[] = [
-    { key: "people", label: "Paid to people", value: report.toPeople, color: "var(--series-1)" },
+    { key: "people", label: "To people", value: report.toPeople, color: "var(--series-1)" },
     // Shipping isn't split: it stays with the label, for postage.
     { key: "label", label: report.shipping ? "Label (incl. shipping)" : "Label", value: report.label + report.shipping, color: "var(--series-2)" },
     { key: "fund", label: "Band fund", value: report.bandFund, color: "var(--series-3)" },

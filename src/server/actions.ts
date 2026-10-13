@@ -19,7 +19,7 @@ import { requestCatalogSync } from "./catalog-requests";
 import { syncAccount } from "./auto-sync";
 import { requireAccess, requireAdmin } from "./context";
 import { prepare, runSalesSync, saveSales } from "./sync";
-import { computePayoutPeriod, reRouteAll } from "./data";
+import { computePayoutPeriod, reRouteAll, strandedSales } from "./data";
 import { type PayoutScope, payoutName } from "./period-view";
 import { autoMergeByEmail, findExistingPerson, mergePeople } from "./people";
 
@@ -498,7 +498,7 @@ export async function previewImport(_: ImportPreview | null, fd: FormData): Prom
     const bandName = new Map(catalog.bands.map((b) => [b.id, b.name]));
     const byBand = new Map<string, { band: string; count: number; totals: Record<string, number> }>();
     for (const r of fresh) {
-      const label = r.route.bandId ? bandName.get(r.route.bandId)! : "⚠ Unrouted";
+      const label = r.route.bandId ? bandName.get(r.route.bandId)! : "⚠ No band yet";
       const g = byBand.get(label) ?? { band: label, count: 0, totals: {} };
       g.count++;
       g.totals[r.sale.currency] = (g.totals[r.sale.currency] ?? 0) + r.sale.netCents;
@@ -620,6 +620,52 @@ export async function assignRouting(fd: FormData) {
     .insert(routingOverrides)
     .values({ orgId, matchKey: key, ...target })
     .onConflictDoUpdate({ target: [routingOverrides.orgId, routingOverrides.matchKey], set: target });
+  await reRouteAll(orgId);
+  done();
+}
+
+/**
+ * Import: an artist whose sales matched no band becomes a band (matched by its name, and by its own
+ * Bandcamp subdomain when it has one). Its sales are matched straight away.
+ */
+export async function addBandFromArtist(fd: FormData) {
+  const { orgId } = await requireAccess("roster", "edit");
+  const name = str(fd, "artist");
+  if (!name) throw new Error("Which artist?");
+  const existing = (await db.select().from(bands).where(eq(bands.orgId, orgId))).find((b) => b.name.toLowerCase() === name.toLowerCase());
+  if (existing) throw new Error(`${existing.name} is already a band.`);
+  const subdomain = str(fd, "subdomain").toLowerCase();
+  await db.insert(bands).values({ orgId, name, urlPatterns: /^[a-z0-9-]+$/.test(subdomain) ? [subdomain] : [] });
+  await ensureBandAccounts(orgId);
+  await reRouteAll(orgId);
+  done();
+}
+
+/**
+ * Import: every unmatched item by an artist belongs to one band. Remembered per item, and the
+ * artist's name is added to the band's other spellings so new items match too.
+ */
+export async function assignArtistToBand(fd: FormData) {
+  const { orgId } = await requireAccess("sales", "edit");
+  const bandId = int(fd, "bandId");
+  const [band] = await db
+    .select()
+    .from(bands)
+    .where(and(eq(bands.orgId, orgId), eq(bands.id, bandId)));
+  if (!band) throw new Error("Pick a band.");
+  const artist = str(fd, "artist");
+  const keys = fd.getAll("key").map(String).filter(Boolean);
+  const target = { bandId, releaseId: null, trackId: null };
+  for (const key of keys) {
+    await db
+      .insert(routingOverrides)
+      .values({ orgId, matchKey: key, ...target })
+      .onConflictDoUpdate({ target: [routingOverrides.orgId, routingOverrides.matchKey], set: target });
+  }
+  const known = [band.name, ...band.aliases].map((a) => a.toLowerCase());
+  if (artist && !artist.includes("/") && !known.includes(artist.toLowerCase())) {
+    await db.update(bands).set({ aliases: [...band.aliases, artist] }).where(eq(bands.id, band.id));
+  }
   await reRouteAll(orgId);
   done();
 }
@@ -810,8 +856,7 @@ export async function releaseUnpaidSales(fd: FormData) {
     .from(periods)
     .where(and(eq(periods.orgId, orgId), eq(periods.id, int(fd, "id"))));
   if (!period) throw new Error("Payout not found.");
-  const { results, saleById } = await computePayoutPeriod(orgId, period);
-  const keys = results.filter((r) => r.problem).map((r) => saleById.get(r.saleId)!.dedupeKey);
+  const keys = await strandedSales(orgId, period);
   for (let i = 0; i < keys.length; i += 500) {
     await db
       .delete(schema.periodSales)

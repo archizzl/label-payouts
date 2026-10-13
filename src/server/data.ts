@@ -8,7 +8,7 @@ import { type Catalog, normalizeId, normalizeText, routeSale } from "@/lib/routi
 import { LABEL_RELEASES_SOURCE, SHIPPING_SOURCE } from "@/lib/label-sources";
 import { parseCents } from "@/lib/money";
 import { salePartsOf } from "@/lib/sale-parts";
-import { computeLedger, type EngineContext, type EngineSale, type SaleResult, summarize } from "@/lib/splits";
+import { computeLedger, type EngineContext, type EngineSale, LABEL_SHARE, type SaleResult, summarize } from "@/lib/splits";
 import { expenseDeductions, projectReleaseMap } from "./expenses";
 
 /*
@@ -238,6 +238,22 @@ export async function computePayoutPeriod(orgId: string, period: PeriodScope) {
     summary: summarize(mine),
     alreadyPaid: [...alreadyPaid].map(([periodId, sales]) => ({ period: others.find((o) => o.id === periodId)!, sales })),
   };
+}
+
+/**
+ * Sales a finalized payout took in without paying anyone for them (payouts used to, when finalized
+ * "anyway"): ones that still can't be paid, and ones whose band got nothing in it but would be paid
+ * now (e.g. its split was set afterwards). Letting go of them makes them owed again.
+ */
+export async function strandedSales(orgId: string, period: PeriodScope) {
+  const [{ results, saleById }, lines] = await Promise.all([
+    computePayoutPeriod(orgId, period),
+    db.select({ byBand: schema.payouts.byBand }).from(schema.payouts).where(and(eq(schema.payouts.orgId, orgId), eq(schema.payouts.periodId, period.id))),
+  ]);
+  const paidBands = new Set(lines.flatMap((l) => Object.entries(l.byBand).filter(([, c]) => c !== 0).map(([b]) => Number(b))));
+  return results
+    .filter((r) => r.problem || (r.bandId !== null && !paidBands.has(r.bandId) && r.shares.some((x) => x.personId !== LABEL_SHARE && x.cents !== 0)))
+    .map((r) => saleById.get(r.saleId)!.dedupeKey);
 }
 
 /**

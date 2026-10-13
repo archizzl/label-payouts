@@ -6,7 +6,9 @@ import { BandFields } from "@/components/band-fields";
 import { SubmitButton } from "@/components/client";
 import { SalesSection } from "@/components/sales-section";
 import { DeductionForm, DeductionList } from "@/components/deductions";
+import { BandTabs } from "@/components/band-tabs";
 import { ItemCosts } from "@/components/item-cost";
+import { MoneyRules } from "@/components/money-rules";
 import { PhysicalFormatsTable, costsFor } from "@/components/physical-formats";
 import { LabelDefaultSummary, SplitRules, SharesSummary, currentRule } from "@/components/split-rules";
 import type { PersonOption } from "@/components/split-editor";
@@ -42,6 +44,8 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
   const ctx = await requireAccess("roster");
   const { orgId } = ctx;
   const id = Number((await params).id);
+  const sp = await searchParams;
+  const tab = (["overview", "money", "people", "catalog", "settings"] as const).find((t) => t === sp.tab) ?? "overview";
   const [band] = await db
     .select()
     .from(schema.bands)
@@ -108,6 +112,8 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
   const music = releases.filter((r) => r.kind !== "merch");
   const merch = releases.filter((r) => r.kind === "merch");
   const hasMerchSplit = (itemTypeRules.get("merch") ?? []).length > 0;
+  // Nothing would be paid to anyone: no split of its own, and no label-wide one to fall back on.
+  const needsSplit = !band.isLabel && defaultRules.length === 0 && !labelDefault;
   /** What a sale with no more specific split falls back to, in words. */
   const fallbackSplit = defaultRules.length ? "band default" : band.isLabel ? "label keeps it" : labelDefault ? "label-wide default" : "no split set";
 
@@ -222,7 +228,19 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
         }
       />
 
-      <SalesSection boardId="band-sales" scope={{ bandId: id }} range={(await searchParams).range as string | undefined} basePath={`/bands/${id}`} showItems />
+      <BandTabs bandId={id} active={tab} needsSplit={needsSplit} members={members.filter((m) => m.active).length} />
+
+      {band.isLabel && (
+        <Callout tone="neutral">
+          This is the label itself. It holds releases under the label’s own name, like label tapes and compilations. Unless you
+          set a split below, the label keeps what these releases earn. On compilations, tracks by your bands go to those bands,
+          and tracks by other artists go to their <Link href="/catalog#outside-artists">contacts</Link>.
+        </Callout>
+      )}
+
+      {tab === "overview" && (
+        <>
+      <SalesSection boardId="band-sales" scope={{ bandId: id }} range={sp.range as string | undefined} basePath={`/bands/${id}`} showItems />
 
       <Card
         title="Payouts"
@@ -331,23 +349,92 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
 
       <LabelFunds bandId={id} />
 
-      {ctx.org.kind === "label" && ctx.isAdmin && !band.isLabel && (
-        <BandAccountSection
-          labelOrgId={orgId}
-          band={band}
-          members={members.filter((m) => m.active).map((m) => ({ id: m.person.id, name: m.person.name, email: m.person.email }))}
-          row={await ensureBandAccounts(orgId).then(() => linkForLabelBand(orgId, id))}
+        </>
+      )}
+      {tab === "money" && (
+        <>
+          <Card title="Money rules">
+            <MoneyRules orgId={orgId} bandId={id} bandName={band.name} personName={names.person} labelAccount={ctx.org.kind === "label"} ownSplits={[...releaseRules.values()].filter(Boolean).length} />
+          </Card>
+      <div id="default-split" />
+      <Card title={`${band.name}’s split`}>
+        <p className="mb-3 text-sm text-muted">Used for every sale of this band unless a release, track or item-type split below applies.</p>
+        <SplitRules
+          rules={defaultRules}
+          people={personOptions}
+          scope={{ scope: "band_default", bandId: id }}
+          emptyText={
+            labelDefault
+              ? "No default split of its own, so it uses the label-wide default (below)."
+              : "No default split yet. Sales without a more specific split will be flagged."
+          }
         />
-      )}
+        {defaultRules.length === 0 && labelDefault && (
+          <p className="mt-3 border-l-2 border-accent pl-3 text-sm">
+            Label-wide default: <LabelDefaultSummary shares={labelDefault.shares} people={personOptions} />.{" "}
+            {members.filter((m) => m.active).length === 0 && <span className="text-bad">This band has no current members yet, so nobody would get the rest. </span>}
+            <Link href="/rules">Change it</Link>
+          </p>
+        )}
+      </Card>
 
-      {band.isLabel && (
-        <Callout tone="neutral">
-          This is the label itself. It holds releases under the label’s own name, like label tapes and compilations. Unless you
-          set a split below, the label keeps what these releases earn. On compilations, tracks by your bands go to those bands,
-          and tracks by other artists go to their <Link href="/catalog#outside-artists">contacts</Link>.
-        </Callout>
-      )}
+      <div id="item-type-splits" />
+      <Card title="Splits for a kind of item">
+        <p className="mb-4 text-sm text-muted">
+          Optional. For example, split merch evenly while music follows songwriting shares. These apply when the sale has no
+          release/track split, unless you tick “use this even when the release/track has its own split”.
+        </p>
+        <div className="divide-y divide-border border-y border-border">
+          {ITEM_CATEGORIES.filter((c) => c.value !== "other").map((c) => {
+            const rules = itemTypeRules.get(c.value) ?? [];
+            return (
+              <div key={c.value} className="py-3">
+                <h3 className="mb-2 text-sm font-medium">
+                  {c.label}
+                  {rules.length === 0 && (
+                    <span className="ml-2 font-normal text-muted">
+                      · {defaultRules.length || (!band.isLabel && labelDefault) ? `uses the ${fallbackSplit} split` : fallbackSplit}
+                    </span>
+                  )}
+                </h3>
+                <SplitRules
+                  rules={rules}
+                  people={personOptions}
+                  scope={{ scope: "band_item_type", bandId: id, itemCategory: c.value }}
+                  emptyText=""
+                  showOverride
+                />
+              </div>
+            );
+          })}
+        </div>
+      </Card>
 
+      <div id="band-deductions" />
+      <Card title="Band funds and costs">
+        <p className="mb-3 text-sm text-muted">
+          Money taken from {band.name}’s sales before the split: a band fund, costs paid back from sales, per-item costs. Taken after
+          anything the label takes.
+        </p>
+        <DeductionList
+          people={bandPeople}
+          items={bandDeductions}
+          names={names}
+          bands={[]}
+          releases={releaseOpts}
+          fixedBandId={id}
+        />
+        <div className="mt-3">
+          <Disclosure summary="+ Add deduction">
+            <DeductionForm people={bandPeople} bands={[]} releases={releaseOpts} fixedBandId={id} />
+          </Disclosure>
+        </div>
+      </Card>
+
+        </>
+      )}
+      {tab === "people" && (
+        <>
       <Card title="Members">
         {members.length === 0 ? (
           <Empty>No members yet.</Empty>
@@ -439,21 +526,26 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
             <Field label="Name">
               <input name="name" />
             </Field>
-            <Field label="PayPal email">
-              <input name="email" type="email" />
-            </Field>
-            <Field label="PayPal.me handle (optional)">
-              <input name="paypalMe" placeholder="yourname" />
-            </Field>
-            <Field label="Venmo username (optional)">
-              <input name="venmo" placeholder="@yourname" />
-            </Field>
-            <Field label="Cash App $cashtag (optional)">
-              <input name="cashtag" placeholder="$yourname" />
-            </Field>
             <Field label="Roles (comma-separated)">
               <input name="roles" placeholder="vocals, guitar, songwriter" />
             </Field>
+            <Field label="Email (optional)" hint="Their PayPal email, if they use PayPal. You can add this later." className="sm:col-span-2">
+              <input name="email" type="email" />
+            </Field>
+            <details className="sm:col-span-2">
+              <summary className="text-sm text-link">Other ways to pay them (PayPal.me, Venmo, Cash App)</summary>
+              <div className="mt-3 grid gap-4 sm:grid-cols-3">
+                <Field label="PayPal.me handle">
+                  <input name="paypalMe" placeholder="yourname" />
+                </Field>
+                <Field label="Venmo username">
+                  <input name="venmo" placeholder="@yourname" />
+                </Field>
+                <Field label="Cash App $cashtag">
+                  <input name="cashtag" placeholder="$yourname" />
+                </Field>
+              </div>
+            </details>
             <div className="sm:col-span-2">
               <SubmitButton>Add member</SubmitButton>
             </div>
@@ -461,58 +553,19 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
         </Disclosure>
       </Card>
 
-      <Card title="Default split">
-        <p className="mb-3 text-sm text-muted">Used for every sale of this band unless a release, track or item-type split below applies.</p>
-        <SplitRules
-          rules={defaultRules}
-          people={personOptions}
-          scope={{ scope: "band_default", bandId: id }}
-          emptyText={
-            labelDefault
-              ? "No default split of its own, so it uses the label-wide default (below)."
-              : "No default split yet. Sales without a more specific split will be flagged."
-          }
+      {ctx.org.kind === "label" && ctx.isAdmin && !band.isLabel && (
+        <BandAccountSection
+          labelOrgId={orgId}
+          band={band}
+          members={members.filter((m) => m.active).map((m) => ({ id: m.person.id, name: m.person.name, email: m.person.email }))}
+          row={await ensureBandAccounts(orgId).then(() => linkForLabelBand(orgId, id))}
         />
-        {defaultRules.length === 0 && labelDefault && (
-          <p className="mt-3 border-l-2 border-accent pl-3 text-sm">
-            Label-wide default: <LabelDefaultSummary shares={labelDefault.shares} people={personOptions} />.{" "}
-            {members.filter((m) => m.active).length === 0 && <span className="text-bad">This band has no current members yet, so nobody would get the rest. </span>}
-            <Link href="/rules">Change it</Link>
-          </p>
-        )}
-      </Card>
+      )}
 
-      <Card title="Splits by item type">
-        <p className="mb-4 text-sm text-muted">
-          Optional. For example, split merch evenly while music follows songwriting shares. These apply when the sale has no
-          release/track split, unless you tick “use this even when the release/track has its own split”.
-        </p>
-        <div className="divide-y divide-border border-y border-border">
-          {ITEM_CATEGORIES.filter((c) => c.value !== "other").map((c) => {
-            const rules = itemTypeRules.get(c.value) ?? [];
-            return (
-              <div key={c.value} className="py-3">
-                <h3 className="mb-2 text-sm font-medium">
-                  {c.label}
-                  {rules.length === 0 && (
-                    <span className="ml-2 font-normal text-muted">
-                      · {defaultRules.length || (!band.isLabel && labelDefault) ? `uses the ${fallbackSplit} split` : fallbackSplit}
-                    </span>
-                  )}
-                </h3>
-                <SplitRules
-                  rules={rules}
-                  people={personOptions}
-                  scope={{ scope: "band_item_type", bandId: id, itemCategory: c.value }}
-                  emptyText=""
-                  showOverride
-                />
-              </div>
-            );
-          })}
-        </div>
-      </Card>
-
+        </>
+      )}
+      {tab === "catalog" && (
+        <>
       <Card title="Releases" actions={<LinkButton href={`/catalog?band=${id}`} size="sm">Open in catalog</LinkButton>}>
         {music.length === 0 ? (
           <Empty>No releases yet. They sync from Bandcamp automatically (see Settings for your Bandcamp address), or add them here, or create them from sales under Sales → Import.</Empty>
@@ -558,23 +611,10 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
         )}
       </Card>
 
-      <Card title="Band deductions">
-        <p className="mb-3 text-sm text-muted">Taken after any label-wide deductions.</p>
-        <DeductionList
-          people={bandPeople}
-          items={bandDeductions}
-          names={names}
-          bands={[]}
-          releases={releaseOpts}
-          fixedBandId={id}
-        />
-        <div className="mt-3">
-          <Disclosure summary="+ Add deduction">
-            <DeductionForm people={bandPeople} bands={[]} releases={releaseOpts} fixedBandId={id} />
-          </Disclosure>
-        </div>
-      </Card>
-
+        </>
+      )}
+      {tab === "settings" && (
+        <>
       <Card title="Band settings">
         <BandFields band={band} />
         <form action={deleteBand} className="mt-8 border-t border-border pt-4">
@@ -585,6 +625,8 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
           </SubmitButton>
         </form>
       </Card>
+        </>
+      )}
     </>
   );
 }

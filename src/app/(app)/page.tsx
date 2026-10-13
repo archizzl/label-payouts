@@ -95,7 +95,7 @@ export default async function Dashboard() {
     {
       done: bands.length > 0 && bandsWithoutMembers.length === 0 && unpayable.length === 0,
       label: isBand ? "Add the band’s members, with how to pay them" : "Add members to each band, with how to pay them",
-      href: isBand && bands[0] ? `/bands/${bands[0].id}` : "/bands",
+      href: isBand && bands[0] ? `/bands/${bands[0].id}?tab=people` : "/bands",
       hint: bands.length ? memberHint : "",
     },
     ...(isBand
@@ -104,7 +104,7 @@ export default async function Dashboard() {
     {
       done: splitsSet,
       label: isBand ? "Decide how you split what you earn" : "Decide how each band splits its share",
-      href: isBand && bands[0] ? `/bands/${bands[0].id}` : "/rules",
+      href: isBand && bands[0] ? `/bands/${bands[0].id}?tab=money` : "/rules",
       hint: isBand ? "" : "One label-wide split for every band, or each band’s own.",
     },
     { done: saleCount > 0, label: "Bring in your sales: import a Bandcamp sales report", href: "/sales/import", hint: "" },

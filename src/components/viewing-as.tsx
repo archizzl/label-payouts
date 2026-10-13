@@ -23,14 +23,15 @@ export function ViewingAsBar({ viewing }: { viewing: ViewingAs }) {
   );
 }
 
-/** "View as" for a band (its sub-account) or a person, for a label's admins. */
-export function ViewAsButton({ kind, id, label = "View as" }: { kind: "band" | "person"; id: number; label?: string }) {
+/** "View as" for a band (its sub-account) or a person, for a label's admins. A name keeps its own capitals. */
+export function ViewAsButton({ kind, id, name, prefix = "View as" }: { kind: "band" | "person"; id: number; name?: string; prefix?: string }) {
   return (
     <form action={startViewAs} className="inline">
       <input type="hidden" name="kind" value={kind} />
       <input type="hidden" name="id" value={id} />
       <SubmitButton variant="secondary" size="sm">
-        {label}
+        {prefix}
+        {name && <span className="normal-case">{name}</span>}
       </SubmitButton>
     </form>
   );

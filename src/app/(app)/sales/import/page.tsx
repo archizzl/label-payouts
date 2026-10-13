@@ -5,7 +5,10 @@ import { Fading, SubmitButton } from "@/components/client";
 import { ImportForm } from "@/components/import-form";
 import { Badge, Callout, Card, Empty, MoneyList, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
-import { assignRouting, createReleaseFromSales, deleteImport } from "@/server/actions";
+import { addBandFromArtist, assignArtistToBand, assignRouting, createReleaseFromSales, deleteImport } from "@/server/actions";
+import { bandcampSubdomain } from "@/lib/applications";
+import { can } from "@/lib/permissions";
+import { plural } from "@/lib/plural";
 import { API_SYNC_PREFIX, bandcampCredentials } from "@/server/bandcamp-api";
 import { SalesTabs } from "@/components/sales-tabs";
 import { SyncFooter } from "@/components/sync-status";
@@ -99,9 +102,42 @@ function Group({ g, mode, catalog }: { g: Awaited<ReturnType<typeof unroutedGrou
   );
 }
 
+type UnmatchedGroup = Awaited<ReturnType<typeof unroutedGroups>>[number];
+
+/**
+ * Unmatched sales by artist, biggest first, with the artist's own Bandcamp subdomain when all its
+ * items are on one that no other artist (or the label itself) uses.
+ */
+function byArtist(groups: UnmatchedGroup[], labelSubdomain: string | null) {
+  const subdomainOf = (url: string) => /^https?:\/\/([a-z0-9-]+)\.bandcamp\.com\//i.exec(url)?.[1]?.toLowerCase() ?? null;
+  const artists = new Map<string, { artist: string; groups: UnmatchedGroup[]; count: number; totals: Map<string, number> }>();
+  for (const g of groups) {
+    const k = g.artist.trim().toLowerCase();
+    const a = artists.get(k) ?? { artist: g.artist.trim(), groups: [], count: 0, totals: new Map<string, number>() };
+    a.groups.push(g);
+    a.count += g.count;
+    for (const [cur, c] of g.totals) a.totals.set(cur, (a.totals.get(cur) ?? 0) + c);
+    artists.set(k, a);
+  }
+  const usedBy = new Map<string, Set<string>>();
+  for (const [k, a] of artists) for (const g of a.groups) {
+    const sub = subdomainOf(g.itemUrl);
+    if (sub) usedBy.set(sub, (usedBy.get(sub) ?? new Set()).add(k));
+  }
+  return [...artists.values()]
+    .map((a) => {
+      const subs = [...new Set(a.groups.map((g) => subdomainOf(g.itemUrl)))];
+      const sub = subs.length === 1 && subs[0] && subs[0] !== labelSubdomain && usedBy.get(subs[0])!.size === 1 ? subs[0] : null;
+      return { ...a, subdomain: sub, compilation: /\s\/\s|^various artists$/i.test(a.artist) || !a.artist };
+    })
+    .sort((x, y) => y.count - x.count);
+}
+
 export default async function ImportPage({ searchParams }: PageProps<"/sales/import">) {
   await connection();
-  const { orgId, isAdmin } = await requireAccess("sales", "edit");
+  const ctx = await requireAccess("sales", "edit");
+  const { orgId, isAdmin } = ctx;
+  const canAddBands = can(ctx.access, "roster", "edit");
   const importedId = Number((await searchParams).imported) || null;
   const [allImports, noBand, noRelease, bands, releases, tracks, creds] = await Promise.all([
     db.select().from(schema.imports).where(eq(schema.imports.orgId, orgId)).orderBy(desc(schema.imports.importedAt)),
@@ -112,6 +148,8 @@ export default async function ImportPage({ searchParams }: PageProps<"/sales/imp
     db.select().from(schema.tracks).where(eq(schema.tracks.orgId, orgId)).orderBy(asc(schema.tracks.position)),
     bandcampCredentials(orgId),
   ]);
+  const [settings] = await db.select({ url: schema.accountSettings.bandcampUrl }).from(schema.accountSettings).where(eq(schema.accountSettings.orgId, orgId));
+  const labelSubdomain = settings?.url ? bandcampSubdomain(settings.url) : null;
   const catalog: Catalog = { bands, releases, tracks };
   const justImported = importedId ? allImports.find((i) => i.id === importedId) : null;
   // A sync that found nothing new only marks when we last checked; it's not worth a history row.
@@ -160,23 +198,63 @@ export default async function ImportPage({ searchParams }: PageProps<"/sales/imp
         </details>
       </Card>
 
-      {history.length > 0 && (
-        <Card title={<>Needs a band {noBand.length > 0 && <Badge tone="warn">{noBand.reduce((a, g) => a + g.count, 0)} sales</Badge>}</>}>
-          {noBand.length === 0 ? (
-            <Empty>Every sale is matched to a band.</Empty>
-          ) : (
-            <>
-              <p className="mb-3 text-sm text-muted">
-                These sales couldn’t be matched to a band. Assign each item once and the app remembers it for future imports.
-                Adding the artist name or URL to a band’s settings also works.
-              </p>
-              <ul className="space-y-3">
-                {noBand.map((g) => (
-                  <Group key={g.key} g={g} mode="no_band" catalog={catalog} />
-                ))}
-              </ul>
-            </>
-          )}
+      {noBand.length > 0 && (
+        <Card title={<>Needs a band <Badge tone="warn">{plural(noBand.reduce((a, g) => a + g.count, 0), "sale")}</Badge></>}>
+          <p className="mb-4 text-sm text-muted">
+            These sales didn’t match any band. Sort each artist out once and future imports match by themselves.
+          </p>
+          <ul className="space-y-3">
+            {byArtist(noBand, labelSubdomain).map((a) => (
+              <li key={a.artist || "?"} className="border border-border p-3">
+                <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                  <span className="font-medium">{a.artist || "No artist given"}</span>
+                  {a.subdomain && <span className="text-xs text-muted">{a.subdomain}.bandcamp.com</span>}
+                  <span className="ml-auto text-sm">
+                    {plural(a.groups.length, "item")} · {plural(a.count, "sale")} · <MoneyList totals={a.totals} />
+                  </span>
+                </div>
+                {a.compilation && <p className="mt-1 text-sm text-muted">Looks like a split or compilation: pick a band for each item below.</p>}
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                  {!a.compilation && a.artist && canAddBands && (
+                    <form action={addBandFromArtist}>
+                      <input type="hidden" name="artist" value={a.artist} />
+                      <input type="hidden" name="subdomain" value={a.subdomain ?? ""} />
+                      <SubmitButton size="sm">Add as a band</SubmitButton>
+                    </form>
+                  )}
+                  {!a.compilation && bands.length > 0 && (
+                    <form action={assignArtistToBand} className="flex flex-wrap items-center gap-2">
+                      <input type="hidden" name="artist" value={a.artist} />
+                      {a.groups.map((g) => (
+                        <input key={g.key} type="hidden" name="key" value={g.key} />
+                      ))}
+                      <select name="bandId" required defaultValue="" className="!w-56" aria-label={`Band for ${a.artist || "these sales"}`}>
+                        <option value="" disabled>
+                          {canAddBands && a.artist ? "or they’re on…" : "They’re on…"}
+                        </option>
+                        {bands.map((b) => (
+                          <option key={b.id} value={b.id}>
+                            {b.name}
+                          </option>
+                        ))}
+                      </select>
+                      <SubmitButton size="sm" variant="secondary">
+                        Assign all
+                      </SubmitButton>
+                    </form>
+                  )}
+                </div>
+                <details className="mt-3" open={a.compilation}>
+                  <summary className="text-sm text-link">{a.compilation ? "Items" : "Or one item at a time"}</summary>
+                  <ul className="mt-3 space-y-3">
+                    {a.groups.map((g) => (
+                      <Group key={g.key} g={g} mode="no_band" catalog={catalog} />
+                    ))}
+                  </ul>
+                </details>
+              </li>
+            ))}
+          </ul>
         </Card>
       )}
 

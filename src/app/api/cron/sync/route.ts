@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { isNotNull, or } from "drizzle-orm";
 import { db, schema } from "@/db";
+import { plural } from "@/lib/plural";
 import { syncAccount } from "@/server/auto-sync";
 
 /**
@@ -25,7 +26,7 @@ export async function POST(request: Request) {
       // Every hour without fail, however recently a Sync now synced it (only never
       // alongside a sync that's still running).
       const r = await syncAccount(orgId, { force: true });
-      results[orgId] = r.ran ? r.summary + (r.errors.length ? ` (${r.errors.length} problem(s))` : "") : "not due";
+      results[orgId] = r.ran ? r.summary + (r.errors.length ? ` (${plural(r.errors.length, "problem")})` : "") : "not due";
     } catch (e) {
       results[orgId] = `failed: ${(e as Error).message}`;
     }
