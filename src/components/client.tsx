@@ -176,3 +176,24 @@ export function PrintButton() {
     </button>
   );
 }
+
+/**
+ * Opens the folded-up section (a <details>) that the page's #link points into, e.g. a person under a
+ * band in the directory, and scrolls to it.
+ */
+export function OpenLinkedSection() {
+  useEffect(() => {
+    const open = () => {
+      const id = decodeURIComponent(location.hash.slice(1));
+      const el = id ? document.getElementById(id) : null;
+      if (!el) return;
+      for (let d = el.closest("details"); d; d = d.parentElement?.closest("details") ?? null) d.open = true;
+      if (el instanceof HTMLDetailsElement) el.open = true;
+      el.scrollIntoView({ block: "start" });
+    };
+    open();
+    window.addEventListener("hashchange", open);
+    return () => window.removeEventListener("hashchange", open);
+  }, []);
+  return null;
+}

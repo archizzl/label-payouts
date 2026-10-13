@@ -3,7 +3,7 @@ import Link from "next/link";
 import { connection } from "next/server";
 import { redirect } from "next/navigation";
 import { BandFields } from "@/components/band-fields";
-import { ActionForm, SubmitButton } from "@/components/client";
+import { ActionForm, OpenLinkedSection, SubmitButton } from "@/components/client";
 import { SyncFooter } from "@/components/sync-status";
 import { Badge, Card, Disclosure, Empty, Field, MoneyList, PageHeader, RolesList } from "@/components/ui";
 import { ViewAsButton } from "@/components/viewing-as";
@@ -11,9 +11,9 @@ import { WhoCanSignIn } from "@/components/who-can-sign-in";
 import { db, schema } from "@/db";
 import { payHandlesSummary } from "@/lib/paypal-export";
 import { bandScope } from "@/lib/permissions";
-import { deletePerson, mergePeopleAction, savePerson } from "@/server/actions";
+import { addMember, deletePerson, mergePeopleAction, removeMember, savePerson } from "@/server/actions";
 import { type Context, requireAccess } from "@/server/context";
-import { computeAllTime, labelHost } from "@/server/data";
+import { labelHost } from "@/server/data";
 import { type BandAccountSummary, bandAccountSummaries, ensureBandAccounts } from "@/server/band-accounts";
 import { MemberTypesCard } from "@/components/member-types";
 import { possibleDuplicates } from "@/server/people";
@@ -22,7 +22,7 @@ export const metadata = { title: "directory" };
 
 type Person = typeof schema.people.$inferSelect;
 type Band = typeof schema.bands.$inferSelect;
-type Membership = { personId: number; roles: string[]; active: boolean; band: Band };
+type Membership = { id: number; personId: number; roles: string[]; active: boolean; band: Band };
 type Totals = Map<string, number>;
 
 /** The person rows' columns (and the header above them). */
@@ -42,20 +42,23 @@ export default async function DirectoryPage() {
   // Bands' own accounts (label admins): bands added since (or from before sub-accounts) get theirs.
   const showAccounts = ctx.isAdmin && ctx.org.kind === "label";
   if (showAccounts) await ensureBandAccounts(orgId);
-  const [allBands, everyone, memberships, payoutRows, duplicates, outsideRows, splitRules, releases, { summary }, accounts] = await Promise.all([
+  const [allBands, everyone, memberships, payoutRows, duplicates, outsideRows, accounts] = await Promise.all([
     db.select().from(schema.bands).where(eq(schema.bands.orgId, orgId)).orderBy(asc(schema.bands.name)),
     db.select().from(schema.people).where(eq(schema.people.orgId, orgId)).orderBy(asc(schema.people.name)),
     db
-      .select({ personId: schema.bandMemberships.personId, roles: schema.bandMemberships.roles, active: schema.bandMemberships.active, band: schema.bands })
+      .select({
+        id: schema.bandMemberships.id,
+        personId: schema.bandMemberships.personId,
+        roles: schema.bandMemberships.roles,
+        active: schema.bandMemberships.active,
+        band: schema.bands,
+      })
       .from(schema.bandMemberships)
       .innerJoin(schema.bands, eq(schema.bands.id, schema.bandMemberships.bandId))
       .where(eq(schema.bandMemberships.orgId, orgId)),
     db.select().from(schema.payouts).where(eq(schema.payouts.orgId, orgId)),
     possibleDuplicates(orgId),
     db.select().from(schema.outsideArtists).where(eq(schema.outsideArtists.orgId, orgId)),
-    db.select().from(schema.splitRules).where(eq(schema.splitRules.orgId, orgId)),
-    db.select({ bandId: schema.releases.bandId, kind: schema.releases.kind }).from(schema.releases).where(eq(schema.releases.orgId, orgId)),
-    computeAllTime(orgId),
     showAccounts ? bandAccountSummaries(orgId) : new Map<number, BandAccountSummary>(),
   ]);
   const bands = scope ? allBands.filter((b) => scope.includes(b.id)) : allBands;
@@ -75,30 +78,12 @@ export default async function DirectoryPage() {
   const money = new Map(people.map((p) => [p.id, { owed: sumBy(pending, p.id), paid: sumBy(paid, p.id) }]));
   const contactFor = (personId: number) => outsideRows.filter((a) => a.contactPersonId === personId).map((a) => a.name);
 
-  const hasLabelDefault = splitRules.some((r) => r.scope === "label_default");
-  const splitStatus = (b: Band) =>
-    splitRules.some((r) => r.scope === "band_default" && r.bandId === b.id)
-      ? { text: "own split", tone: "" }
-      : b.isLabel
-        ? { text: "label keeps it", tone: "text-muted" }
-        : hasLabelDefault
-          ? { text: "label-wide split", tone: "text-muted" }
-          : { text: "no split set", tone: "text-warn" };
   const labelHosts = new Map(await Promise.all(bands.filter((b) => b.isLabel).map(async (b) => [b.id, await labelHost(orgId, b.id)] as const)));
   /** The band's Bandcamp page, from a bare subdomain pattern or a custom host. */
   const bandcampHost = (b: Band) => {
     const p = b.urlPatterns.find((x) => !x.includes("/"));
     return p ? (p.includes(".") ? p : `${p}.bandcamp.com`) : (labelHosts.get(b.id) ?? null);
   };
-  const netSales = (bandId: number) => {
-    const m: Totals = new Map();
-    for (const cur of summary.currencies) {
-      const v = summary.byCurrency[cur].byBand.get(bandId);
-      if (v) m.set(cur, v);
-    }
-    return m;
-  };
-  const countOf = (bandId: number, merch: boolean) => releases.filter((r) => r.bandId === bandId && (r.kind === "merch") === merch).length;
   // Someone in several bands is listed under each; their edit panel's anchor (#p12) is on the first.
   const anchored = new Set<number>();
   const anchorFor = (personId: number) => {
@@ -106,14 +91,12 @@ export default async function DirectoryPage() {
     anchored.add(personId);
     return `p${personId}`;
   };
-  const row = (p: Person, bandId: number | null, roles: string[] | null, active = true) => (
+  const row = (p: Person, membership: Membership | null) => (
     <PersonRow
       key={p.id}
       id={anchorFor(p.id)}
       person={p}
-      bandId={bandId}
-      roles={roles}
-      active={active}
+      membership={membership}
       bandsOf={memberships.filter((m) => m.personId === p.id)}
       contactFor={contactFor(p.id)}
       money={money.get(p.id)!}
@@ -170,86 +153,66 @@ export default async function DirectoryPage() {
       )}
 
       {bands.length === 0 && <Empty>No bands yet. They come in from Bandcamp, or add one below.</Empty>}
-      {people.length > 0 && (
-        <div className={`${COLUMNS} border-b border-border px-2.5 pb-1.5 text-xs text-muted lowercase`}>
-          <span>person</span>
-          <span>roles</span>
-          <span>how they’re paid</span>
-          <span className="text-right">owed</span>
-          <span className="text-right">paid / kept</span>
-          <span />
-        </div>
-      )}
-      <div className="space-y-8">
+      <div className="divide-y divide-border border-y border-border">
         {bands.map((b) => {
           const nameOf = (m: Membership) => people.find((p) => p.id === m.personId)?.name ?? "";
           // Current members first, then by name.
           const members = memberships
             .filter((m) => m.band.id === b.id)
             .sort((x, y) => Number(y.active) - Number(x.active) || nameOf(x).localeCompare(nameOf(y)));
+          const current = members.filter((m) => m.active).length;
           const host = bandcampHost(b);
-          const split = splitStatus(b);
           return (
-            <section key={b.id} id={`band-${b.id}`} className="scroll-mt-4">
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-border pb-2">
-                <Link href={`/bands/${b.id}`} className="flex items-center gap-3 text-base font-bold hover:no-underline">
-                  {b.imageUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={b.imageUrl} alt="" className="h-9 w-9 shrink-0 bg-surface-2 object-cover" />
-                  ) : (
-                    <span className="h-9 w-9 shrink-0 bg-surface-2" />
-                  )}
-                  <span className="hover:underline">{b.name}</span>
+            <details key={b.id} id={`band-${b.id}`} className="group/band scroll-mt-4">
+              <summary className="flex flex-wrap items-center gap-x-4 gap-y-1 py-2.5 hover:bg-surface-2">
+                <span className="w-4 shrink-0 text-center text-xs text-muted transition group-open/band:rotate-90">▸</span>
+                <Link href={`/bands/${b.id}`} className="font-bold">
+                  {b.name}
                 </Link>
-                {b.isLabel && <span className="text-xs text-muted">the label itself</span>}
-                <span className="ml-auto flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
-                  {b.location && <span>{b.location}</span>}
-                  {host ? (
-                    <a href={`https://${host}`} target="_blank" rel="noreferrer">
-                      {host}
-                    </a>
-                  ) : (
-                    <span>matched by name</span>
-                  )}
-                  <Link href={`/bands/${b.id}?tab=money`} className={split.tone || "text-text"}>
-                    {split.text}
-                  </Link>
-                  <span>
-                    {countOf(b.id, false)} release{countOf(b.id, false) === 1 ? "" : "s"} · {countOf(b.id, true)} merch
-                  </span>
-                  <span className="text-text">
-                    <MoneyList totals={netSales(b.id)} />
-                  </span>
+                {host && (
+                  <a href={`https://${host}`} target="_blank" rel="noreferrer" className="text-xs">
+                    {host}
+                  </a>
+                )}
+                <span className={`ml-auto text-xs ${current || b.isLabel ? "text-muted" : "text-warn"}`}>
+                  {current ? `${current} member${current === 1 ? "" : "s"}` : b.isLabel ? "the label itself" : "no members yet"}
                 </span>
+              </summary>
+              <div className="mb-4 ml-8">
+                {accounts.get(b.id) && <BandAccountLine bandId={b.id} account={accounts.get(b.id)!} />}
+                {members.length > 0 && (
+                  <div className="text-sm">
+                    <ColumnHeads />
+                    {members.map((m) => row(people.find((p) => p.id === m.personId)!, m))}
+                  </div>
+                )}
+                {members.length === 0 && b.isLabel && (
+                  <p className="py-2 text-sm text-muted">What the label’s own releases earn stays with the label unless they have a split.</p>
+                )}
+                <AddToBand bandId={b.id} bandName={b.name} people={people.filter((p) => !members.some((m) => m.personId === p.id && m.active))} />
               </div>
-              {accounts.get(b.id) && <BandAccountLine bandId={b.id} account={accounts.get(b.id)!} />}
-              {members.length === 0 ? (
-                <p className="px-2.5 py-2 text-sm text-muted">
-                  {b.isLabel ? (
-                    "No one listed: what the label’s own releases earn stays with the label unless they have a split."
-                  ) : (
-                    <>
-                      <span className="text-warn">No members yet.</span> <Link href={`/bands/${b.id}?tab=people`}>Add them</Link>
-                    </>
-                  )}
-                </p>
-              ) : (
-                <div className="text-sm">{members.map((m) => row(people.find((p) => p.id === m.personId)!, b.id, m.roles, m.active))}</div>
-              )}
-            </section>
+            </details>
           );
         })}
 
         {inNoBand.length > 0 && (
-          <section id="not-in-a-band">
-            <div className="border-b border-border pb-2">
-              <h2 className="text-base font-bold">Not in a band</h2>
-              <p className="text-xs text-muted">Co-writers, producers, contacts for outside artists: anyone paid without being in one of your bands.</p>
+          <details id="not-in-a-band" className="group/band scroll-mt-4">
+            <summary className="flex flex-wrap items-center gap-x-4 gap-y-1 py-2.5 hover:bg-surface-2">
+              <span className="w-4 shrink-0 text-center text-xs text-muted transition group-open/band:rotate-90">▸</span>
+              <span className="font-bold">Not in a band</span>
+              <span className="text-xs text-muted">co-writers, producers, contacts for outside artists</span>
+              <span className="ml-auto text-xs text-muted">
+                {inNoBand.length} {inNoBand.length === 1 ? "person" : "people"}
+              </span>
+            </summary>
+            <div className="mb-4 ml-8 text-sm">
+              <ColumnHeads />
+              {inNoBand.map((p) => row(p, null))}
             </div>
-            <div className="text-sm">{inNoBand.map((p) => row(p, null, null))}</div>
-          </section>
+          </details>
         )}
       </div>
+      <OpenLinkedSection />
 
       {!scope && (
         <div className="mt-6 flex flex-wrap items-start gap-3">
@@ -263,7 +226,6 @@ export default async function DirectoryPage() {
           </Disclosure>
         </div>
       )}
-      <p className="mt-3 text-xs text-muted">To add someone to a band, open the band and use its People tab.</p>
 
       {/* Logins, invites and member types: admins only (it's who can see and change the books). */}
       {ctx.isAdmin && (
@@ -274,6 +236,65 @@ export default async function DirectoryPage() {
       )}
       <SyncFooter orgId={orgId} />
     </>
+  );
+}
+
+/** The person columns, at the top of an opened band. */
+function ColumnHeads() {
+  return (
+    <div className={`${COLUMNS} border-b border-border px-2.5 py-1.5 text-xs text-muted lowercase`}>
+      <span>person</span>
+      <span>roles</span>
+      <span>how they’re paid</span>
+      <span className="text-right">owed</span>
+      <span className="text-right">paid / kept</span>
+      <span />
+    </div>
+  );
+}
+
+/** Add someone to a band: someone already in the books, or someone new. */
+function AddToBand({ bandId, bandName, people }: { bandId: number; bandName: string; people: Person[] }) {
+  return (
+    <div className="mt-3">
+      <Disclosure
+        summary={
+          <>
+            + Add someone to <span className="normal-case">{bandName}</span>
+          </>
+        }
+      >
+        <form action={addMember} className="grid gap-4 sm:grid-cols-2">
+          <input type="hidden" name="bandId" value={bandId} />
+          {people.length > 0 && (
+            <Field label="Someone already here" className="sm:col-span-2">
+              <select name="personId" defaultValue="">
+                <option value="">Someone new (fill in below)</option>
+                {people.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          )}
+          <Field label="Name">
+            <input name="name" />
+          </Field>
+          <Field label="Roles (comma-separated)">
+            <input name="roles" placeholder="vocals, guitar, songwriter" />
+          </Field>
+          <Field label="Email (optional)" hint="Their PayPal email, if they use PayPal." className="sm:col-span-2">
+            <input name="email" type="email" />
+          </Field>
+          <div className="sm:col-span-2">
+            <SubmitButton>
+              Add to <span className="normal-case">{bandName}</span>
+            </SubmitButton>
+          </div>
+        </form>
+      </Disclosure>
+    </div>
   );
 }
 
@@ -311,9 +332,7 @@ function BandAccountLine({ bandId, account: a }: { bandId: number; account: Band
 function PersonRow({
   id,
   person: p,
-  bandId,
-  roles,
-  active,
+  membership,
   bandsOf,
   contactFor,
   money,
@@ -323,10 +342,8 @@ function PersonRow({
 }: {
   id?: string;
   person: Person;
-  /** The band they're listed under (null: not in a band). */
-  bandId: number | null;
-  roles: string[] | null;
-  active: boolean;
+  /** Their place in the band they're listed under (null: not in a band). */
+  membership: Membership | null;
   bandsOf: Membership[];
   contactFor: string[];
   money: { owed: Totals; paid: Totals };
@@ -334,7 +351,8 @@ function PersonRow({
   ctx: Context;
   limited: boolean;
 }) {
-  const others = bandsOf.filter((m) => m.band.id !== bandId);
+  const roles = membership?.roles ?? null;
+  const active = membership?.active ?? true;
   return (
     <details id={id} className="group scroll-mt-4 border-b border-border">
       <summary
@@ -352,7 +370,6 @@ function PersonRow({
         <span className="text-xs">
           {roles && roles.length > 0 && <RolesList roles={roles} />}
           {contactFor.length > 0 && <span className="block text-muted">contact for {contactFor.join(", ")}</span>}
-          {others.length > 0 && <span className="block text-muted">also in {others.map((m) => m.band.name).join(", ")}</span>}
         </span>
         <span className="truncate text-xs">
           {p.email ? (
@@ -377,6 +394,18 @@ function PersonRow({
       </summary>
       <div className="mb-3 space-y-4 border border-border bg-surface-2 p-4">
         <PersonFields person={p} />
+        {membership && (
+          <form action={removeMember} className="border-t border-border pt-4">
+            <input type="hidden" name="membershipId" value={membership.id} />
+            <SubmitButton
+              variant="secondary"
+              size="sm"
+              confirm={`Take ${p.name} out of ${membership.band.name}? They stay in your books with their payout history. If they have a share in the band's split, change that on its Money tab.`}
+            >
+              Remove from <span className="normal-case">{membership.band.name}</span>
+            </SubmitButton>
+          </form>
+        )}
         {bandsOf.length > 0 && (
           <p className="text-xs text-muted">
             Roles are set per band, on the band’s People tab:{" "}
