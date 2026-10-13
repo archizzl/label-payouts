@@ -176,6 +176,13 @@
       "when": 1791857070948,
       "tag": "0024_feature_flags",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1791866067282,
+      "tag": "0025_account_applications",
+      "breakpoints": true
     }
   ]
 }

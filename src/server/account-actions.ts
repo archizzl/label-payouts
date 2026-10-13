@@ -1,16 +1,18 @@
 "use server";
 
-import { randomBytes } from "node:crypto";
 import { and, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { db, schema } from "@/db";
+import { slugify } from "@/lib/slug";
 import { auth } from "./auth";
 import { accountsFor, getSession, requireAdmin } from "./context";
 import { AREAS, type Area, normalizeBandAreas, normalizePermissions } from "@/lib/permissions";
 import { assignMemberType, memberTypeForInvite, parseRoleChoice, setInviteMemberType } from "./member-types";
+import { preapproved } from "./applications";
 import { normalizeEmail } from "./people";
+import { isSiteAdminEmail } from "./site-admin";
 import { bandcampCredentials, forgetBandcampSignIn, myBands } from "./bandcamp-api";
 import { encryptSecret } from "./secrets";
 
@@ -84,15 +86,6 @@ export async function signOut() {
 
 // ---------- accounts ----------
 
-function slugify(name: string) {
-  const base = name
-    .toLowerCase()
-    .normalize("NFKD")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "")
-    .slice(0, 40);
-  return `${base || "account"}-${randomBytes(3).toString("hex")}`;
-}
 
 /**
  * A new label or band account, owned by whoever creates it. A band account gets its band straight
@@ -104,6 +97,9 @@ export async function createAccount(_: FormState, fd: FormData): Promise<FormSta
   const name = str(fd, "name");
   const kind = str(fd, "kind") === "band" ? "band" : "label";
   if (!name) return { error: `Give your ${kind} a name.` };
+  if (!isSiteAdminEmail(session.user.email) && !(await preapproved(session.user.id))) {
+    return { error: "New accounts need approval: apply on the welcome page." };
+  }
   let orgId: string;
   try {
     const org = await auth.api.createOrganization({ body: { name, slug: slugify(name), kind }, headers: await headers() });

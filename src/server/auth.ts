@@ -30,7 +30,7 @@ export const auth = betterAuth({
     resetPasswordTokenExpiresIn: 60 * 60 * 24,
     revokeSessionsOnPasswordReset: true,
   },
-  // Signing up is by invitation only, whichever route a sign-up comes through.
+  // Anyone can create a login; an invite code, if given, must be valid (and is used up).
   databaseHooks: {
     user: {
       create: {
@@ -77,6 +77,15 @@ export const auth = betterAuth({
   },
   plugins: [
     organization({
+      // New accounts need approval: only site admins, and people who signed up with a site admin's
+      // invite link, create them directly. Everyone else applies (src/server/applications.ts), and
+      // approving creates the account on their behalf (which this doesn't block).
+      allowUserToCreateOrganization: async (u) => {
+        const admins = (process.env.SITE_ADMIN_EMAILS ?? "").split(",").map((e) => e.trim().toLowerCase());
+        if (admins.includes(u.email.trim().toLowerCase())) return true;
+        const [invited] = await db.select({ id: schema.signupInvites.id }).from(schema.signupInvites).where(eq(schema.signupInvites.usedByUserId, u.id)).limit(1);
+        return !!invited;
+      },
       schema: {
         organization: {
           additionalFields: { kind: { type: "string", required: true, defaultValue: "label", input: true } },

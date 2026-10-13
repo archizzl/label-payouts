@@ -3,10 +3,12 @@ import { headers } from "next/headers";
 import { connection } from "next/server";
 import { ActionForm, CopyButton, SubmitButton } from "@/components/client";
 import { ResetLinkButton } from "@/components/reset-link-button";
-import { Badge, Callout, Card, Field, PageHeader } from "@/components/ui";
+import { Badge, Callout, Card, Empty, Field, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
 import { FEATURE_FLAGS } from "@/lib/feature-flags";
 import { createSignupInvite, revokeSignupInvite, saveFeatureFlag } from "@/server/admin-actions";
+import { approveAccountApplication, rejectAccountApplication } from "@/server/application-actions";
+import { listApplications } from "@/server/applications";
 import { inviteStatus, listInvites } from "@/server/signup-invites";
 import { requireSiteAdmin } from "@/server/site-admin";
 
@@ -23,7 +25,7 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
   const link = (code: string) => `${base}/signup?code=${code}`;
 
   const session = await requireSiteAdmin();
-  const [invites, users, memberships, accounts, lastSeen, flagAccounts, flagPrefs] = await Promise.all([
+  const [invites, users, memberships, accounts, lastSeen, flagAccounts, flagPrefs, applications] = await Promise.all([
     listInvites(),
     db.select().from(schema.user).orderBy(desc(schema.user.createdAt)),
     db
@@ -51,7 +53,10 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
       .groupBy(schema.session.userId),
     db.select().from(schema.featureFlagAccounts),
     db.select().from(schema.featureFlagPrefs).where(eq(schema.featureFlagPrefs.userId, session.user.id)),
+    listApplications(),
   ]);
+  const waiting = applications.filter((a) => a.app.status === "pending");
+  const decided = applications.filter((a) => a.app.status !== "pending").slice(0, 15);
   const seen = new Map(lastSeen.map((s) => [s.userId, s.at]));
   const userName = new Map(users.map((u) => [u.id, `${u.name} (${u.email})`]));
   const created = Number(sp.created) ? invites.find((i) => i.id === Number(sp.created)) : null;
@@ -73,6 +78,84 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
         </Callout>
       )}
       {sp.error === "email" && <Callout tone="bad">That email doesn’t look right.</Callout>}
+
+      <Card title={`Applications${waiting.length ? ` (${waiting.length} waiting)` : ""}`}>
+        <p className="mb-4 text-sm text-muted">
+          People asking for a new label or band account. Approving sets the account up with what they told us, with them as its owner; invite
+          links for the people they listed are waiting in their account’s People page.
+        </p>
+        {waiting.length === 0 ? (
+          <Empty>Nothing waiting.</Empty>
+        ) : (
+          <ul className="divide-y divide-border border-y border-border">
+            {waiting.map(({ app, user }) => (
+              <li key={app.id} className="space-y-3 py-4 text-sm">
+                <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                  <span className="text-base font-bold">{app.name}</span>
+                  <Badge tone="accent">{app.kind}</Badge>
+                  <span className="text-muted">
+                    from {user.name} ({user.email}) · {app.createdAt.slice(0, 10)}
+                  </span>
+                </div>
+                <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
+                  <dt className="text-muted">Bandcamp</dt>
+                  <dd>{app.bandcampUrl ? <a href={app.bandcampUrl} target="_blank" rel="noreferrer">{app.bandcampUrl}</a> : "–"}</dd>
+                  <dt className="text-muted">Website</dt>
+                  <dd>{app.website ? <a href={app.website} target="_blank" rel="noreferrer">{app.website}</a> : "–"}</dd>
+                  {app.kind === "band" ? (
+                    <>
+                      <dt className="text-muted">Members</dt>
+                      <dd>{app.members.length ? app.members.map((m) => [m.name, m.role && `(${m.role})`, m.email && `<${m.email}>`].filter(Boolean).join(" ")).join(", ") : "–"}</dd>
+                    </>
+                  ) : (
+                    <>
+                      <dt className="text-muted">Artists</dt>
+                      <dd>{app.artists.length ? app.artists.map((a) => a.name).join(", ") : "–"}</dd>
+                      <dt className="text-muted">Team</dt>
+                      <dd>{app.team.length ? app.team.map((t) => `${t.name} <${t.email}>`).join(", ") : "–"}</dd>
+                    </>
+                  )}
+                  {app.about && (
+                    <>
+                      <dt className="text-muted">About</dt>
+                      <dd className="whitespace-pre-line">{app.about}</dd>
+                    </>
+                  )}
+                </dl>
+                <div className="flex flex-wrap items-start gap-3">
+                  <form action={approveAccountApplication}>
+                    <input type="hidden" name="id" value={app.id} />
+                    <SubmitButton size="sm" confirm={`Approve ${app.name} and set up its account for ${user.name}?`}>
+                      Approve
+                    </SubmitButton>
+                  </form>
+                  <form action={rejectAccountApplication} className="flex flex-wrap items-center gap-2">
+                    <input type="hidden" name="id" value={app.id} />
+                    <input name="note" placeholder="Why (shown to them, optional)" className="!w-64 !py-1 !text-sm" maxLength={1000} />
+                    <SubmitButton variant="ghost" size="sm" confirm={`Turn down ${app.name}? They can apply again.`}>
+                      Reject
+                    </SubmitButton>
+                  </form>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+        {decided.length > 0 && (
+          <details className="mt-4 text-sm">
+            <summary className="text-muted">Recently decided ({decided.length})</summary>
+            <ul className="mt-2 space-y-1">
+              {decided.map(({ app, user }) => (
+                <li key={app.id}>
+                  <Badge tone={app.status === "approved" ? "good" : "neutral"}>{app.status}</Badge> {app.name} ({app.kind}) · {user.email} ·{" "}
+                  {app.reviewedAt?.slice(0, 10)}
+                  {app.reviewNote && <span className="text-muted"> · “{app.reviewNote}”</span>}
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
+      </Card>
 
       <Card title="Feature flags">
         <p className="mb-4 text-sm text-muted">

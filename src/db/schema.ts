@@ -851,3 +851,37 @@ export const featureFlagPrefs = pgTable(
   },
   (t) => [uniqueIndex("feature_flag_prefs_flag_user").on(t.flag, t.userId)],
 );
+
+/**
+ * Someone asking for a new label or band account. Anyone can create a login; their account is set
+ * up when a site admin approves this (from the admin dashboard), with what they told us.
+ */
+export const accountApplications = pgTable(
+  "account_applications",
+  {
+    id: id(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    kind: text("kind", { enum: ["label", "band"] }).notNull(),
+    name: text("name").notNull(),
+    bandcampUrl: text("bandcamp_url"),
+    website: text("website"),
+    /** What they told us about it. */
+    about: text("about"),
+    /** A band's members (and who to invite to sign in). */
+    members: jsonb("members").$type<{ name: string; role: string | null; email: string | null }[]>().notNull().default([]),
+    /** A label's artists. */
+    artists: jsonb("artists").$type<{ name: string; bandcampUrl: string | null }[]>().notNull().default([]),
+    /** A label's team, to invite to sign in. */
+    team: jsonb("team").$type<{ name: string; email: string }[]>().notNull().default([]),
+    status: text("status", { enum: ["pending", "approved", "rejected"] }).notNull().default("pending"),
+    reviewNote: text("review_note"),
+    reviewedAt: text("reviewed_at"),
+    reviewedByUserId: text("reviewed_by_user_id").references(() => user.id, { onDelete: "set null" }),
+    /** The account made when it was approved. */
+    orgId: text("org_id").references(() => organization.id, { onDelete: "set null" }),
+    createdAt: text("created_at").notNull().default(now),
+  },
+  (t) => [index("account_applications_status").on(t.status), index("account_applications_user").on(t.userId)],
+);

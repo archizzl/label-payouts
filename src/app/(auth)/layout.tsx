@@ -9,7 +9,8 @@ export default function AuthLayout({ children }: LayoutProps<"/">) {
         <Mark />
         <span className="text-xl font-bold tracking-tight lowercase">labelmaker</span>
       </Link>
-      <div className="w-full max-w-sm rounded-md border border-border bg-surface p-6">{children}</div>
+      {/* Narrow for signing in; wider for pages with more to fill in (they mark themselves .wide). */}
+      <div className="w-full max-w-sm rounded-md border border-border bg-surface p-6 has-[.wide]:max-w-2xl">{children}</div>
       {/* <p className="mt-8 max-w-sm text-center text-xs text-muted">An independent tool for indie labels. Not affiliated with or endorsed by Bandcamp.</p> */}
     </main>
   );

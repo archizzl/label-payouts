@@ -41,7 +41,9 @@ export async function checkSignup(email: string, code: string | null): Promise<I
     .where(and(sql`lower(${invitation.email}) = ${e}`, eq(invitation.status, "pending"), gt(invitation.expiresAt, new Date())))
     .limit(1);
   if (pending) return { ok: true, code: null };
-  return { ok: false, reason: "Signing up is by invitation only. Ask the label for an invite link." };
+  // Anyone else can create a login too: a new label or band account still needs a site admin's
+  // approval (src/server/applications.ts).
+  return { ok: true, code: null };
 }
 
 /** Use up a code for a new login. Only the first use counts. */

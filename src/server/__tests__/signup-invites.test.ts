@@ -24,11 +24,11 @@ const signUp = (address: string, code?: string) =>
   });
 const exists = async (address: string) => (await db.select().from(schema.user).where(eq(schema.user.email, address))).length > 0;
 
-describe("signing up is by invitation only", () => {
-  it("refuses a sign-up without an invite, even straight through the API", async () => {
+describe("signing up", () => {
+  it("lets anyone create a login (a new account still needs approval)", async () => {
     const a = email();
-    await expect(signUp(a)).rejects.toThrow(/invitation only/);
-    expect(await exists(a)).toBe(false);
+    await signUp(a);
+    expect(await exists(a)).toBe(true);
   });
 
   it("lets an invite create one login, then it's used up", async () => {

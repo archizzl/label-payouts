@@ -2,13 +2,14 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { SignUpForm } from "@/components/auth-forms";
 import { getSession } from "@/server/context";
-import { checkSignup, usableInvite } from "@/server/signup-invites";
+import { usableInvite } from "@/server/signup-invites";
 
 export const metadata = { title: "sign up" };
 
 /**
- * Creating a login: only with an invite link (/signup?code=…), or for someone invited into an
- * existing account (they arrive from their invite with ?email=…). Anyone else is told it's by invitation.
+ * Creating a login. Anyone can; then they apply for a label or band account (on /welcome), which a
+ * site admin approves. With a site admin's invite link (/signup?code=…) they skip the approval, and
+ * someone invited into an existing account arrives with ?email=….
  */
 export default async function SignupPage({ searchParams }: PageProps<"/signup">) {
   const q = await searchParams;
@@ -17,18 +18,15 @@ export default async function SignupPage({ searchParams }: PageProps<"/signup">)
   const code = typeof q.code === "string" ? q.code : null;
   const invite = code ? await usableInvite(code) : null;
   const email = invite?.email ?? (typeof q.email === "string" ? q.email : undefined);
-  // Without a code, only someone invited into an account (by email) can sign up.
-  const allowed = invite ? true : !code && email ? (await checkSignup(email, null)).ok : false;
   const signIn = `/login${next !== "/welcome" ? `?next=${encodeURIComponent(next)}` : ""}`;
 
-  if (!allowed) {
+  if (code && !invite) {
     return (
       <>
-        <h1 className="mb-2 text-xl font-bold">{code ? "This invite doesn’t work" : "Invitation only"}</h1>
+        <h1 className="mb-2 text-xl font-bold">This invite doesn’t work</h1>
         <p className="mb-5 text-sm text-muted">
-          {code
-            ? "This invite link has been used, revoked or has expired. Ask whoever sent it for a new one."
-            : "Logins are by invitation only. If you’ve been invited, open the link you were sent."}
+          This invite link has been used, revoked or has expired. Ask whoever sent it for a new one, or{" "}
+          <Link href="/signup">sign up without it</Link> and apply for an account.
         </p>
         <p className="text-sm text-muted">
           Already have a login? <Link href={signIn}>Sign in</Link>
@@ -39,7 +37,11 @@ export default async function SignupPage({ searchParams }: PageProps<"/signup">)
   return (
     <>
       <h1 className="mb-1 text-xl font-bold">Create a login</h1>
-      <p className="mb-5 text-sm text-muted">For label owners, band members and anyone who gets paid.</p>
+      <p className="mb-5 text-sm text-muted">
+        {invite || email
+          ? "For label owners, band members and anyone who gets paid."
+          : "Then tell us about your label or band. We’ll set your account up once we’ve had a look."}
+      </p>
       <SignUpForm next={next} email={email} code={invite ? code! : undefined} emailLocked={!!invite?.email || (!invite && !!email)} />
       <p className="mt-5 text-sm text-muted">
         Already have one? <Link href={signIn}>Sign in</Link>
