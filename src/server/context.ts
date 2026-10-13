@@ -1,11 +1,12 @@
 import "server-only";
 import { and, eq } from "drizzle-orm";
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
 import { db, schema } from "@/db";
 import { type Access, type Area, can, normalizeBandAreas, normalizePermissions } from "@/lib/permissions";
 import { auth } from "./auth";
+import { managingLabel } from "./band-accounts";
 
 /*
  * Who's asking, and for which account. Every page and action gets its data through this: it checks
@@ -34,6 +35,22 @@ export type Context = {
   person: typeof schema.people.$inferSelect | null;
   /** Every account they belong to, for the account switcher. */
   accounts: Account[];
+  /** A band account the label made for one of its bands (a sub-account): the label, and the link to its books. */
+  managedBy: { linkId: number; labelOrgId: string; labelName: string; bandId: number } | null;
+  /** A label admin looking at the app as one of its bands or people would see it: read-only. */
+  viewingAs: ViewingAs | null;
+};
+
+export type ViewingAs = {
+  kind: "band" | "person";
+  /** The band's or person's name. */
+  name: string;
+  /** The label account it's viewed from. */
+  label: Account;
+  /** Who's really signed in. */
+  realUser: Context["user"];
+  /** Where "stop viewing" goes back to. */
+  back: string;
 };
 
 /** The signed-in session, or null. */
@@ -59,22 +76,36 @@ export async function accountsFor(userId: string): Promise<Account[]> {
 
 /**
  * The request's context. Sends people who aren't signed in to /login, and people with no account
- * yet to /welcome to create one.
+ * yet to /welcome to create one. While a label admin is viewing as a band or a person, it's theirs
+ * instead, and nothing can be changed: server actions are refused.
  */
 export const getContext = cache(async (): Promise<Context> => {
+  const real = await realContext();
+  const view = await viewAsContext(real);
+  if (!view) return real;
+  if ((await headers()).get("next-action")) {
+    throw new Error(`You’re viewing as ${view.viewingAs!.name}, so nothing can be changed. Stop viewing to make changes.`);
+  }
+  return view;
+});
+
+/** The signed-in person's own context, ignoring "view as". */
+export const realContext = cache(async (): Promise<Context> => {
   const session = await getSession();
   if (!session) redirect("/login");
   const accounts = await accountsFor(session.user.id);
   if (accounts.length === 0) redirect("/welcome");
   const org = accounts.find((a) => a.id === session.session.activeOrganizationId) ?? accounts[0];
   const isAdmin = org.role !== "member";
-  // Everything else at once: their payee record, their member type, and (rarely) remembering the account.
-  const [[person], type] = await Promise.all([
+  // Everything else at once: their payee record, their member type, whether a label manages this
+  // account, and (rarely) remembering the account.
+  const [[person], type, managedBy] = await Promise.all([
     db
       .select()
       .from(schema.people)
       .where(and(eq(schema.people.orgId, org.id), eq(schema.people.userId, session.user.id))),
     isAdmin ? null : memberTypeFor(org.id, session.user.id),
+    org.kind === "band" ? managingLabel(org.id) : null,
     org.id !== session.session.activeOrganizationId
       ? // Remember it, so the next request doesn't have to guess.
         db.update(schema.session).set({ activeOrganizationId: org.id }).where(eq(schema.session.id, session.session.id))
@@ -91,8 +122,101 @@ export const getContext = cache(async (): Promise<Context> => {
     memberType,
     person: person ?? null,
     accounts,
+    managedBy,
+    viewingAs: null,
   };
 });
+
+/** The cookie that says who a label admin is viewing as: "<label account id>|band|<band id>" or "…|person|<person id>". */
+export const VIEW_AS_COOKIE = "lm_view_as";
+
+export function viewAsValue(labelOrgId: string, kind: "band" | "person", id: number) {
+  return `${labelOrgId}|${kind}|${id}`;
+}
+
+function parseViewAs(raw: string) {
+  const [labelOrgId, kind, id] = raw.split("|");
+  const n = Number(id);
+  if (!labelOrgId || (kind !== "band" && kind !== "person") || !Number.isInteger(n) || n <= 0) return null;
+  return { labelOrgId, kind, id: n } as const;
+}
+
+/**
+ * The context of whoever the signed-in label admin is viewing as, checked afresh on every request:
+ * they must still be an admin of the label, and the band's sub-account or the person must be its.
+ */
+async function viewAsContext(real: Context): Promise<Context | null> {
+  const raw = (await cookies()).get(VIEW_AS_COOKIE)?.value;
+  const target = raw ? parseViewAs(raw) : null;
+  if (!target) return null;
+  const label = real.accounts.find((a) => a.id === target.labelOrgId && a.kind === "label" && a.role !== "member");
+  if (!label) return null;
+  const viewing = (kind: "band" | "person", name: string, back: string): ViewingAs => ({ kind, name, label, realUser: real.user, back });
+
+  if (target.kind === "band") {
+    const [row] = await db
+      .select({ link: schema.accountLinks, org: schema.organization, band: schema.bands })
+      .from(schema.accountLinks)
+      .innerJoin(schema.organization, eq(schema.organization.id, schema.accountLinks.bandOrgId))
+      .innerJoin(schema.bands, eq(schema.bands.id, schema.accountLinks.labelBandId))
+      .where(
+        and(
+          eq(schema.accountLinks.labelOrgId, label.id),
+          eq(schema.accountLinks.labelBandId, target.id),
+          eq(schema.accountLinks.managed, true),
+          eq(schema.accountLinks.status, "active"),
+        ),
+      );
+    if (!row) return null;
+    // As the band's own admins see it.
+    const org: Account = { id: row.org.id, name: row.org.name, slug: row.org.slug, kind: "band", role: "admin" };
+    return {
+      user: { id: real.user.id, name: row.band.name, email: "" },
+      org,
+      orgId: org.id,
+      role: "admin",
+      isAdmin: true,
+      access: { admin: true, permissions: {}, bandAreas: [], bandIds: [] },
+      memberType: null,
+      person: null,
+      accounts: [org],
+      managedBy: { linkId: row.link.id, labelOrgId: label.id, labelName: label.name, bandId: row.band.id },
+      viewingAs: viewing("band", row.band.name, `/bands/${row.band.id}`),
+    };
+  }
+
+  const [person] = await db
+    .select()
+    .from(schema.people)
+    .where(and(eq(schema.people.orgId, label.id), eq(schema.people.id, target.id)));
+  if (!person) return null;
+  // As they'd see the label: an admin if their login is one, else a member with their member type.
+  const [login] = person.userId
+    ? await db
+        .select({ role: schema.member.role })
+        .from(schema.member)
+        .where(and(eq(schema.member.organizationId, label.id), eq(schema.member.userId, person.userId)))
+    : [];
+  const role: Role = login && ["owner", "admin"].includes(login.role) ? (login.role as Role) : "member";
+  const isAdmin = role !== "member";
+  const type = !isAdmin && person.userId ? await memberTypeFor(label.id, person.userId) : null;
+  const { access, memberType } = await accessFrom(label.id, isAdmin, type, person.id);
+  const org: Account = { ...label, role };
+  return {
+    // Someone with no login yet gets a stand-in id, which matches nothing.
+    user: { id: person.userId ?? `viewing-as-${person.id}`, name: person.name, email: person.email ?? "" },
+    org,
+    orgId: org.id,
+    role,
+    isAdmin,
+    access,
+    memberType,
+    person,
+    accounts: [org],
+    managedBy: null,
+    viewingAs: viewing("person", person.name, `/people#p${person.id}`),
+  };
+}
 
 type MemberTypeRow = typeof schema.memberTypes.$inferSelect;
 

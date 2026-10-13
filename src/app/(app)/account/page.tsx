@@ -7,11 +7,13 @@ import { db, schema } from "@/db";
 import { AREAS, type Area, describePermissions, normalizeBandAreas, normalizePermissions } from "@/lib/permissions";
 import { deleteMemberType, saveAccountSettings, saveMemberType, testBandcampConnection } from "@/server/account-actions";
 import { BandAccountsCard } from "@/components/band-link";
+import { WhoCanSignIn } from "@/components/who-can-sign-in";
+import { ensureBandAccounts } from "@/server/band-accounts";
 import { SyncFooter } from "@/components/sync-status";
 import { setSetupHidden } from "@/server/actions";
 import { bandcampApiOff } from "@/server/bandcamp-api";
-import { requireAdmin } from "@/server/context";
-import { acceptLinkCode, unlink } from "@/server/link-actions";
+import { type Context, requireAdmin } from "@/server/context";
+import { unlink } from "@/server/link-actions";
 import { bandLinksFor, labelsForBandAccount } from "@/server/links";
 import { listMemberTypes, memberTypeOf } from "@/server/member-types";
 
@@ -22,6 +24,9 @@ export default async function AccountPage() {
   await connection();
   const ctx = await requireAdmin();
   const { orgId } = ctx;
+  if (ctx.managedBy) return <SubAccountSettings ctx={ctx} />;
+  // Bands added since (or from before sub-accounts) get theirs.
+  if (ctx.org.kind === "label") await ensureBandAccounts(orgId);
   const [[settings], members, labels, types, typeOf] = await Promise.all([
     db.select().from(schema.accountSettings).where(eq(schema.accountSettings.orgId, orgId)),
     db
@@ -123,8 +128,8 @@ export default async function AccountPage() {
       {kind === "band" && (
         <Card title="Labels">
           <p className="mb-4 text-sm text-muted">
-            If you’re on a label that uses this app, link to it to see your band’s sales, payouts, statements and receipts from the
-            label here. Ask the label for a link code (it’s on your band’s page in their account).
+            Labels that use labelmaker make an account for each of their bands. This is where you see what the label has for you: your sales,
+            payouts, statements and receipts.
           </p>
           {labels.length > 0 && (
             <ul className="mb-4 space-y-2">
@@ -134,22 +139,18 @@ export default async function AccountPage() {
                     {label.name}
                   </Link>
                   <span className="text-muted">as {band.name}</span>
-                  <form action={unlink} className="ml-auto">
-                    <input type="hidden" name="id" value={link.id} />
-                    <SubmitButton variant="ghost" size="sm" confirm={`Unlink ${label.name}?`}>
-                      Unlink
-                    </SubmitButton>
-                  </form>
+                  {!link.managed && (
+                    <form action={unlink} className="ml-auto">
+                      <input type="hidden" name="id" value={link.id} />
+                      <SubmitButton variant="ghost" size="sm" confirm={`Unlink ${label.name}?`}>
+                        Unlink
+                      </SubmitButton>
+                    </form>
+                  )}
                 </li>
               ))}
             </ul>
           )}
-          <ActionForm action={acceptLinkCode} className="flex flex-wrap items-end gap-3">
-            <Field label="Link code from your label">
-              <input name="code" required placeholder="ABCD-EFGH-JKLM" className="!w-56 uppercase" autoComplete="off" />
-            </Field>
-            <SubmitButton>Link</SubmitButton>
-          </ActionForm>
         </Card>
       )}
 
@@ -198,6 +199,21 @@ export default async function AccountPage() {
         </Disclosure>
       </Card>
       <SyncFooter orgId={ctx.orgId} />
+    </>
+  );
+}
+
+/** A band account the label made: it's the label's to name and set up, so just who signs in. */
+function SubAccountSettings({ ctx }: { ctx: Context }) {
+  const m = ctx.managedBy!;
+  return (
+    <>
+      <PageHeader title="Settings" subtitle={`${ctx.org.name} · band account`} />
+      <p className="mb-8 text-sm text-muted">
+        {m.labelName} made this account for {ctx.org.name}, so you can see <Link href={`/from-label/${m.linkId}`}>what the label has for you</Link>:
+        your sales, payouts, statements and receipts. The label keeps the books; ask them if something looks wrong.
+      </p>
+      <WhoCanSignIn ctx={ctx} />
     </>
   );
 }

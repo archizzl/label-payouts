@@ -6,6 +6,7 @@ import { Badge, Card, Disclosure, Empty, Field, MoneyList, PageHeader, RolesList
 import { db, schema } from "@/db";
 import { deletePerson, mergePeopleAction, savePerson, setLabelAccountHolder } from "@/server/actions";
 import { payHandlesSummary } from "@/lib/paypal-export";
+import { ViewAsButton } from "@/components/viewing-as";
 import { WhoCanSignIn } from "@/components/who-can-sign-in";
 import { requireAccess } from "@/server/context";
 import { possibleDuplicates } from "@/server/people";
@@ -226,6 +227,12 @@ export default async function PeoplePage() {
                           merge
                         </SubmitButton>
                       </form>
+                    )}
+                    {ctx.isAdmin && ctx.org.kind === "label" && (
+                      <div className="flex flex-wrap items-center gap-2 border-t border-border pt-4 text-sm">
+                        <ViewAsButton kind="person" id={p.id} label={`View as ${p.name}`} />
+                        <span className="text-xs text-muted">See {ctx.org.name} as they would when they sign in. Nothing can be changed while viewing.</span>
+                      </div>
                     )}
                     <ActionForm action={deletePerson} className="border-t border-border pt-4">
                       <input type="hidden" name="id" value={p.id} />

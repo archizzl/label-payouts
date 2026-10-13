@@ -22,7 +22,9 @@ export function Mark() {
 
 type Item = { href: string; label: string };
 
-function itemsFor(account: Account, isAdmin: boolean, areas: Area[], labels: Item[], projects: boolean): Item[] {
+function itemsFor(account: Account, isAdmin: boolean, areas: Area[], labels: Item[], projects: boolean, managed: boolean): Item[] {
+  // A label's sub-account for one of its bands: the label's books for the band, and who can sign in.
+  if (managed) return [...labels, ...(isAdmin ? [{ href: "/account", label: "settings" }] : [])];
   const all: (Item & { area?: Area })[] = [
     { href: "/", label: "dashboard", area: "dashboard" },
     { href: "/sales", label: "sales", area: "sales" },
@@ -83,6 +85,8 @@ export function Nav({
   siteAdmin = false,
   projects = false,
   showAdminLink = true,
+  managed = false,
+  viewing = false,
 }: {
   user: { name: string; email: string };
   account: Account;
@@ -102,6 +106,10 @@ export function Nav({
   projects?: boolean;
   /** Link to the admin dashboard (site admins; not on the live site, where it has its own address). */
   showAdminLink?: boolean;
+  /** A band account a label made for one of its bands. */
+  managed?: boolean;
+  /** A label admin viewing as someone else: no switching accounts or signing out from here. */
+  viewing?: boolean;
 }) {
   const path = usePathname();
   // "New sales" counts from your last look at Sales: once you've opened it, stop showing the number
@@ -113,7 +121,7 @@ export function Nav({
     if (key === "sales" && seenSales) return 0;
     return badges[key] ?? 0;
   };
-  const items = [...itemsFor(account, isAdmin, areas, labels, projects), ...(siteAdmin && showAdminLink ? [{ href: "/admin", label: "admin" }] : [])];
+  const items = [...itemsFor(account, isAdmin, areas, labels, projects, managed), ...(siteAdmin && showAdminLink && !viewing ? [{ href: "/admin", label: "admin" }] : [])];
   return (
     <header className="no-print border-b border-border bg-surface">
       <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 pt-4 pb-3 md:px-8">
@@ -127,11 +135,13 @@ export function Nav({
           <span className="hidden text-sm text-muted sm:inline" title={user.email}>
             {user.name}
           </span>
-          <form action={signOut}>
-            <button type="submit" className="text-sm text-link hover:underline">
-              sign out
-            </button>
-          </form>
+          {!viewing && (
+            <form action={signOut}>
+              <button type="submit" className="text-sm text-link hover:underline">
+                sign out
+              </button>
+            </form>
+          )}
         </div>
       </div>
       <nav className="mx-auto max-w-5xl px-4 md:px-8">

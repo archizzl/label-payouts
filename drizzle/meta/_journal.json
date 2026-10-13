@@ -183,6 +183,13 @@
       "when": 1791866067282,
       "tag": "0025_account_applications",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1791903053655,
+      "tag": "0026_band_sub_accounts",
+      "breakpoints": true
     }
   ]
 }

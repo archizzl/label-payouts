@@ -10,6 +10,7 @@ import { parseReleasePage } from "@/lib/bandcamp-release";
 import { parseCents } from "@/lib/money";
 import { isSalePart, salePartLabel } from "@/lib/sale-parts";
 import { cleanCashtag, cleanVenmoHandle } from "@/lib/paypal-export";
+import { deleteSubAccount, ensureBandAccounts, renameSubAccount } from "./band-accounts";
 import { fetchPage, upsertRelease } from "./bandcamp";
 import { bandcampCredentials } from "./bandcamp-api";
 import { requestCatalogSync } from "./catalog-requests";
@@ -113,6 +114,9 @@ export async function saveBand(fd: FormData) {
   let bandId = id;
   if (id) await db.update(bands).set(values).where(and(eq(bands.orgId, orgId), eq(bands.id, id)));
   else [{ id: bandId }] = await db.insert(bands).values({ ...values, orgId }).returning({ id: bands.id });
+  // Its account from the label: made for a new band, renamed with it.
+  if (id) await renameSubAccount(orgId, id, values.name);
+  else await ensureBandAccounts(orgId);
   await reRouteAll(orgId);
   done();
   if (!id) redirect(`/bands/${bandId}`);
@@ -126,6 +130,7 @@ export async function deleteBand(fd: FormData) {
     .from(periods)
     .where(and(eq(periods.orgId, orgId), eq(periods.bandId, id)));
   if (hasPayouts) throw new Error("This band has its own payout history, so it can't be deleted. Delete those payout periods first.");
+  await deleteSubAccount(orgId, id);
   await db.delete(bands).where(and(eq(bands.orgId, orgId), eq(bands.id, id)));
   await reRouteAll(orgId);
   done();

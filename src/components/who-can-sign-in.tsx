@@ -16,6 +16,8 @@ const ROLE_LABEL: Record<string, string> = { owner: "owner", admin: "admin", mem
  * do, invites waiting, and inviting someone new.
  */
 export async function WhoCanSignIn({ ctx }: { ctx: Context }) {
+  // A label's sub-account for a band: everyone there is an admin of it (it's just the label's view).
+  const managed = !!ctx.managedBy;
   const { orgId } = ctx;
   const [members, invites, people, types, typeOf] = await Promise.all([
     db
@@ -54,10 +56,14 @@ export async function WhoCanSignIn({ ctx }: { ctx: Context }) {
 
   return (
         <Card title="Who can sign in">
-          <p className="mb-4 text-sm text-muted">
-            People who sign in to this account. Admins manage everything. Members see their own earnings and payouts, plus their band’s sales
-            totals, and whatever their member type allows (<Link href="/account#member-types">member types</Link> are in Settings).
-          </p>
+          {managed ? (
+            <p className="mb-4 text-sm text-muted">People who sign in to this account. They all see what the label has for the band.</p>
+          ) : (
+            <p className="mb-4 text-sm text-muted">
+              People who sign in to this account. Admins manage everything. Members see their own earnings and payouts, plus their band’s sales
+              totals, and whatever their member type allows (<Link href="/account#member-types">member types</Link> are in Settings).
+            </p>
+          )}
           <table className="data mb-6">
             <thead>
               <tr>
@@ -138,11 +144,15 @@ export async function WhoCanSignIn({ ctx }: { ctx: Context }) {
           <Disclosure summary="+ Invite someone">
             <ActionForm action={inviteMember} className="grid gap-4 sm:grid-cols-3">
               <InviteWhoFields people={unlinked.map((p) => ({ id: p.id, name: p.name, email: p.email }))} />
-              <Field label="Role">
-                <select name="role" defaultValue="member">
-                  {roleOptions}
-                </select>
-              </Field>
+              {managed ? (
+                <input type="hidden" name="role" value="admin" />
+              ) : (
+                <Field label="Role">
+                  <select name="role" defaultValue="member">
+                    {roleOptions}
+                  </select>
+                </Field>
+              )}
               <div className="sm:col-span-3">
                 <SubmitButton>Create invite</SubmitButton>
                 <p className="mt-2 text-xs text-muted">There’s no email sending yet: copy the invite link from the list above and send it to them.</p>

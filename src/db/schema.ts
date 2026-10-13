@@ -575,8 +575,10 @@ export const accountLinks = pgTable(
     createdByUserId: text("created_by_user_id").references(() => user.id, { onDelete: "set null" }),
     createdAt: text("created_at").notNull().default(now),
     acceptedAt: text("accepted_at"),
+    /** The label made this band account for the band (a sub-account), rather than the band linking its own. */
+    managed: boolean("managed").notNull().default(false),
   },
-  (t) => [uniqueIndex("account_links_code").on(t.code), uniqueIndex("account_links_label_band").on(t.labelBandId)],
+  (t) => [uniqueIndex("account_links_code").on(t.code), uniqueIndex("account_links_label_band").on(t.labelBandId), index("account_links_band_org").on(t.bandOrgId)],
 );
 
 export type PeriodSnapshot = {

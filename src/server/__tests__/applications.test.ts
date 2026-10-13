@@ -78,6 +78,10 @@ describe("account applications", () => {
     expect(bands.map((b) => [b.name, b.urlPatterns])).toEqual([["Sweetums", ["sweetumsofthebody"]], ["Allopath", []]]);
     const invites = await db.select().from(schema.invitation).where(eq(schema.invitation.organizationId, orgId));
     expect(invites.map((i) => i.email)).toEqual(["jo@example.test"]);
+    // Each artist gets its own band account, linked to the label.
+    const links = await db.select().from(schema.accountLinks).where(eq(schema.accountLinks.labelOrgId, orgId));
+    expect(links.map((l) => l.labelBandId).sort()).toEqual(bands.map((b) => b.id).sort());
+    expect(links.every((l) => l.managed && l.status === "active")).toBe(true);
   });
 
   it("rejecting keeps the note for them, and they can see their latest application", async () => {

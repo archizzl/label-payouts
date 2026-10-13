@@ -2,12 +2,12 @@
 
 import { and, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { db, schema } from "@/db";
 import { slugify } from "@/lib/slug";
 import { auth } from "./auth";
-import { accountsFor, getSession, requireAdmin } from "./context";
+import { accountsFor, getSession, requireAdmin, VIEW_AS_COOKIE } from "./context";
 import { AREAS, type Area, normalizeBandAreas, normalizePermissions } from "@/lib/permissions";
 import { assignMemberType, memberTypeForInvite, parseRoleChoice, setInviteMemberType } from "./member-types";
 import { preapproved } from "./applications";
@@ -80,6 +80,7 @@ export async function resetPassword(_: FormState, fd: FormData): Promise<FormSta
 }
 
 export async function signOut() {
+  (await cookies()).delete(VIEW_AS_COOKIE);
   await auth.api.signOut({ headers: await headers() });
   redirect("/login");
 }
@@ -127,6 +128,7 @@ export async function switchAccount(fd: FormData) {
   if (!session) redirect("/login");
   const orgId = str(fd, "orgId");
   if (!(await accountsFor(session.user.id)).some((a) => a.id === orgId)) throw new Error("You're not a member of that account.");
+  (await cookies()).delete(VIEW_AS_COOKIE);
   await auth.api.setActiveOrganization({ body: { organizationId: orgId }, headers: await headers() });
   revalidatePath("/", "layout");
   redirect("/");

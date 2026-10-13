@@ -31,13 +31,13 @@ export async function bandLinksFor(labelOrgId: string) {
   return new Map(rows.map((r) => [r.link.labelBandId, r]));
 }
 
-/** Active links from a label's bands to their own accounts, by label band id. */
+/** Active links from a label's bands to accounts they had already (not the sub-accounts the label made), by label band id. */
 export async function linkedBandAccounts(labelOrgId: string) {
   const rows = await db
     .select({ bandId: accountLinks.labelBandId, name: organization.name })
     .from(accountLinks)
     .innerJoin(organization, eq(organization.id, accountLinks.bandOrgId))
-    .where(and(eq(accountLinks.labelOrgId, labelOrgId), eq(accountLinks.status, "active")));
+    .where(and(eq(accountLinks.labelOrgId, labelOrgId), eq(accountLinks.status, "active"), eq(accountLinks.managed, false)));
   return new Map(rows.map((r) => [r.bandId, r.name]));
 }
 

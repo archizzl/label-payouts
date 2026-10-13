@@ -5,6 +5,7 @@ import { db, schema } from "@/db";
 import { bandcampSubdomain } from "@/lib/applications";
 import { slugify } from "@/lib/slug";
 import { auth } from "./auth";
+import { ensureBandAccounts } from "./band-accounts";
 
 /*
  * Applications for new label and band accounts (src/lib/applications.ts). Anyone can create a login
@@ -81,6 +82,8 @@ export async function approveApplication(id: number, reviewerId: string): Promis
       .set({ status: "approved", orgId, reviewedAt: new Date().toISOString(), reviewedByUserId: reviewerId })
       .where(eq(accountApplications.id, app.id));
   });
+  // A label's artists each get their own band account.
+  if (app.kind === "label") await ensureBandAccounts(orgId);
   return orgId;
 }
 

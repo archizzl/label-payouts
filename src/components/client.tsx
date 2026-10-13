@@ -1,9 +1,17 @@
 "use client";
 
-import { type ReactNode, useActionState, useEffect, useRef, useState } from "react";
+import { createContext, type ReactNode, useActionState, useContext, useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import type { ActionState } from "@/server/actions";
 import { buttonClass } from "./ui";
+
+/** Why nothing on the page can be changed (a label admin viewing as someone), or null. */
+const ReadOnlyReason = createContext<string | null>(null);
+
+/** Turns off every SubmitButton inside, with the reason as its tooltip. The server refuses changes too. */
+export function ReadOnly({ reason, children }: { reason: string; children: ReactNode }) {
+  return <ReadOnlyReason value={reason}>{children}</ReadOnlyReason>;
+}
 
 /** Close the add/edit panel (a <details>) that an element sits in. */
 export function closeEnclosingPanel(el: Element | null | undefined) {
@@ -115,6 +123,7 @@ export function SubmitButton({
   disabled?: boolean;
 }) {
   const { pending } = useFormStatus();
+  const readOnly = useContext(ReadOnlyReason);
   const ref = useRef<HTMLButtonElement>(null);
   const wasPending = useRef(false);
   // When the action finishes, close the add/edit panel this form sits in: the job's done.
@@ -131,7 +140,8 @@ export function SubmitButton({
       type="submit"
       name={name}
       value={value}
-      disabled={pending || disabled}
+      disabled={pending || disabled || !!readOnly}
+      title={readOnly ?? undefined}
       className={buttonClass(variant, size)}
       onClick={(e) => {
         if (confirm && !window.confirm(confirm)) e.preventDefault();

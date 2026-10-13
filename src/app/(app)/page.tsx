@@ -1,5 +1,6 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { connection } from "next/server";
 import { ChartBoard } from "@/components/chart-board";
@@ -21,7 +22,10 @@ export const metadata = { title: "dashboard" };
 
 export default async function Dashboard() {
   await connection();
-  const { orgId, isAdmin } = await requireAccess("dashboard");
+  const ctx = await requireAccess("dashboard");
+  const { orgId, isAdmin } = ctx;
+  // A band's account from its label: its home is the label's books for it.
+  if (ctx.managedBy) redirect(`/from-label/${ctx.managedBy.linkId}`);
   const [bands, memberships, defaults, saleRows, periods, outside, { summary }, people, releaseRows, fundExpenses] = await Promise.all([
     db.select().from(schema.bands).where(eq(schema.bands.orgId, orgId)),
     db.select().from(schema.bandMemberships).where(eq(schema.bandMemberships.orgId, orgId)),

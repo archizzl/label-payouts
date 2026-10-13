@@ -4,6 +4,7 @@ import { cache } from "react";
 import { db, schema } from "@/db";
 import { artistsFromApi, merchFromApi, releasesFromSales } from "./api-catalog";
 import { type BandcampAccountBand, bandcampCredentials, myBands } from "./bandcamp-api";
+import { ensureBandAccounts } from "./band-accounts";
 import { reRouteAll } from "./data";
 import { loadOpenOrders } from "./merch-orders";
 import { addArtists, importReleases, lookupLabelArtists, lookupLabelReleases, refreshBandPhotos, type ReleaseImportRow, runSalesSync } from "./sync";
@@ -201,6 +202,8 @@ export async function syncAccount(orgId: string, { force = false } = {}): Promis
     });
   }
 
+  // New artists get their band accounts.
+  if (org?.kind === "label") await step("Band accounts", () => ensureBandAccounts(orgId).then(() => undefined));
   const summary = found.length ? `Brought in ${found.join(", ")}.` : "Up to date.";
   await db
     .update(accountSettings)
@@ -239,6 +242,13 @@ export async function syncCatalog(orgId: string): Promise<{ summary: string; err
   );
   if (blocked) errors.push("Bandcamp showed a bot check instead of its pages.");
   else await db.update(accountSettings).set({ catalogSyncedAt: iso(Date.now()) }).where(eq(accountSettings.orgId, orgId));
+  if (org?.kind === "label") {
+    try {
+      await ensureBandAccounts(orgId);
+    } catch (e) {
+      errors.push(`Band accounts: ${(e as Error).message}`);
+    }
+  }
   return { summary: found.length ? `Brought in ${found.join(", ")}.` : "Up to date.", errors };
 }
 

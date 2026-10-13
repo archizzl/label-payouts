@@ -62,6 +62,8 @@ async function salesSinceSeen(ctx: Context, scope: number[] | null) {
 
 /** They've opened a section: what's new is counted from now. */
 export async function markSeen(ctx: Context, area: "sales") {
+  // Looking as someone else doesn't count as them having looked.
+  if (ctx.viewingAs) return;
   await db
     .insert(navSeen)
     .values({ orgId: ctx.orgId, userId: ctx.user.id, area })

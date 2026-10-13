@@ -15,7 +15,8 @@ import { db, schema } from "@/db";
 import { ITEM_CATEGORIES } from "@/lib/bandcamp-csv";
 import { payHandlesSummary } from "@/lib/paypal-export";
 import { STATUS_LABEL, STATUS_TONE } from "@/lib/status";
-import { BandAccountNote } from "@/components/band-link";
+import { BandAccountSection } from "@/components/band-link";
+import { ensureBandAccounts } from "@/server/band-accounts";
 import { linkForLabelBand } from "@/server/links";
 import { LabelFunds } from "@/components/label-funds";
 import { ExpenseForm, ExpenseTable } from "@/components/receipts";
@@ -330,7 +331,14 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
 
       <LabelFunds bandId={id} />
 
-      {ctx.org.kind === "label" && !band.isLabel && <BandAccountNote bandId={id} row={await linkForLabelBand(orgId, id)} />}
+      {ctx.org.kind === "label" && ctx.isAdmin && !band.isLabel && (
+        <BandAccountSection
+          labelOrgId={orgId}
+          band={band}
+          members={members.filter((m) => m.active).map((m) => ({ id: m.person.id, name: m.person.name, email: m.person.email }))}
+          row={await ensureBandAccounts(orgId).then(() => linkForLabelBand(orgId, id))}
+        />
+      )}
 
       {band.isLabel && (
         <Callout tone="neutral">
