@@ -64,6 +64,8 @@ export const accountSettings = pgTable("account_settings", {
   setupHidden: boolean("setup_hidden").notNull().default(false),
   /** …and asked for no reminder either: nothing checklist-related on the dashboard (Settings brings it back). */
   setupHiddenForGood: boolean("setup_hidden_for_good").notNull().default(false),
+  /** The label said it keeps nothing from sales (no cut), so setup and payouts stop asking. */
+  labelKeepsNothing: boolean("label_keeps_nothing").notNull().default(false),
 });
 
 export const bands = pgTable(

@@ -190,6 +190,13 @@
       "when": 1791903053655,
       "tag": "0026_band_sub_accounts",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1791906667440,
+      "tag": "0027_label_keeps_nothing",
+      "breakpoints": true
     }
   ]
 }

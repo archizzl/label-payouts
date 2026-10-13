@@ -1,0 +1,1 @@
+ALTER TABLE "account_settings" ADD COLUMN "label_keeps_nothing" boolean DEFAULT false NOT NULL;

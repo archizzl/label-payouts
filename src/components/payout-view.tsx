@@ -8,7 +8,8 @@ import { centsToDecimal } from "@/lib/money";
 import { formatCents } from "@/lib/money";
 import { payHandlesSummary, payMethods } from "@/lib/paypal-export";
 import { STATUS_LABEL, STATUS_TONE } from "@/lib/status";
-import { finalizePayout, markAllPaid, resyncPreview, setPayoutStatus, undoFinalize } from "@/server/actions";
+import { finalizePayout, markAllPaid, releaseUnpaidSales, resyncPreview, setPayoutStatus, undoFinalize } from "@/server/actions";
+import { plural } from "@/lib/plural";
 import { bandcampCredentials } from "@/server/bandcamp-api";
 import { getContext } from "@/server/context";
 import { type PayoutScope, payoutNote, type periodView, type previewView } from "@/server/period-view";
@@ -45,15 +46,23 @@ export async function PayoutView({
   const bandName = (bid: number | null) => (bid === null ? "Unrouted" : (names.band.get(bid) ?? `#${bid}`));
   const currencies = live.summary.currencies;
   const pending = lines.filter((l) => l.status === "pending" && l.amountCents > 0);
-  const { orgId } = await getContext();
-  const [outside, labelBandRows, canSync] = await Promise.all([
+  const ctx = await getContext();
+  const { orgId } = ctx;
+  const [outside, labelBandRows, canSync, [settings]] = await Promise.all([
     outsideArtistRows(orgId),
     db
       .select({ id: schema.bands.id })
       .from(schema.bands)
       .where(and(eq(schema.bands.orgId, orgId), eq(schema.bands.isLabel, true))),
     bandcampCredentials(orgId).then(Boolean),
+    db.select({ keepsNothing: schema.accountSettings.labelKeepsNothing }).from(schema.accountSettings).where(eq(schema.accountSettings.orgId, orgId)),
   ]);
+  // A label that hasn't taken a cut, or said it keeps nothing: worth saying before money goes out.
+  const labelKept = currencies.reduce(
+    (a, c) => a + [...live.summary.byCurrency[c].byDestination].filter(([k]) => k === "label" || k.startsWith("label:")).reduce((x, [, v]) => x + v, 0),
+    0,
+  );
+  const noLabelCut = !finalized && ctx.org.kind === "label" && !settings?.keepsNothing && labelKept === 0 && live.results.length > 0;
   const needContacts = outside.filter((r) => r.needsContact).length;
   // Bands whose own sales lack a split. The label's band keeps its money by default, so a problem
   // there is always a missing outside-artist contact, not a missing split.
@@ -159,6 +168,15 @@ export async function PayoutView({
         </Fading>
       ) : null}
 
+      {noLabelCut && (
+        <Callout tone="neutral">
+          The label keeps nothing from these sales: everything after fees goes to the bands. To take a cut, add one in{" "}
+          <Link href="/rules#label-cut" className="underline">
+            Label rules
+          </Link>
+          , or say there that the label keeps nothing.
+        </Callout>
+      )}
       {live.alreadyPaid.length > 0 && (
         <Callout tone="neutral">
           Left out because they were already paid:{" "}
@@ -171,18 +189,32 @@ export async function PayoutView({
           .
         </Callout>
       )}
-      {problems.unrouted > 0 && (
+      {finalized && problems.unrouted + problems.noRule > 0 && (
         <Callout tone="bad">
-          {problems.unrouted} sale(s) aren’t matched to a band yet.{" "}
+          <p>
+            This payout took in {plural(problems.unrouted + problems.noRule, "sale")} that nobody was paid for, so they aren’t owed to anyone
+            now. Let go of them and they’re owed again: the next payout pays them once they have a band and a split.
+          </p>
+          <form action={releaseUnpaidSales} className="mt-2">
+            <input type="hidden" name="id" value={id!} />
+            <SubmitButton variant="secondary" size="sm" confirm="Let go of the sales nobody was paid for? They'll be owed again, for a later payout.">
+              Leave them for a later payout
+            </SubmitButton>
+          </form>
+        </Callout>
+      )}
+      {!finalized && problems.unrouted > 0 && (
+        <Callout tone="bad">
+          {plural(problems.unrouted, "sale")} {problems.unrouted === 1 ? "isn’t" : "aren’t"} matched to a band yet.{" "}
           <Link href="/sales/import" className="underline">
             Assign them on the Import page
           </Link>
           .
         </Callout>
       )}
-      {problems.noRule > 0 && (
+      {!finalized && problems.noRule > 0 && (
         <Callout tone="bad">
-          {problems.noRule} sale(s) can’t be paid yet.{" "}
+          {plural(problems.noRule, "sale")} can’t be paid yet.{" "}
           {needContacts > 0 && (
             <>
               {needContacts} artist{needContacts === 1 ? "" : "s"} outside the label still need{needContacts === 1 ? "s" : ""} a{" "}
@@ -462,7 +494,7 @@ export async function PayoutView({
               </Field>
               {(problems.unrouted > 0 || problems.noRule > 0) && (
                 <label className="flex items-center gap-2 self-center text-sm">
-                  <input type="checkbox" name="force" /> Finalize anyway (unallocated money stays unpaid)
+                  <input type="checkbox" name="force" /> Pay the rest now (sales nobody can be paid for yet stay owed, for a later payout)
                 </label>
               )}
               <SubmitButton confirm="Finalize this payout? The amounts are locked in and you can start paying people.">

@@ -77,7 +77,7 @@ export async function claimSync(orgId: string, force: boolean): Promise<boolean>
 
 export type SyncResult = { ran: boolean; summary: string; errors: string[] };
 
-const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+import { plural } from "@/lib/plural";
 
 /**
  * Artists, releases and merch from the account's public Bandcamp pages: new ones in, a few older

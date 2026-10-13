@@ -6,7 +6,7 @@ import { DeductionForm, DeductionList, describeDeduction } from "@/components/de
 import { SplitRules } from "@/components/split-rules";
 import { Card, Disclosure, Empty, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
-import { deleteRoutingOverride, rerouteAction } from "@/server/actions";
+import { deleteRoutingOverride, rerouteAction, setLabelKeepsNothing } from "@/server/actions";
 import { requireAccess } from "@/server/context";
 import { nameMaps, ruleFilter, rulesWhere } from "@/server/data";
 
@@ -14,7 +14,8 @@ export const metadata = { title: "rules" };
 
 export default async function RulesPage() {
   await connection();
-  const { orgId } = await requireAccess("rules");
+  const ctx = await requireAccess("rules");
+  const { orgId } = ctx;
   const [names, bands, releases, orgDeductions, overrides, labelDefault, peopleRows, bandDefaults] = await Promise.all([
     nameMaps(orgId),
     db.select().from(schema.bands).where(eq(schema.bands.orgId, orgId)).orderBy(asc(schema.bands.name)),
@@ -25,6 +26,7 @@ export default async function RulesPage() {
     db.select().from(schema.people).where(eq(schema.people.orgId, orgId)).orderBy(asc(schema.people.name)),
     rulesWhere(orgId, ruleFilter("band_default", {})),
   ]);
+  const [settings] = await db.select({ keepsNothing: schema.accountSettings.labelKeepsNothing }).from(schema.accountSettings).where(eq(schema.accountSettings.orgId, orgId));
   const releaseOpts = releases.map((r) => ({
     id: r.id,
     name: `${r.title} (${names.band.get(r.bandId)})`,
@@ -32,6 +34,7 @@ export default async function RulesPage() {
     formats: r.kind === "merch" ? [] : r.packages.map((p) => ({ id: p.bandcampId, title: p.title })),
   }));
   const labelWide = orgDeductions.filter((d) => d.bandId === null);
+  const labelCuts = orgDeductions.filter((d) => d.destination === "label");
   const bandLevel = orgDeductions.filter((d) => d.bandId !== null).sort((a, b) => a.bandId! - b.bandId!);
   const everyone = peopleRows.map((p) => ({ id: p.id, name: p.name, inBand: false }));
   const peopleOpts = everyone.map((p) => ({ id: p.id, name: p.name }));
@@ -41,6 +44,50 @@ export default async function RulesPage() {
   return (
     <>
       <PageHeader title="Label rules" subtitle="The label-wide default split, what comes off before splitting, and how sales are matched to bands." />
+
+      {ctx.org.kind === "label" && (
+        <div id="label-cut">
+          <Card title="What the label keeps">
+            {labelCuts.length > 0 ? (
+              <ul className="space-y-1 text-sm">
+                {labelCuts.map((d) => {
+                  const desc = describeDeduction(d, names);
+                  return (
+                    <li key={d.id}>
+                      <b>{d.label}</b>: {desc.amount}
+                      {desc.scope && <span className="text-muted"> · {desc.scope}</span>}
+                    </li>
+                  );
+                })}
+                <li className="pt-1 text-xs text-muted">Change these under Label-wide deductions below (or on a band’s page).</li>
+              </ul>
+            ) : settings?.keepsNothing ? (
+              <div className="flex flex-wrap items-center gap-3 text-sm">
+                <span>The label keeps nothing: everything after Bandcamp’s fees goes to the bands.</span>
+                <form action={setLabelKeepsNothing}>
+                  <input type="hidden" name="value" value="0" />
+                  <SubmitButton variant="ghost" size="sm">
+                    Change
+                  </SubmitButton>
+                </form>
+              </div>
+            ) : (
+              <>
+                <p className="mb-3 text-sm">
+                  Nothing yet, so every sale goes entirely to its band. To take a cut (say 30%), add a deduction that goes to the label under
+                  Label-wide deductions below.
+                </p>
+                <form action={setLabelKeepsNothing}>
+                  <input type="hidden" name="value" value="1" />
+                  <SubmitButton variant="secondary" size="sm">
+                    The label keeps nothing
+                  </SubmitButton>
+                </form>
+              </>
+            )}
+          </Card>
+        </div>
+      )}
 
       <Card title="Label-wide default split">
         <p className="mb-3 text-sm text-muted">

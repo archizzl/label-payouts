@@ -10,6 +10,8 @@ import { parseReleasePage } from "@/lib/bandcamp-release";
 import { parseCents } from "@/lib/money";
 import { isSalePart, salePartLabel } from "@/lib/sale-parts";
 import { cleanCashtag, cleanVenmoHandle } from "@/lib/paypal-export";
+import { plural } from "@/lib/plural";
+import { summarize } from "@/lib/splits";
 import { deleteSubAccount, ensureBandAccounts, renameSubAccount } from "./band-accounts";
 import { fetchPage, upsertRelease } from "./bandcamp";
 import { bandcampCredentials } from "./bandcamp-api";
@@ -562,6 +564,14 @@ export async function setSetupHidden(fd: FormData) {
   done();
 }
 
+/** The label keeps nothing from sales (or, with value 0, hasn't decided): for setup and payouts. */
+export async function setLabelKeepsNothing(fd: FormData) {
+  const { orgId } = await requireAccess("rules", "edit");
+  const set = { labelKeepsNothing: fd.get("value") === "1" };
+  await db.insert(schema.accountSettings).values({ orgId, ...set }).onConflictDoUpdate({ target: schema.accountSettings.orgId, set });
+  done();
+}
+
 /** "Sync with Bandcamp now": artists, releases, merch and sales, right away (not waiting for the hour). */
 export async function syncWithBandcamp(): Promise<ActionState> {
   const { orgId } = await requireAdmin();
@@ -715,12 +725,17 @@ export async function finalizePayout(_: ActionState, fd: FormData): Promise<Acti
   const { orgId } = await requireAccess("payouts", "edit");
   const scope = await payoutScope(orgId, fd);
   if (!scope) return { error: "Pick a valid start and end date" };
-  const { results, summary, saleById } = await computePayoutPeriod(orgId, { id: 0, ...scope });
-  if (results.length === 0) return { error: "There are no sales to pay in these dates." };
-  const problems = results.filter((r) => r.problem).length;
+  const { results: inRange, saleById } = await computePayoutPeriod(orgId, { id: 0, ...scope });
+  if (inRange.length === 0) return { error: "There are no sales to pay in these dates." };
+  const problems = inRange.filter((r) => r.problem).length;
   if (problems > 0 && !bool(fd, "force")) {
-    return { error: `${problems} sale(s) aren't assigned to anyone yet. Fix them, or tick "finalize anyway" to leave that money unallocated.` };
+    return { error: `${plural(problems, "sale")} can't be paid to anyone yet. Fix them, or tick "pay the rest now" to leave them for a later payout.` };
   }
+  // Sales nobody can be paid for yet (no band, or no split) aren't part of this payout: they stay
+  // owed, and a later payout picks them up once they're sorted.
+  const results = inRange.filter((r) => !r.problem);
+  if (results.length === 0) return { error: "None of these sales can be paid to anyone yet. Give their bands a split first." };
+  const summary = summarize(results);
   const now = new Date().toISOString();
   const holders = new Set(
     (
@@ -782,6 +797,27 @@ export async function finalizePayout(_: ActionState, fd: FormData): Promise<Acti
   await syncPeriodStatus(orgId, id);
   done();
   redirect(`/periods/${id}`);
+}
+
+/**
+ * A finalized payout (from before payouts left them out) that took in sales nobody was paid for:
+ * let go of those sales, so they're owed again and a later payout pays them.
+ */
+export async function releaseUnpaidSales(fd: FormData) {
+  const { orgId } = await requireAccess("payouts", "edit");
+  const [period] = await db
+    .select()
+    .from(periods)
+    .where(and(eq(periods.orgId, orgId), eq(periods.id, int(fd, "id"))));
+  if (!period) throw new Error("Payout not found.");
+  const { results, saleById } = await computePayoutPeriod(orgId, period);
+  const keys = results.filter((r) => r.problem).map((r) => saleById.get(r.saleId)!.dedupeKey);
+  for (let i = 0; i < keys.length; i += 500) {
+    await db
+      .delete(schema.periodSales)
+      .where(and(eq(schema.periodSales.periodId, period.id), inArray(schema.periodSales.dedupeKey, keys.slice(i, i + 500))));
+  }
+  done();
 }
 
 /** Undo a finalized payout: its records (paid marks included) are removed and it's a preview again. */

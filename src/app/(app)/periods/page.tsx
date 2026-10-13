@@ -1,4 +1,4 @@
-import { asc, desc, eq, max, min } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, max, min, notExists, sql } from "drizzle-orm";
 import Link from "next/link";
 import { connection } from "next/server";
 import { ActionForm, SubmitButton } from "@/components/client";
@@ -40,8 +40,36 @@ export default async function PeriodsPage({ searchParams }: PageProps<"/periods"
   // Default to everything not paid yet: from the last finalized payout's end date (or the first
   // sale), up to today. (Local date: the app runs on your machine.)
   const today = new Date().toLocaleDateString("en-CA");
+  // The earliest sale with a band that no finalized payout has paid: e.g. a band whose split was
+  // set after a payout went ahead without it. The next payout reaches back for it.
+  // (Payouts from older books didn't record their sales: they cover everything in their dates.)
+  const [unpaid, listed] = await Promise.all([
+    db
+      .select({ date: schema.sales.date, bandId: schema.sales.bandId })
+      .from(schema.sales)
+      .where(
+        and(
+          eq(schema.sales.orgId, orgId),
+          forBand ? eq(schema.sales.bandId, forBand.id) : isNotNull(schema.sales.bandId),
+          notExists(
+            db
+              .select({ one: sql`1` })
+              .from(schema.periodSales)
+              .where(and(eq(schema.periodSales.orgId, orgId), eq(schema.periodSales.dedupeKey, schema.sales.dedupeKey))),
+          ),
+        ),
+      )
+      .orderBy(asc(schema.sales.date))
+      .limit(500),
+    db.selectDistinct({ periodId: schema.periodSales.periodId }).from(schema.periodSales).where(eq(schema.periodSales.orgId, orgId)),
+  ]);
+  const withList = new Set(listed.map((r) => r.periodId));
+  const firstUnpaid = unpaid.find(
+    (s) => !periods.some((p) => !withList.has(p.id) && s.date >= p.startDate && s.date <= p.endDate && (p.bandId === null || p.bandId === s.bandId)),
+  )?.date;
+  const reachesBack = !!(firstUnpaid && lastClosed && firstUnpaid < lastClosed);
   // The day the last payout ended, not the day after: sales later that day weren't in it.
-  const defaultStart = lastClosed ?? salesRange?.first ?? today;
+  const defaultStart = (reachesBack ? firstUnpaid : lastClosed) ?? salesRange?.first ?? today;
   // (If the last payout already runs past today, start and end on its last day.)
   const defaultEnd = defaultStart > today ? defaultStart : today;
 
@@ -91,7 +119,11 @@ export default async function PeriodsPage({ searchParams }: PageProps<"/periods"
           {forBand
             ? `Pays only ${forBand.name}’s sales. `
             : "Pays every band’s sales. "}
-          {lastClosed ? `Starts on the day the last payout covering ${forBand ? "them" : "the whole label"} ended (${lastClosed}), to catch sales made later that day. ` : ""}
+          {reachesBack
+            ? `Starts at the earliest sale nobody’s been paid for yet (${firstUnpaid}), from before the last payout. `
+            : lastClosed
+              ? `Starts on the day the last payout covering ${forBand ? "them" : "the whole label"} ended (${lastClosed}), to catch sales made later that day. `
+              : ""}
           Sales already paid by another finalized payout are left out automatically, so nothing is paid twice.
           {creds && " New sales are pulled from Bandcamp first."} Nothing is saved until you finalize.
         </p>

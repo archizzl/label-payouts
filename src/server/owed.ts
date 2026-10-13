@@ -32,7 +32,10 @@ export type OwedRow = {
 const total = (r: OwedRow) => r.finalized + r.unpaid + r.receipts + r.raised;
 export const owedTotal = total;
 
-export async function owedByBand(orgId: string): Promise<OwedRow[]> {
+/** Filled in by owedByBand, for saying why nothing's owed: no sales yet, or sales nobody can be paid for. */
+export type OwedInfo = { hasSales: boolean; stuck: number };
+
+export async function owedByBand(orgId: string, info?: OwedInfo): Promise<OwedRow[]> {
   const [bands, people, pending, [range], receipts, funds] = await Promise.all([
     db.select().from(schema.bands).where(eq(schema.bands.orgId, orgId)),
     db.select().from(schema.people).where(eq(schema.people.orgId, orgId)),
@@ -94,6 +97,7 @@ export async function owedByBand(orgId: string): Promise<OwedRow[]> {
   // Sales no finalized payout covers yet: what a whole-label payout would pay out today.
   if (range?.first && range.last) {
     const view = await previewView(orgId, { bandId: null, startDate: range.first, endDate: range.last });
+    if (info) Object.assign(info, { hasSales: true, stuck: view.problems.unrouted + view.problems.noRule });
     for (const line of view.lines) {
       if (line.holdsLabelAccount) continue;
       for (const { bandId, cents } of line.byBand) {

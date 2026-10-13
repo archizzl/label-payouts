@@ -1,6 +1,7 @@
 import type { BoardChart } from "@/lib/chart-data";
 import { formatCents } from "@/lib/money";
-import { owedByBand, owedTotal } from "@/server/owed";
+import { plural } from "@/lib/plural";
+import { type OwedInfo, owedByBand, owedTotal } from "@/server/owed";
 
 const PARTS = [
   { label: "Finalized, not paid yet", color: "var(--series-1)" },
@@ -19,14 +20,19 @@ function whom(rows: { kind: string }[]) {
 
 /** "Who's owed what": what the label still owes, band by band and to outside groups, as a chart for a board. */
 export async function owedChart(orgId: string): Promise<BoardChart> {
-  const rows = await owedByBand(orgId);
+  const info: OwedInfo = { hasSales: false, stuck: 0 };
+  const rows = await owedByBand(orgId, info);
   const currencies = [...new Set(rows.map((r) => r.currency))];
   return {
     spec: { kind: "owed", title: "Who’s owed what", shape: "owed" },
     data: {
       shape: "owed",
       parts: PARTS,
-      empty: "All sales are paid out.",
+      empty: !info.hasSales
+        ? "No sales yet."
+        : info.stuck
+          ? `Nobody’s owed anything yet: ${plural(info.stuck, "sale has", "sales have")} no band or split, so ${info.stuck === 1 ? "it can’t" : "they can’t"} be paid to anyone.`
+          : "Everyone’s been paid.",
       groups: currencies.map((currency) => {
         const mine = rows.filter((r) => r.currency === currency);
         return {

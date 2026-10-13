@@ -11,6 +11,7 @@ import { loadLayout } from "@/server/chart-layouts";
 import { parseSalesFilter, summarizeSales } from "@/server/sales-browse";
 import { Badge, Callout, Card, LinkButton, Money, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
+import { plural } from "@/lib/plural";
 import { STATUS_LABEL, STATUS_TONE } from "@/lib/status";
 import { outsideArtistRows } from "@/components/outside-artists";
 import { SyncFooter } from "@/components/sync-status";
@@ -60,31 +61,58 @@ export default async function Dashboard() {
     .filter(Boolean)
     .join(" ");
 
+  const isBand = ctx.org.kind === "band";
+  const [[settingsRow], labelCuts, [paidLine]] = await Promise.all([
+    db
+      .select({
+        setupHidden: schema.accountSettings.setupHidden,
+        forGood: schema.accountSettings.setupHiddenForGood,
+        bandcampUrl: schema.accountSettings.bandcampUrl,
+        keepsNothing: schema.accountSettings.labelKeepsNothing,
+      })
+      .from(schema.accountSettings)
+      .where(eq(schema.accountSettings.orgId, orgId)),
+    db
+      .select({ id: schema.deductions.id })
+      .from(schema.deductions)
+      .where(and(eq(schema.deductions.orgId, orgId), eq(schema.deductions.destination, "label")))
+      .limit(1),
+    db
+      .select({ id: schema.payouts.id })
+      .from(schema.payouts)
+      .where(and(eq(schema.payouts.orgId, orgId), inArray(schema.payouts.status, ["paid", "kept"])))
+      .limit(1),
+  ]);
+  const splitsSet = bands.length > 0 && (defaults.some((d) => d.scope === "label_default") || bands.every((b) => defaults.some((d) => d.bandId === b.id)));
   const steps = [
-    { done: bands.length > 0, label: "Add your bands", href: "/bands", hint: "" },
     {
-      done: bands.length > 0 && bandsWithoutMembers.length === 0 && unpayable.length === 0,
-      label: "Add members to each band, with PayPal details",
-      href: "/bands",
-      hint: bands.length ? memberHint : "",
-    },
-    { done: releaseCount > 0, label: "Add your Bandcamp address in Settings, so bands, releases and merch sync automatically", href: "/account", hint: "" },
-    {
-      done: bands.length > 0 && (defaults.some((d) => d.scope === "label_default") || bands.every((b) => defaults.some((d) => d.bandId === b.id))),
-      label: "Set a label-wide default split, or one for each band",
-      href: "/rules",
+      done: !!settingsRow?.bandcampUrl || releaseCount > 0,
+      label: isBand ? "Add your Bandcamp address, so your releases and merch come in by themselves" : "Add your Bandcamp address, so your bands, releases and merch come in by themselves",
+      href: "/account",
       hint: "",
     },
-    { done: saleCount > 0, label: "Import a Bandcamp sales report", href: "/sales/import", hint: "" },
-    { done: periods.length > 0, label: "Create a payout period and pay people", href: "/periods", hint: "" },
+    ...(isBand ? [] : [{ done: bands.length > 0, label: "Add your bands", href: "/bands", hint: "Or let them come in from Bandcamp." }]),
+    {
+      done: bands.length > 0 && bandsWithoutMembers.length === 0 && unpayable.length === 0,
+      label: isBand ? "Add the band’s members, with how to pay them" : "Add members to each band, with how to pay them",
+      href: isBand && bands[0] ? `/bands/${bands[0].id}` : "/bands",
+      hint: bands.length ? memberHint : "",
+    },
+    ...(isBand
+      ? []
+      : [{ done: labelCuts.length > 0 || !!settingsRow?.keepsNothing, label: "Decide what the label keeps from each sale", href: "/rules#label-cut", hint: "" }]),
+    {
+      done: splitsSet,
+      label: isBand ? "Decide how you split what you earn" : "Decide how each band splits its share",
+      href: isBand && bands[0] ? `/bands/${bands[0].id}` : "/rules",
+      hint: isBand ? "" : "One label-wide split for every band, or each band’s own.",
+    },
+    { done: saleCount > 0, label: "Bring in your sales: import a Bandcamp sales report", href: "/sales/import", hint: "" },
+    { done: !!paidLine, label: "Make a payout and pay people", href: "/periods", hint: "" },
   ];
   // The header's highlighted button is whatever should happen next.
   const next = saleCount === 0 ? "import" : "payout";
   const setupDone = steps.every((s) => s.done);
-  const [settingsRow] = await db
-    .select({ setupHidden: schema.accountSettings.setupHidden, forGood: schema.accountSettings.setupHiddenForGood })
-    .from(schema.accountSettings)
-    .where(eq(schema.accountSettings.orgId, orgId));
   const setupHidden = settingsRow?.setupHidden ?? false;
   const setupGone = settingsRow?.forGood ?? false;
   const stepsLeft = steps.filter((s) => !s.done).length;
@@ -128,7 +156,7 @@ export default async function Dashboard() {
 
       {unrouted > 0 && (
         <Callout tone="bad">
-          {unrouted} imported sale(s) aren’t matched to a band. <Link href="/sales/import" className="underline">Fix on the Import page</Link>.
+          {plural(unrouted, "imported sale")} {unrouted === 1 ? "isn’t" : "aren’t"} matched to a band. <Link href="/sales/import" className="underline">Fix on the Import page</Link>.
         </Callout>
       )}
 
