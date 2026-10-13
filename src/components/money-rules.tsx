@@ -19,7 +19,7 @@ const SOURCE: Record<RuleSource, string> = {
   album_average: "the album’s tracks’ splits",
   band_item_type: "the band’s split for this kind of item",
   band_default: "the band’s split",
-  label_default: "the label-wide split",
+  label_default: "the label-wide default split",
   outside_artist: "the outside artist’s contact",
   label_keeps: "the label keeps it (the label’s own releases)",
 };
@@ -83,11 +83,14 @@ export async function MoneyRules({
     <div className="space-y-5">
       {distinct.map((e) => {
         const r = e.result;
-        const names = distinct.length > 1 ? (distinct.length === kinds.length ? e.label : e === distinct[0] ? "most sales" : e.label) : "every sale";
+        const what = distinct.length > 1 ? (distinct.length === kinds.length ? e.label : e === distinct[0] ? "most sales" : e.label) : "any sale";
+        const pct = (cents: number) => `${Math.round((cents / EXAMPLE) * 1000) / 10}%`;
+        const labelTakes = r.deductions.some((d) => d.cents && d.destination === "label");
         return (
           <div key={e.category} className="border border-border bg-surface-2 p-4 text-sm">
             <p className="mb-2 font-medium">
-              <Money cents={EXAMPLE} currency="USD" /> from {names} of {bandName}, after Bandcamp’s fees:
+              An example: where the money goes when {what} of {bandName} brings in <Money cents={EXAMPLE} currency="USD" /> after Bandcamp’s
+              fees.
             </p>
             <ul className="space-y-1">
               {r.deductions
@@ -95,15 +98,19 @@ export async function MoneyRules({
                 .map((d, i) => (
                   <li key={i} className="flex justify-between gap-4">
                     <span>
-                      − {d.label} <span className="text-muted">({WHERE[d.destination] ?? d.destination})</span>
+                      {d.label} <span className="text-muted">({WHERE[d.destination] ?? d.destination})</span>
                     </span>
-                    <Money cents={d.cents} currency="USD" />
+                    <span>
+                      <Money cents={d.cents} currency="USD" /> <span className="text-muted">· {pct(d.cents)}</span>
+                    </span>
                   </li>
                 ))}
               {r.shares.map((s) => (
                 <li key={s.personId} className="flex justify-between gap-4">
-                  <span>→ {who(s.personId)}</span>
-                  <Money cents={s.cents} currency="USD" />
+                  <span>To {who(s.personId)}</span>
+                  <span>
+                    <Money cents={s.cents} currency="USD" /> <span className="text-muted">· {pct(s.cents)}</span>
+                  </span>
                 </li>
               ))}
               {r.unallocatedCents > 0 && (
@@ -113,7 +120,14 @@ export async function MoneyRules({
                 </li>
               )}
             </ul>
-            {r.ruleSource && <p className="mt-2 text-xs text-muted">Split by {SOURCE[r.ruleSource]}.</p>}
+            <p className="mt-2 text-xs text-muted">
+              {labelAccount && !labelTakes && "The label keeps nothing from it. "}
+              {r.ruleSource === "label_default"
+                ? `${bandName} has no split of its own, so it uses the label-wide default: the band’s current members share it evenly (after any fixed shares set there).`
+                : r.ruleSource
+                  ? `Shared out by ${SOURCE[r.ruleSource]}.`
+                  : null}
+            </p>
           </div>
         );
       })}

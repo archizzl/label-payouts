@@ -106,9 +106,15 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
     ),
   );
 
-  // Payouts that covered this band: its own, and whole-label ones.
+  // Payouts that paid this band: its own, and whole-label ones that paid someone for its sales
+  // (not every whole-label payout: a band nobody was paid for wasn't in it).
+  const paidLines = await db
+    .select({ periodId: schema.payouts.periodId, byBand: schema.payouts.byBand })
+    .from(schema.payouts)
+    .where(eq(schema.payouts.orgId, orgId));
+  const paidThisBand = new Set(paidLines.filter((l) => (l.byBand[String(id)] ?? 0) !== 0).map((l) => l.periodId));
   const bandPeriods = periodRows
-    .filter((p) => p.bandId === id || p.bandId === null)
+    .filter((p) => p.bandId === id || (p.bandId === null && paidThisBand.has(p.id)))
     .sort((a, b) => b.startDate.localeCompare(a.startDate))
     .slice(0, 8);
 

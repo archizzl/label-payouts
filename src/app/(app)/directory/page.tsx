@@ -110,7 +110,6 @@ export default async function DirectoryPage() {
     <>
       <PageHeader
         title="Directory"
-        subtitle="Your bands, and everyone who gets paid. One person can be in several bands and still gets one payment."
       />
 
       {!scope && duplicates.length > 0 && (
