@@ -25,7 +25,10 @@ const nextConfig: NextConfig = {
     ];
   },
   async rewrites() {
-    return [{ source: "/", has: [{ type: "host", value: hostPattern(ADMIN_HOST) }], destination: "/admin" }];
+    return {
+      // Before Next looks for a page: "/" is the app's dashboard otherwise.
+      beforeFiles: [{ source: "/", has: [{ type: "host", value: hostPattern(ADMIN_HOST) }], destination: "/admin" }],
+    };
   },
   // Basic protection for a site on the public internet: no framing (clickjacking), no MIME sniffing,
   // no leaking page addresses to other sites, no camera/mic/location, and not in search engines.
