@@ -137,7 +137,7 @@ async function fromPublicPages(
       found.push(merch ? `${plural(created.length - merch, "new release")}, ${merch} merch` : plural(created.length, "new release"));
     }
     const failed = results.filter((r) => !r.ok);
-    if (failed.length) errors.push(`Couldn't read ${plural(failed.length, "Bandcamp page")} (e.g. ${failed[0].title}).`);
+    if (failed.length) errors.push(`Couldn't read ${plural(failed.length, "Bandcamp page")}, including ${failed[0].title}.`);
     await reRouteAll(orgId);
   });
   await step("Photos", async () => {

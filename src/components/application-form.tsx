@@ -67,7 +67,7 @@ export function ApplicationForm({ yourName }: { yourName: string }) {
       <Field label={kind === "band" ? "Band name" : "Label name"}>
         <input name="name" required maxLength={120} />
       </Field>
-      <Field label="Bandcamp address" hint={kind === "band" ? "e.g. yourband.bandcamp.com. Your releases and merch sync from it." : "e.g. yourlabel.bandcamp.com. Your artists, releases and merch sync from it."}>
+      <Field label="Bandcamp address" hint={kind === "band" ? "Your releases and merch sync from it." : "Your artists, releases and merch sync from it."}>
         <input name="bandcampUrl" placeholder={kind === "band" ? "yourband.bandcamp.com" : "yourlabel.bandcamp.com"} />
       </Field>
       <Field label="Website (optional)">

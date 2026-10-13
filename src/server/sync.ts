@@ -149,7 +149,7 @@ export type LabelLookup = { label: string | null; source: string; artists: Label
 /** The label's artists page: each artist, and whether it's already a band here. Also fills in band photos and locations. */
 export async function lookupLabelArtists(orgId: string, input: string): Promise<LabelLookup> {
   const url = labelArtistsUrl(input);
-  if (!url) return { error: "Enter your label's Bandcamp address, e.g. mylabel.bandcamp.com" };
+  if (!url) return { error: "Enter your label's Bandcamp address." };
   let html: string;
   try {
     const res = await fetch(url, {
@@ -277,7 +277,7 @@ export type ReleaseLookup =
 export async function lookupLabelReleases(orgId: string, input: string): Promise<ReleaseLookup> {
   const url = labelMusicUrl(input);
   const merchUrl = labelMerchUrl(input);
-  if (!url || !merchUrl) return { error: "Enter your label's Bandcamp address, e.g. mylabel.bandcamp.com" };
+  if (!url || !merchUrl) return { error: "Enter your label's Bandcamp address." };
   const [page, merchPage] = await Promise.all([fetchPage(url), fetchPage(merchUrl)]);
   if ("error" in page) {
     if (page.blocked) return { error: page.error, blocked: true };

@@ -201,7 +201,7 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
           <Field label="Their email (optional)" hint="Locks the link to that email.">
             <input name="email" type="email" placeholder="anyone with the link" />
           </Field>
-          <Field label="Note (optional)" hint="Just for you, e.g. who it's for.">
+          <Field label="Note (optional)" hint="Just for you.">
             <input name="note" placeholder="Flag Day’s drummer" />
           </Field>
           <Field label="Expires in">

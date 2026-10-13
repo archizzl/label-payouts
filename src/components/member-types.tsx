@@ -27,7 +27,7 @@ export async function MemberTypesCard({ orgId }: { orgId: string }) {
       <div id="member-types" className="scroll-mt-4" />
       <Card title="Member types">
         <p className="mb-4 text-sm text-muted">
-          Give some members more than their own earnings, e.g. a band’s manager who sees and ships that band’s orders. Make a type, choose what it
+          Give some members more than their own earnings. Make a type, choose what it
           can see and change, then pick it for someone under <Link href="#who-can-sign-in">Who can sign in</Link> above (or when you invite them).
         </p>
         {types.length === 0 ? (

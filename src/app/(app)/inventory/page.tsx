@@ -72,7 +72,7 @@ export default async function InventoryPage({ searchParams }: PageProps<"/invent
 
   return (
     <>
-      <PageHeader title="Inventory" subtitle="What you have on hand: merch and music you sell, and supplies like jewel cases, blank CDs and mailers." />
+      <PageHeader title="Inventory" subtitle="What you have on hand: merch and music you sell, and supplies you use but don’t sell." />
 
       {bandsWithItems.length > 1 && (
         <nav className="mb-6 flex flex-wrap gap-2 text-sm">
@@ -131,7 +131,7 @@ export default async function InventoryPage({ searchParams }: PageProps<"/invent
 
       <Card title={`Supplies (${supplies.length})`}>
         {supplies.length === 0 ? (
-          <Empty>No supplies yet: things you use but don’t sell, like jewel cases, blank CDs, mailers and inserts.</Empty>
+          <Empty>No supplies yet: things you use but don’t sell.</Empty>
         ) : (
           <ItemTable items={supplies} bandName={bandName} movesOf={movesOf} canEdit={canEdit} bands={bands} catalog={catalog} ownBandsOnly={!!scope} />
         )}

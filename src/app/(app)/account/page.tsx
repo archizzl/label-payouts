@@ -45,7 +45,7 @@ export default async function AccountPage() {
           <Field label={kind === "band" ? "Band name" : "Label name"}>
             <input name="name" required defaultValue={ctx.org.name} />
           </Field>
-          <Field label="Bandcamp address" hint="e.g. mylabel.bandcamp.com">
+          <Field label="Bandcamp address">
             <input name="bandcampUrl" defaultValue={settings?.bandcampUrl ?? ""} placeholder="mylabel.bandcamp.com" />
           </Field>
           <div className="sm:col-span-2">

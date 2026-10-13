@@ -59,7 +59,7 @@ async function TransferForm({ transfer, bandId, sources }: { transfer?: Transfer
           ))}
         </select>
       </Field>
-      <Field label="From release (optional)" hint="e.g. the fundraiser release. Shows what it raised against what was sent.">
+      <Field label="From release (optional)" hint="Shows what that release raised against what was sent.">
         <select name="releaseId" defaultValue={transfer?.releaseId ?? ""}>
           <option value="">No specific release</option>
           {bands
@@ -141,7 +141,7 @@ export async function LabelFunds({ bandId, showTotals = true }: { bandId?: numbe
     <Card title={bandId ? "Label funds sent on" : showTotals ? "Label funds" : "Sent on to others"}>
       <p className="mb-4 text-sm text-muted">
         {bandId || !showTotals
-          ? "Money the label kept from sales and then passed on, e.g. a fundraiser’s proceeds sent to an aid group."
+          ? "Money the label kept from sales and then passed on to someone else."
           : "What the label kept from sales (its cut, label releases, anything routed to it like a fundraiser), what it passed on to others or spent (expenses it paid, people it reimbursed; see Receipts), and what’s left in its account."}
       </p>
 

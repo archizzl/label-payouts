@@ -205,7 +205,7 @@ export default async function ReleasePage({ params, searchParams }: PageProps<"/
       {!isMerch && (
       <Card title="Tracks">
         {tracks.length === 0 ? (
-          <Empty>No tracks. Add them to give individual songs their own splits (e.g. by songwriter).</Empty>
+          <Empty>No tracks. Add them to give individual songs their own splits.</Empty>
         ) : (
           // A compact Bandcamp-style tracklist; click a track to manage its split and details.
           <ul className="divide-y divide-border border-y border-border">

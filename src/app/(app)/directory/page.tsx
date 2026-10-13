@@ -475,7 +475,7 @@ function PersonFields({ person }: { person?: Person }) {
       <Field label="PayPal email" hint="Used for the PayPal bulk payout file.">
         <input name="email" type="email" defaultValue={person?.email ?? ""} />
       </Field>
-      <Field label="PayPal.me handle" hint="For one-click PayPal links with the amount filled in, e.g. “samdrums”.">
+      <Field label="PayPal.me handle" hint="For one-click PayPal links with the amount filled in.">
         <input name="paypalMe" defaultValue={person?.paypalMe ?? ""} />
       </Field>
       <Field label="Venmo username" hint="US only. For one-click Venmo links with the amount and a note filled in.">

@@ -10,7 +10,7 @@ export function BandFields({ band }: { band?: typeof schema.bands.$inferSelect }
       <Field label="Band name" hint="Exactly as it appears in Bandcamp's “artist” column.">
         <input name="name" required defaultValue={band?.name} />
       </Field>
-      <Field label="Other artist spellings" hint="Comma-separated, e.g. “GH, Glass Harbour”.">
+      <Field label="Other artist spellings" hint="Comma-separated.">
         <input name="aliases" defaultValue={band?.aliases.join(", ")} />
       </Field>
       <Field

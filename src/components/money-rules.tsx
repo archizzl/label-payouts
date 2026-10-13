@@ -1,17 +1,20 @@
 import Link from "next/link";
 import { Money } from "@/components/ui";
+import { formatCents } from "@/lib/money";
+import { salePartLabel } from "@/lib/sale-parts";
 import { possessive } from "@/lib/plural";
 import { type ItemCategory } from "@/lib/bandcamp-csv";
 import { computeLedger, type EngineSale, LABEL_SHARE, type RuleSource, type SaleResult } from "@/lib/splits";
 import { loadEngineContext } from "@/server/data";
 
 /*
- * A band's money rules in one place, as what happens to an example sale: what comes off first
- * (the label's cut, band funds, per-item costs), then who gets the rest. It runs the same engine
- * payouts use, so it can't disagree with them. Each line points to where it's changed.
+ * A band's money rules in one place, as shares of each sale: what comes off first (the label's cut,
+ * band funds, per-item costs), then who gets the rest. Worked out by running a sale through the
+ * same engine payouts use, so it can't disagree with them. Each line points to where it's changed.
  */
 
-const EXAMPLE = 1000;
+/** The sale the shares are worked out on (never shown: only the percentages are). */
+const BASE = 10000;
 
 const SOURCE: Record<RuleSource, string> = {
   track: "the track’s own split",
@@ -58,15 +61,15 @@ export async function MoneyRules({
     trackId: null,
     category,
     currency: "USD",
-    netCents: EXAMPLE,
+    netCents: BASE,
     quantity: 1,
     format: category === "merch" ? "merch" : "",
     parts: {},
   });
   const kinds: { category: ItemCategory; label: string }[] = [
-    { category: "album", label: "a digital album" },
-    { category: "track", label: "a digital track" },
-    { category: "merch", label: "merch or a physical format" },
+    { category: "album", label: "Digital albums" },
+    { category: "track", label: "Digital tracks" },
+    { category: "merch", label: "Merch and physical formats" },
   ];
   const results = computeLedger(
     kinds.map((k, i) => sale(k.category, -(i + 1))),
@@ -83,45 +86,48 @@ export async function MoneyRules({
     <div className="space-y-5">
       {distinct.map((e) => {
         const r = e.result;
-        const what = distinct.length > 1 ? (distinct.length === kinds.length ? e.label : e === distinct[0] ? "most sales" : e.label) : "any sale";
-        const pct = (cents: number) => `${Math.round((cents / EXAMPLE) * 1000) / 10}%`;
+        const what = distinct.length > 1 ? (distinct.length === kinds.length || e !== distinct[0] ? e.label : "Most sales") : "Every sale";
+        const pct = (cents: number, of = BASE) => `${Math.round((cents / of) * 1000) / 10}%`;
+        const taken = r.deductions.filter((d) => d.cents);
+        // What's left once everything that comes off has: the people share that.
+        const rest = BASE - taken.reduce((a, d) => a + d.cents, 0);
+        /** A deduction as it was set up: "30%", "10% of what's left", "$3.42 per item"… */
+        const amount = (d: SaleResult["deductions"][number], i: number) => {
+          const def = ctx.deductions.find((x) => x.id === d.deductionId);
+          if (def?.kind === "percent") return `${(def.percentBps ?? 0) / 100}%${i > 0 ? " of what’s left" : ""}`;
+          if (def?.kind === "per_unit") return `${formatCents(def.amountCents ?? 0, def.currency ?? "USD")} per item`;
+          if (def?.kind === "sale_part") return salePartLabel(def.salePart).toLowerCase();
+          return pct(d.cents);
+        };
         const labelTakes = r.deductions.some((d) => d.cents && d.destination === "label");
         return (
           <div key={e.category} className="border border-border bg-surface-2 p-4 text-sm">
-            <p className="mb-2 font-medium">
-              An example: where the money goes when {what} of {bandName} brings in <Money cents={EXAMPLE} currency="USD" /> after Bandcamp’s
-              fees.
-            </p>
+            <p className="mb-2 font-medium">{what}, after Bandcamp’s fees:</p>
             <ul className="space-y-1">
-              {r.deductions
-                .filter((d) => d.cents)
-                .map((d, i) => (
-                  <li key={i} className="flex justify-between gap-4">
-                    <span>
-                      {d.label} <span className="text-muted">({WHERE[d.destination] ?? d.destination})</span>
-                    </span>
-                    <span>
-                      <Money cents={d.cents} currency="USD" /> <span className="text-muted">· {pct(d.cents)}</span>
-                    </span>
-                  </li>
-                ))}
+              {taken.map((d, i) => (
+                <li key={i} className="flex justify-between gap-4">
+                  <span>
+                    {d.label} <span className="text-muted">({WHERE[d.destination] ?? d.destination})</span>
+                  </span>
+                  <span className="tabular-nums">{amount(d, i)}</span>
+                </li>
+              ))}
+              {taken.length > 0 && r.shares.length > 0 && <li className="pt-1 text-xs text-muted">Then what’s left is shared:</li>}
               {r.shares.map((s) => (
                 <li key={s.personId} className="flex justify-between gap-4">
-                  <span>To {who(s.personId)}</span>
-                  <span>
-                    <Money cents={s.cents} currency="USD" /> <span className="text-muted">· {pct(s.cents)}</span>
-                  </span>
+                  <span>{who(s.personId)}</span>
+                  <span className="tabular-nums">{pct(s.cents, rest)}</span>
                 </li>
               ))}
               {r.unallocatedCents > 0 && (
                 <li className="flex justify-between gap-4 text-bad">
                   <span>Nobody: there’s no split, so this can’t be paid yet</span>
-                  <Money cents={r.unallocatedCents} currency="USD" />
+                  <span className="tabular-nums">{pct(r.unallocatedCents, rest)}</span>
                 </li>
               )}
             </ul>
             <p className="mt-2 text-xs text-muted">
-              {labelAccount && !labelTakes && "The label keeps nothing from it. "}
+              {labelAccount && !labelTakes && "The label keeps nothing. "}
               {r.ruleSource === "label_default"
                 ? `${bandName} has no split of its own, so it uses the label-wide default: the band’s current members share it evenly (after any fixed shares set there).`
                 : r.ruleSource

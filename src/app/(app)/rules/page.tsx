@@ -111,7 +111,7 @@ export default async function RulesPage() {
       <Card title="Label-wide default split">
         <p className="mb-3 text-sm text-muted">
           Used for any band that doesn’t have its own default split. Each band’s current members share it evenly. You can
-          carve out a fixed share for specific people first, such as a producer or engineer who works on every release.
+          carve out a fixed share for specific people first.
           Band, item-type, release and track splits always take priority.
         </p>
         <SplitRules
@@ -142,7 +142,7 @@ export default async function RulesPage() {
 
       <Card title="Label-wide deductions">
         <p className="mb-3 text-sm text-muted">
-          Taken from every sale first, e.g. the label’s cut. Limit one to a band, release or item type to make it apply only there.
+          Taken from every sale first. Limit one to a band, release or item type to make it apply only there.
         </p>
         <DeductionList people={peopleOpts} items={labelWide} names={names} bands={bands} releases={releaseOpts} />
         <div className="mt-3">

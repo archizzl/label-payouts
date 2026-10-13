@@ -251,7 +251,7 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
 
       {band.isLabel && (
         <Callout tone="neutral">
-          This is the label itself. It holds releases under the label’s own name, like label tapes and compilations. Unless you
+          This is the label itself. It holds releases under the label’s own name. Unless you
           set a split below, the label keeps what these releases earn. On compilations, tracks by your bands go to those bands,
           and tracks by other artists go to their <Link href="/catalog#outside-artists">contacts</Link>.
         </Callout>
@@ -307,7 +307,7 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
             <Card title="Projects" actions={<LinkButton href={`/projects?band=${id}`} size="sm">All projects</LinkButton>}>
               {bandProjects.length === 0 ? (
                 <p className="text-sm text-muted">
-                  No projects yet. A project (an album, a tour…) collects what was spent on it and what its releases made back.{" "}
+                  No projects yet. A project collects what was spent on it and what its releases made back.{" "}
                   <Link href={`/projects?band=${id}`}>Create one</Link>.
                 </p>
               ) : (
@@ -409,7 +409,7 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
           <div id="item-type-splits" />
           <Card title="Splits for a kind of item">
             <p className="mb-4 text-sm text-muted">
-              Optional. For example, split merch evenly while music follows songwriting shares. These apply when the sale has no
+              Optional: a different split for merch, digital albums or digital tracks. These apply when the sale has no
               release/track split, unless you tick “use this even when the release/track has its own split”.
             </p>
             <div className="divide-y divide-border border-y border-border">

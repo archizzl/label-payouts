@@ -195,7 +195,7 @@ export default async function OrdersPage({ searchParams }: PageProps<"/orders">)
           )}
           {failed.length > 0 && (
             <Card title={`Payment failed (${failed.length})`}>
-              <p className="mb-3 text-sm text-muted">Bandcamp says these payments didn’t go through (e.g. a PayPal eCheck that failed). Don’t ship them.</p>
+              <p className="mb-3 text-sm text-muted">Bandcamp says these payments didn’t go through. Don’t ship them.</p>
               <OrderList orders={failed} bandName={bandName} slipHref={slipHref} people={people} canShip={shippable} sales={orderSales} />
             </Card>
           )}

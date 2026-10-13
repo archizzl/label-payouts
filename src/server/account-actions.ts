@@ -251,7 +251,7 @@ export async function saveManagedBands(fd: FormData) {
 export async function saveMemberType(_: FormState, fd: FormData): Promise<FormState> {
   const { orgId } = await requireAdmin();
   const name = str(fd, "name").slice(0, 60);
-  if (!name) return { error: "Give it a name, e.g. Band manager." };
+  if (!name) return { error: "Give it a name." };
   const permissions = normalizePermissions(Object.fromEntries(AREAS.map((a) => [a.key, str(fd, `perm:${a.key}`)])));
   // "Only their own bands" counts only where they can see the section at all.
   const bandAreas = normalizeBandAreas(AREAS.filter((a) => fd.get(`bands:${a.key}`) === "on" && permissions[a.key]).map((a): Area => a.key));
