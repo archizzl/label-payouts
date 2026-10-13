@@ -1,11 +1,12 @@
 import { desc, eq, sql } from "drizzle-orm";
 import { headers } from "next/headers";
 import { connection } from "next/server";
-import { CopyButton, SubmitButton } from "@/components/client";
+import { ActionForm, CopyButton, SubmitButton } from "@/components/client";
 import { ResetLinkButton } from "@/components/reset-link-button";
 import { Badge, Callout, Card, Field, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
-import { createSignupInvite, revokeSignupInvite } from "@/server/admin-actions";
+import { FEATURE_FLAGS } from "@/lib/feature-flags";
+import { createSignupInvite, revokeSignupInvite, saveFeatureFlag } from "@/server/admin-actions";
 import { inviteStatus, listInvites } from "@/server/signup-invites";
 import { requireSiteAdmin } from "@/server/site-admin";
 
@@ -16,13 +17,13 @@ const STATUS_TONE = { open: "accent", used: "good", expired: "neutral", revoked:
 /** The whole site: invite links for new logins, everyone's logins, and every label and band account. Site admins only. */
 export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
   await connection();
-  await requireSiteAdmin();
   const sp = await searchParams;
   const h = await headers();
   const base = process.env.BETTER_AUTH_URL ?? `${h.get("x-forwarded-proto") ?? "http"}://${h.get("host")}`;
   const link = (code: string) => `${base}/signup?code=${code}`;
 
-  const [invites, users, memberships, accounts, lastSeen] = await Promise.all([
+  const session = await requireSiteAdmin();
+  const [invites, users, memberships, accounts, lastSeen, flagAccounts, flagPrefs] = await Promise.all([
     listInvites(),
     db.select().from(schema.user).orderBy(desc(schema.user.createdAt)),
     db
@@ -48,6 +49,8 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
       .select({ userId: schema.session.userId, at: sql<Date>`max(${schema.session.updatedAt})` })
       .from(schema.session)
       .groupBy(schema.session.userId),
+    db.select().from(schema.featureFlagAccounts),
+    db.select().from(schema.featureFlagPrefs).where(eq(schema.featureFlagPrefs.userId, session.user.id)),
   ]);
   const seen = new Map(lastSeen.map((s) => [s.userId, s.at]));
   const userName = new Map(users.map((u) => [u.id, `${u.name} (${u.email})`]));
@@ -70,6 +73,45 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
         </Callout>
       )}
       {sp.error === "email" && <Callout tone="bad">That email doesn’t look right.</Callout>}
+
+      <Card title="Feature flags">
+        <p className="mb-4 text-sm text-muted">
+          Features still being built. Choose whether each shows for you, and which accounts have it (everyone who signs in to those
+          accounts sees it).
+        </p>
+        <ul className="divide-y divide-border border-y border-border">
+          {FEATURE_FLAGS.map((f) => {
+            const mine = flagPrefs.find((p) => p.flag === f.key);
+            const granted = new Set(flagAccounts.filter((a) => a.flag === f.key).map((a) => a.orgId));
+            return (
+              <li key={f.key} className="py-4">
+                <ActionForm action={saveFeatureFlag} className="space-y-3">
+                  <input type="hidden" name="flag" value={f.key} />
+                  <div>
+                    <div className="font-medium">{f.label}</div>
+                    <div className="text-sm text-muted">{f.description}</div>
+                  </div>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input type="checkbox" name="me" defaultChecked={mine ? mine.enabled : true} /> Show it for me
+                  </label>
+                  <fieldset>
+                    <legend className="mb-1 text-xs font-medium text-muted">Accounts with it ({granted.size})</legend>
+                    <div className="grid gap-x-4 gap-y-1 sm:grid-cols-2 md:grid-cols-3">
+                      {accounts.map((a) => (
+                        <label key={a.id} className="flex items-center gap-2 text-sm">
+                          <input type="checkbox" name="org" value={a.id} defaultChecked={granted.has(a.id)} /> {a.name}
+                          <span className="text-xs text-muted">{a.kind}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </fieldset>
+                  <SubmitButton size="sm">Save</SubmitButton>
+                </ActionForm>
+              </li>
+            );
+          })}
+        </ul>
+      </Card>
 
       <Card title="Invite someone">
         <form action={createSignupInvite} className="grid gap-4 sm:grid-cols-[1fr_1fr_8rem_auto] sm:items-end">

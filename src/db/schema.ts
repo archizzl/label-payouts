@@ -826,3 +826,28 @@ export const navSeen = pgTable(
   },
   (t) => [uniqueIndex("nav_seen_org_user_area").on(t.orgId, t.userId, t.area)],
 );
+
+/** Accounts given a feature that's still behind a flag (src/lib/feature-flags.ts). */
+export const featureFlagAccounts = pgTable(
+  "feature_flag_accounts",
+  {
+    id: id(),
+    flag: text("flag").notNull(),
+    orgId: orgId(),
+  },
+  (t) => [uniqueIndex("feature_flag_accounts_flag_org").on(t.flag, t.orgId)],
+);
+
+/** A site admin's own choice to show or hide a flagged feature for themselves. */
+export const featureFlagPrefs = pgTable(
+  "feature_flag_prefs",
+  {
+    id: id(),
+    flag: text("flag").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    enabled: boolean("enabled").notNull(),
+  },
+  (t) => [uniqueIndex("feature_flag_prefs_flag_user").on(t.flag, t.userId)],
+);

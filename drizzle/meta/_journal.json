@@ -169,6 +169,13 @@
       "when": 1791670516178,
       "tag": "0023_nav_badges",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1791857070948,
+      "tag": "0024_feature_flags",
+      "breakpoints": true
     }
   ]
 }

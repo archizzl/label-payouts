@@ -21,7 +21,11 @@
   // Receipt photos and PDFs (src/server/receipt-store.ts). Private: served only through the app.
   "r2_buckets": [{ "binding": "RECEIPTS", "bucket_name": "label-payouts-receipts" }],
   // Served at labelmaker.ing (the domain is on this Cloudflare account).
-  "routes": [{ "pattern": "labelmaker.ing", "custom_domain": true }],
+  "routes": [
+    { "pattern": "labelmaker.ing", "custom_domain": true },
+    // The site admin dashboard (next.config.ts sends "/" there to /admin).
+    { "pattern": "admin.labelmaker.ing", "custom_domain": true }
+  ],
   // Sync every account with Bandcamp once an hour, in the background.
   "triggers": { "crons": ["17 * * * *"] },
   "observability": { "enabled": true },
@@ -32,6 +36,10 @@
     // The site's address. Sign-ins are tied to it.
     "BETTER_AUTH_URL": "https://labelmaker.ing",
     // Who can see /admin (comma-separated).
-    "SITE_ADMIN_EMAILS": "reactionfutureinstitute@gmail.com"
+    "SITE_ADMIN_EMAILS": "reactionfutureinstitute@gmail.com",
+    // The admin dashboard's address (nav link, trusted for signing in).
+    "ADMIN_URL": "https://admin.labelmaker.ing",
+    // Share sign-ins between labelmaker.ing and admin.labelmaker.ing.
+    "COOKIE_DOMAIN": "labelmaker.ing"
   }
 }

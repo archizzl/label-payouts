@@ -16,7 +16,10 @@ import { checkSignup, consumeInvite } from "./signup-invites";
 export const auth = betterAuth({
   database: drizzleAdapter(db, { provider: "pg", schema }),
   baseURL: process.env.BETTER_AUTH_URL,
-  trustedOrigins: process.env.BETTER_AUTH_URL ? [process.env.BETTER_AUTH_URL] : undefined,
+  // The site, and its admin dashboard's own address (admin.labelmaker.ing).
+  trustedOrigins: [process.env.BETTER_AUTH_URL, process.env.ADMIN_URL].filter((u): u is string => !!u),
+  // On the live site, signing in on labelmaker.ing also signs you in on admin.labelmaker.ing.
+  ...(process.env.COOKIE_DOMAIN ? { advanced: { crossSubDomainCookies: { enabled: true, domain: process.env.COOKIE_DOMAIN } } } : {}),
   emailAndPassword: {
     enabled: true,
     minPasswordLength: 8,

@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db, schema } from "@/db";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
+import { isFeatureFlag } from "@/lib/feature-flags";
 import { makeResetLink } from "./auth";
 import { requireSiteAdmin } from "./site-admin";
 import { createInvite, revokeInvite } from "./signup-invites";
@@ -39,4 +40,28 @@ export async function passwordResetLink(_: AdminState, fd: FormData): Promise<Ad
   if (!u) return { error: "No such login." };
   const link = await makeResetLink(u.email);
   return link ? { ok: `Reset link for ${u.email} (works once, for 24 hours):`, link } : { error: "Couldn’t make a reset link." };
+}
+
+/**
+ * A flagged feature: whether it shows for this site admin, and which accounts have it. Replaces the
+ * account list with the one sent.
+ */
+export async function saveFeatureFlag(_: AdminState, fd: FormData): Promise<AdminState> {
+  const session = await requireSiteAdmin();
+  const flag = str(fd, "flag");
+  if (!isFeatureFlag(flag)) return { error: "Unknown feature." };
+  const orgIds = [...new Set(fd.getAll("org").map(String).filter(Boolean))];
+  const known = orgIds.length
+    ? (await db.select({ id: schema.organization.id }).from(schema.organization).where(inArray(schema.organization.id, orgIds))).map((o) => o.id)
+    : [];
+  await db.transaction(async (tx) => {
+    await tx
+      .insert(schema.featureFlagPrefs)
+      .values({ flag, userId: session.user.id, enabled: fd.get("me") === "on" })
+      .onConflictDoUpdate({ target: [schema.featureFlagPrefs.flag, schema.featureFlagPrefs.userId], set: { enabled: fd.get("me") === "on" } });
+    await tx.delete(schema.featureFlagAccounts).where(eq(schema.featureFlagAccounts.flag, flag));
+    if (known.length) await tx.insert(schema.featureFlagAccounts).values(known.map((orgId) => ({ flag, orgId })));
+  });
+  revalidatePath("/", "layout");
+  return { ok: `Saved. ${known.length ? `${known.length} account${known.length === 1 ? "" : "s"} ha${known.length === 1 ? "s" : "ve"} it.` : "No accounts have it."}` };
 }

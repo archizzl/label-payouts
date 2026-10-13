@@ -1,12 +1,31 @@
 import type { NextConfig } from "next";
 
+/** The live site and its admin dashboard's address. (Locally neither matches, so /admin stays /admin.) */
+const MAIN_HOST = "labelmaker.ing";
+const ADMIN_HOST = "admin.labelmaker.ing";
+/** Host conditions are patterns: match this host exactly. */
+const hostPattern = (host: string) => host.replace(/\./g, "\\.");
+
 const nextConfig: NextConfig = {
   serverExternalPackages: ["@electric-sql/pglite", "pg", "better-sqlite3"],
   // pg loads its Cloudflare socket support only when running on Workers, so tracing doesn't see it.
   outputFileTracingIncludes: { "/**": ["./node_modules/pg-cloudflare/**"] },
-  // The import page moved under Sales.
+  // The import page moved under Sales. The admin dashboard lives at its own address on the live
+  // site: admin.labelmaker.ing shows it at "/", and only it (plus signing in) is served there.
   async redirects() {
-    return [{ source: "/import", destination: "/sales/import", permanent: false }];
+    return [
+      { source: "/import", destination: "/sales/import", permanent: false },
+      { source: "/admin", has: [{ type: "host", value: hostPattern(MAIN_HOST) }], destination: `https://${ADMIN_HOST}/`, permanent: false },
+      {
+        source: "/:path((?!admin|login|reset-password|api/|_next/|favicon\\.ico|robots\\.txt).+)",
+        has: [{ type: "host", value: hostPattern(ADMIN_HOST) }],
+        destination: `https://${MAIN_HOST}/:path`,
+        permanent: false,
+      },
+    ];
+  },
+  async rewrites() {
+    return [{ source: "/", has: [{ type: "host", value: hostPattern(ADMIN_HOST) }], destination: "/admin" }];
   },
   // Basic protection for a site on the public internet: no framing (clickjacking), no MIME sniffing,
   // no leaking page addresses to other sites, no camera/mic/location, and not in search engines.

@@ -81,6 +81,8 @@ export function Nav({
   labels = [],
   syncing = false,
   siteAdmin = false,
+  projects = false,
+  adminHref = "/admin",
 }: {
   user: { name: string; email: string };
   account: Account;
@@ -96,6 +98,10 @@ export function Nav({
   syncing?: boolean;
   /** Runs the whole site: gets the Admin link. */
   siteAdmin?: boolean;
+  /** Projects is switched on for them (a flagged feature). */
+  projects?: boolean;
+  /** Where the admin dashboard is (its own subdomain on the live site). */
+  adminHref?: string;
 }) {
   const path = usePathname();
   // "New sales" counts from your last look at Sales: once you've opened it, stop showing the number
@@ -107,7 +113,7 @@ export function Nav({
     if (key === "sales" && seenSales) return 0;
     return badges[key] ?? 0;
   };
-  const items = [...itemsFor(account, isAdmin, areas, labels, siteAdmin), ...(siteAdmin ? [{ href: "/admin", label: "admin" }] : [])];
+  const items = [...itemsFor(account, isAdmin, areas, labels, projects), ...(siteAdmin ? [{ href: adminHref, label: "admin" }] : [])];
   return (
     <header className="no-print border-b border-border bg-surface">
       <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 pt-4 pb-3 md:px-8">
