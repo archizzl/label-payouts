@@ -166,7 +166,13 @@ export default async function DirectoryPage() {
             <details key={b.id} id={`band-${b.id}`} className="group/band scroll-mt-4">
               <summary className="flex flex-wrap items-center gap-x-4 gap-y-1 py-2.5 hover:bg-surface-2">
                 <span className="w-4 shrink-0 text-center text-xs text-muted transition group-open/band:rotate-90">▸</span>
-                <Link href={`/bands/${b.id}`} className="font-bold">
+                <Link href={`/bands/${b.id}`} className="flex items-center gap-3 font-bold">
+                  {b.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={b.imageUrl} alt="" className="h-8 w-8 shrink-0 bg-surface-2 object-cover" />
+                  ) : (
+                    <span className="h-8 w-8 shrink-0 bg-surface-2" />
+                  )}
                   {b.name}
                 </Link>
                 {host && (
