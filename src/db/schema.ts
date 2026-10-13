@@ -720,6 +720,11 @@ export const memberTypeAssignments = pgTable(
     memberTypeId: integer("member_type_id")
       .notNull()
       .references(() => memberTypes.id, { onDelete: "cascade" }),
+    /**
+     * The bands they manage, for sections their type limits to "their own bands". Null: the bands
+     * they're a member of. Kept apart from membership so a manager isn't part of the band's splits.
+     */
+    bandIds: jsonb("band_ids").$type<number[]>(),
   },
   (t) => [uniqueIndex("member_type_assignments_org_user").on(t.orgId, t.userId)],
 );

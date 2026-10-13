@@ -45,6 +45,30 @@ describe("member types", () => {
     expect((await context.accessFor(orgId, userId, false, person.id)).access.permissions).toEqual({});
   });
 
+  it("use the bands someone manages, when picked, instead of the ones they play in", async () => {
+    const orgId = await newAccount();
+    const userId = await login("Mo Manager");
+    const [a] = await db.insert(schema.bands).values({ orgId, name: "Band A" }).returning();
+    const [b] = await db.insert(schema.bands).values({ orgId, name: "Band B" }).returning();
+    const [person] = await db.insert(schema.people).values({ orgId, name: "Mo Manager", userId }).returning();
+    await db.insert(schema.bandMemberships).values({ orgId, bandId: a.id, personId: person.id });
+    const [t] = await db
+      .insert(schema.memberTypes)
+      .values({ orgId, name: "Band manager", permissions: { receipts: "edit", roster: "view" }, bandAreas: ["receipts", "roster"] })
+      .returning();
+    await types.assignMemberType(orgId, userId, t.id);
+
+    expect((await context.accessFor(orgId, userId, false, person.id)).access.bandIds).toEqual([a.id]);
+    // They manage Band B (without playing in it).
+    await types.setManagedBands(orgId, userId, [b.id]);
+    expect((await context.accessFor(orgId, userId, false, person.id)).access).toMatchObject({ bandIds: [b.id], bandAreas: ["receipts", "roster"] });
+    // Changing their type keeps the bands they manage; going back to "the bands they play in" too.
+    await types.assignMemberType(orgId, userId, t.id);
+    expect((await types.managedBandsOf(orgId)).get(userId)).toEqual([b.id]);
+    await types.setManagedBands(orgId, userId, null);
+    expect((await context.accessFor(orgId, userId, false, person.id)).access.bandIds).toEqual([a.id]);
+  });
+
   it("doesn't look up their bands when nothing in their type is limited to them", async () => {
     const orgId = await newAccount();
     const userId = await login("Viewer");

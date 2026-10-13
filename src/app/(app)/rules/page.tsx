@@ -8,7 +8,8 @@ import { Card, Disclosure, Empty, Field, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
 import { deleteRoutingOverride, rerouteAction, saveDeduction, setLabelKeepsNothing } from "@/server/actions";
 import { requireAccess } from "@/server/context";
-import { nameMaps, ruleFilter, rulesWhere } from "@/server/data";
+import { nameMaps, ownBand, ruleFilter, rulesWhere } from "@/server/data";
+import { redirect } from "next/navigation";
 
 export const metadata = { title: "rules" };
 
@@ -16,6 +17,11 @@ export default async function RulesPage() {
   await connection();
   const ctx = await requireAccess("rules");
   const { orgId } = ctx;
+  // A band account's rules are its band's money rules.
+  if (ctx.org.kind === "band") {
+    const band = await ownBand(orgId);
+    if (band) redirect(`/bands/${band.id}?tab=money`);
+  }
   const [names, bands, releases, orgDeductions, overrides, labelDefault, peopleRows, bandDefaults] = await Promise.all([
     nameMaps(orgId),
     db.select().from(schema.bands).where(eq(schema.bands.orgId, orgId)).orderBy(asc(schema.bands.name)),

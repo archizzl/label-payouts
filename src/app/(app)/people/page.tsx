@@ -8,6 +8,7 @@ import { deletePerson, mergePeopleAction, savePerson, setLabelAccountHolder } fr
 import { payHandlesSummary } from "@/lib/paypal-export";
 import { ViewAsButton } from "@/components/viewing-as";
 import { WhoCanSignIn } from "@/components/who-can-sign-in";
+import { bandScope, can } from "@/lib/permissions";
 import { requireAccess } from "@/server/context";
 import { possibleDuplicates } from "@/server/people";
 
@@ -46,7 +47,9 @@ export default async function PeoplePage() {
   await connection();
   const ctx = await requireAccess("roster");
   const { orgId } = ctx;
-  const [people, memberships, payoutRows, duplicates, outsideRows] = await Promise.all([
+  // A band manager: just the people in their bands, and nothing label-wide.
+  const scope = bandScope(ctx.access, "roster");
+  const [everyone, memberships, payoutRows, duplicates, outsideRows] = await Promise.all([
     db.select().from(schema.people).where(eq(schema.people.orgId, orgId)).orderBy(asc(schema.people.name)),
     db
       .select({ personId: schema.bandMemberships.personId, roles: schema.bandMemberships.roles, active: schema.bandMemberships.active, band: schema.bands })
@@ -57,6 +60,7 @@ export default async function PeoplePage() {
     possibleDuplicates(orgId),
     db.select().from(schema.outsideArtists).where(eq(schema.outsideArtists.orgId, orgId)),
   ]);
+  const people = scope ? everyone.filter((p) => memberships.some((m) => m.personId === p.id && scope.includes(m.band.id))) : everyone;
   const pending = payoutRows.filter((r) => r.status === "pending");
   // Paid out, or kept in the label's account by whoever holds it: either way, it's theirs and settled.
   const paid = payoutRows.filter((r) => r.status !== "pending");
@@ -76,7 +80,7 @@ export default async function PeoplePage() {
   return (
     <>
       <PageHeader title="People" subtitle="Everyone who gets paid: band members, co-writers, producers. One person can be in several bands and still gets one payment." />
-      {duplicates.length > 0 && (
+      {!scope && duplicates.length > 0 && (
         <Card title="Possible duplicates">
           <p className="mb-3 text-sm text-muted">
             These look like the same person entered more than once. Merging combines their bands, splits and payouts so they’re
@@ -111,7 +115,7 @@ export default async function PeoplePage() {
         </Card>
       )}
 
-      {people.length > 0 && (
+      {can(ctx.access, "funds", "edit") && !scope && people.length > 0 && (
         <Card title="Label bank account">
           <p className="mb-3 text-sm text-muted">
             Whoever the label’s bank account belongs to doesn’t need to pay themselves. Their share of each payout is recorded as
@@ -205,7 +209,7 @@ export default async function PeoplePage() {
                         .
                       </p>
                     )}
-                    {people.length > 1 && (
+                    {!scope && people.length > 1 && (
                       <form action={mergePeopleAction} className="flex flex-wrap items-end gap-2 border-t border-border pt-4">
                         <input type="hidden" name="fromId" value={p.id} />
                         <Field label={`Merge ${p.name} into…`} hint="Their bands, splits and payouts move to that person, then this record is removed.">
@@ -234,12 +238,14 @@ export default async function PeoplePage() {
                         <span className="text-xs text-muted">See {ctx.org.name} as they would when they sign in. Nothing can be changed while viewing.</span>
                       </div>
                     )}
-                    <ActionForm action={deletePerson} className="border-t border-border pt-4">
-                      <input type="hidden" name="id" value={p.id} />
-                      <SubmitButton variant="danger" size="sm" confirm={`Delete ${p.name}? They're removed from every band and split.`}>
-                        Delete person
-                      </SubmitButton>
-                    </ActionForm>
+                    {!scope && (
+                      <ActionForm action={deletePerson} className="border-t border-border pt-4">
+                        <input type="hidden" name="id" value={p.id} />
+                        <SubmitButton variant="danger" size="sm" confirm={`Delete ${p.name}? They're removed from every band and split.`}>
+                          Delete person
+                        </SubmitButton>
+                      </ActionForm>
+                    )}
                   </div>
                 </details>
               );
@@ -247,9 +253,11 @@ export default async function PeoplePage() {
           </div>
         )}
       </Card>
-      <Disclosure summary="+ Add person">
-        <PersonFields />
-      </Disclosure>
+      {!scope && (
+        <Disclosure summary="+ Add person">
+          <PersonFields />
+        </Disclosure>
+      )}
 
       {/* Logins and invites: admins only (it's who can see and change the books). */}
       {ctx.isAdmin && (

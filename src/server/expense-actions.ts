@@ -5,7 +5,8 @@ import { revalidatePath } from "next/cache";
 import { db, schema } from "@/db";
 import { parseCents } from "@/lib/money";
 import { getContext, requireAccess } from "./context";
-import { can } from "@/lib/permissions";
+import { bandScope, can, inBandScope } from "@/lib/permissions";
+import type { Context } from "./context";
 import { readReceiptFiles as readFiles, recoupBands, recoupStartFor } from "./expenses";
 import { clearableFiles } from "./receipt-cleanup";
 import { discardStoredFiles, storeReceiptFiles } from "./receipt-store";
@@ -28,6 +29,11 @@ const isoDate = (s: string) => (/^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null);
 const now = () => new Date().toISOString();
 
 /** Check a band/release/person id belongs to this account. */
+/** Someone limited to their own bands' receipts can only act on those (not label-wide ones). */
+function checkScope(ctx: Context, bandId: number | null) {
+  if (!inBandScope(bandScope(ctx.access, "receipts"), [bandId])) throw new Error("That receipt isn't for one of your bands.");
+}
+
 async function inAccount(orgId: string, table: typeof bands | typeof releases | typeof people | typeof projects, id: number | null) {
   if (id === null) return;
   const [row] = await db
@@ -72,6 +78,11 @@ export async function saveExpense(_: ExpenseState, fd: FormData): Promise<Expens
     let bandId = optInt(fd, "bandId");
     await inAccount(orgId, releases, releaseId);
     await inAccount(orgId, bands, bandId);
+    const editing = optInt(fd, "id");
+    if (editing) {
+      const [was] = await db.select({ bandId: expenses.bandId }).from(expenses).where(and(eq(expenses.orgId, orgId), eq(expenses.id, editing)));
+      if (was) checkScope(ctx, was.bandId);
+    }
     await inAccount(orgId, people, paidByPersonId);
     await inAccount(orgId, projects, projectId);
     if (releaseId) {
@@ -81,6 +92,7 @@ export async function saveExpense(_: ExpenseState, fd: FormData): Promise<Expens
       const [p] = await db.select({ bandId: projects.bandId }).from(projects).where(eq(projects.id, projectId));
       bandId = p.bandId; // so does a band's project
     }
+    checkScope(ctx, bandId);
     const recoup = fd.get("recoup") === "on";
     const scope = { bandId, releaseId, projectId };
     const payingBands = recoup ? await recoupBands(orgId, scope) : [];
@@ -212,7 +224,8 @@ export async function submitReceipt(_: ExpenseState, fd: FormData): Promise<Expe
 
 /** Admin: approve a submitted receipt (choosing whether sales pay it back) or reject it. */
 export async function reviewExpense(fd: FormData) {
-  const { orgId } = await requireAccess("receipts", "edit");
+  const ctx = await requireAccess("receipts", "edit");
+  const { orgId } = ctx;
   const approve = str(fd, "decision") === "approve";
   const recoup = fd.get("recoup") === "on";
   const [e] = await db
@@ -220,6 +233,7 @@ export async function reviewExpense(fd: FormData) {
     .from(expenses)
     .where(and(eq(expenses.orgId, orgId), eq(expenses.id, Number(str(fd, "id")))));
   if (!e) return;
+  checkScope(ctx, e.bandId);
   const payingBands = approve && recoup ? await recoupBands(orgId, e) : [];
   if (approve && recoup && !payingBands.length) {
     throw new Error("Choose a band, release or project for this expense first (edit it), so its sales can pay it back.");
@@ -239,8 +253,15 @@ export async function reviewExpense(fd: FormData) {
 
 /** Admin: the label has paid back someone who fronted an expense (or undo that). */
 export async function setReimbursed(fd: FormData) {
-  const { orgId } = await requireAccess("receipts", "edit");
+  const ctx = await requireAccess("receipts", "edit");
+  const { orgId } = ctx;
   const reimbursed = str(fd, "reimbursed") === "true";
+  const [e] = await db
+    .select({ bandId: expenses.bandId })
+    .from(expenses)
+    .where(and(eq(expenses.orgId, orgId), eq(expenses.id, Number(str(fd, "id")))));
+  if (!e) return;
+  checkScope(ctx, e.bandId);
   await db
     .update(expenses)
     .set({
@@ -262,6 +283,7 @@ export async function deleteExpense(fd: FormData) {
   if (!e) return;
   const ownPending = e.status === "pending" && e.submittedByUserId === ctx.user.id;
   if (!can(ctx.access, "receipts", "edit") && !ownPending) throw new Error("Only admins can delete this.");
+  if (!ownPending) checkScope(ctx, e.bandId);
   const files = await db.select({ storageKey: expenseFiles.storageKey }).from(expenseFiles).where(eq(expenseFiles.expenseId, e.id));
   await db.delete(expenses).where(eq(expenses.id, e.id));
   await discardStoredFiles(files);
@@ -269,7 +291,15 @@ export async function deleteExpense(fd: FormData) {
 }
 
 export async function deleteExpenseFile(fd: FormData) {
-  const { orgId } = await requireAccess("receipts", "edit");
+  const ctx = await requireAccess("receipts", "edit");
+  const { orgId } = ctx;
+  const [row] = await db
+    .select({ bandId: expenses.bandId })
+    .from(expenseFiles)
+    .innerJoin(expenses, eq(expenses.id, expenseFiles.expenseId))
+    .where(and(eq(expenseFiles.orgId, orgId), eq(expenseFiles.id, Number(str(fd, "id")))));
+  if (!row) return;
+  checkScope(ctx, row.bandId);
   const removed = await db
     .delete(expenseFiles)
     .where(and(eq(expenseFiles.orgId, orgId), inArray(expenseFiles.id, [Number(str(fd, "id"))])))
@@ -284,7 +314,8 @@ export async function deleteExpenseFile(fd: FormData) {
  * marked with when their files were cleared.
  */
 export async function clearReceiptFiles(_: ExpenseState, fd: FormData): Promise<ExpenseState> {
-  const { orgId } = await requireAccess("receipts", "edit");
+  const { orgId, access } = await requireAccess("receipts", "edit");
+  if (bandScope(access, "receipts")) return { error: "Clearing out files is for people who see every band’s receipts." };
   const ids = str(fd, "ids").split(",").map(Number).filter(Number.isInteger);
   const { files } = await clearableFiles(orgId, ids);
   if (!files.length) return { error: "Nothing to clear: these may have been cleared already." };

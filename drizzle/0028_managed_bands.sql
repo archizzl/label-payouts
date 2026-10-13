@@ -1,0 +1,1 @@
+ALTER TABLE "member_type_assignments" ADD COLUMN "band_ids" jsonb;

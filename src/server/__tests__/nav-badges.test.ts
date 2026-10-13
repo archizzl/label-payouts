@@ -20,7 +20,10 @@ async function setup() {
   const orgId = await newAccount();
   const userId = randomUUID();
   await db.insert(schema.user).values({ id: userId, name: "U", email: `${userId}@example.test`, emailVerified: true, createdAt: new Date(), updatedAt: new Date() });
-  await db.insert(schema.accountSettings).values({ orgId, openOrders: { ready: 3, byBand: { "1": 2, "2": 1 }, at: "x" } });
+  // With Bandcamp API access, where the saved count of orders to ship comes from.
+  await db
+    .insert(schema.accountSettings)
+    .values({ orgId, bandcampClientId: "id", bandcampClientSecret: "secret", openOrders: { ready: 3, byBand: { "1": 2, "2": 1 }, at: "x" } });
   await db.insert(schema.pickupOrders).values([
     { orgId, paymentId: 1, buyerName: "A", orderDate: "2026-10-01", items: [], bandIds: [1] },
     { orgId, paymentId: 2, buyerName: "B", orderDate: "2026-10-01", items: [], bandIds: [2] },
@@ -43,6 +46,12 @@ describe("numbers on the header's tabs", () => {
     const { ctx } = await setup();
     const manager: Access = { admin: false, permissions: { orders: "edit", receipts: "view" }, bandAreas: ["orders"], bandIds: [1] };
     expect(await badges.navBadges(ctx(manager))).toEqual({ orders: 3 });
+  });
+
+  it("doesn't count saved Bandcamp orders without API access, only pickups", async () => {
+    const { orgId, ctx } = await setup();
+    await db.update(schema.accountSettings).set({ bandcampClientId: null, bandcampClientSecret: null }).where(eq(schema.accountSettings.orgId, orgId));
+    expect((await badges.navBadges(ctx(admin))).orders).toBe(2);
   });
 
   it("counts sales imported since Sales was last opened", async () => {

@@ -29,10 +29,30 @@ export async function memberTypeOf(orgId: string): Promise<Map<string, number>> 
   return new Map(rows.map((r) => [r.userId, r.memberTypeId]));
 }
 
-/** Give a login a member type here, or none. */
+/** Give a login a member type here, or none. (The bands they manage stay as they were.) */
 export async function assignMemberType(orgId: string, userId: string, memberTypeId: number | null) {
-  await db.delete(memberTypeAssignments).where(and(eq(memberTypeAssignments.orgId, orgId), eq(memberTypeAssignments.userId, userId)));
-  if (memberTypeId !== null) await db.insert(memberTypeAssignments).values({ orgId, userId, memberTypeId });
+  if (memberTypeId === null) {
+    await db.delete(memberTypeAssignments).where(and(eq(memberTypeAssignments.orgId, orgId), eq(memberTypeAssignments.userId, userId)));
+    return;
+  }
+  await db
+    .insert(memberTypeAssignments)
+    .values({ orgId, userId, memberTypeId })
+    .onConflictDoUpdate({ target: [memberTypeAssignments.orgId, memberTypeAssignments.userId], set: { memberTypeId } });
+}
+
+/** Each login's managed bands here (userId → band ids), where they've been picked. */
+export async function managedBandsOf(orgId: string): Promise<Map<string, number[]>> {
+  const rows = await db.select().from(memberTypeAssignments).where(eq(memberTypeAssignments.orgId, orgId));
+  return new Map(rows.filter((r) => r.bandIds).map((r) => [r.userId, r.bandIds!]));
+}
+
+/** The bands a login manages (null: go by the bands they're a member of). */
+export async function setManagedBands(orgId: string, userId: string, bandIds: number[] | null) {
+  await db
+    .update(memberTypeAssignments)
+    .set({ bandIds })
+    .where(and(eq(memberTypeAssignments.orgId, orgId), eq(memberTypeAssignments.userId, userId)));
 }
 
 /** Invites: the member type each one gives, invitation id → member type id. */

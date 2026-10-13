@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { db, schema } from "@/db";
 import { inArray } from "drizzle-orm";
 import { archiveNames, BATCH_BYTES } from "@/lib/receipt-cleanup";
+import { bandScope } from "@/lib/permissions";
 import { requireAccess } from "@/server/context";
 import { clearableFiles } from "@/server/receipt-cleanup";
 import { readStoredFile } from "@/server/receipt-store";
@@ -12,7 +13,8 @@ import { readStoredFile } from "@/server/receipt-store";
  * keep before they're removed from storage. Only files of settled receipts in this account.
  */
 export async function GET(req: NextRequest) {
-  const { orgId, org } = await requireAccess("receipts", "edit");
+  const { orgId, org, access } = await requireAccess("receipts", "edit");
+  if (bandScope(access, "receipts")) return new Response("Not found", { status: 404 });
   const ids = (req.nextUrl.searchParams.get("ids") ?? "").split(",").map(Number).filter(Number.isInteger).slice(0, 2000);
   const { files } = await clearableFiles(orgId, ids);
   if (!files.length) return new Response("Nothing to download: these receipts' files may have been cleared already.", { status: 404 });

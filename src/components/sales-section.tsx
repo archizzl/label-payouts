@@ -24,6 +24,7 @@ export async function SalesSection({
   title = "Sales",
   orgId: fromOrg,
   boardId,
+  hideMoneyWent = false,
 }: {
   scope: { bandId?: number; releaseId?: number };
   range?: string;
@@ -37,6 +38,8 @@ export async function SalesSection({
   orgId?: string;
   /** Which chart layout this is (each person arranges a band page's charts separately from a release page's…). */
   boardId: string;
+  /** A member's own page: not "where the money went", which shows what the band's people got in all. */
+  hideMoneyWent?: boolean;
 }) {
   const today = new Date().toISOString().slice(0, 10);
   const r = salesRangeDates(range, today);
@@ -76,7 +79,9 @@ export async function SalesSection({
     seriesChart("month", "Net received by month", report.byMonth.map((m) => ({ month: m.month, value: m.net, units: m.units })), { currency: cur }),
     breakdownChart("format", "By format", report.byFormat, { currency: cur, total: report.net, trend: report.trends.format }),
     breakdownChart("source", "By source", report.bySource, { currency: cur, total: report.net, trend: report.trends.source }),
-    {
+  ];
+  if (!hideMoneyWent)
+    charts.push({
       spec: { kind: "money-went", title: "Where the money went", shape: "parts", wide: true },
       data: {
         shape: "parts",
@@ -85,13 +90,12 @@ export async function SalesSection({
         caption: `Of the ${formatCents(report.gross, cur)} fans paid.`,
         note: report.shipping > 0 ? `The label’s part includes ${formatCents(report.shipping, cur)} of shipping fans paid. Shipping isn’t split: it stays with the label, for postage.` : undefined,
       },
-    },
-  ];
+    });
   const defaults: [string, ChartFormat?][] = [
     ...(report.byMonth.length > 1 ? [["month"] as [string]] : []),
     ["format"],
     ...(hasSources ? [["source"] as [string]] : []),
-    ["money-went"],
+    ...(hideMoneyWent ? [] : [["money-went"] as [string]]),
   ];
   const saved = await loadLayout(boardId);
 

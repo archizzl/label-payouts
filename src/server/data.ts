@@ -262,6 +262,17 @@ export async function strandedSales(orgId: string, period: PeriodScope) {
  */
 export const computeAllTime = cache((orgId: string) => computePeriod(orgId, "0000-01-01", "9999-12-31"));
 
+/** A band account's own band (the first that isn't the label itself): band accounts have one. */
+export const ownBand = cache(async (orgId: string) => {
+  const [band] = await db
+    .select({ id: bands.id, name: bands.name })
+    .from(bands)
+    .where(and(eq(bands.orgId, orgId), eq(bands.isLabel, false)))
+    .orderBy(asc(bands.id))
+    .limit(1);
+  return band ?? null;
+});
+
 export type NameMaps = Awaited<ReturnType<typeof nameMaps>>;
 
 export async function nameMaps(orgId: string) {

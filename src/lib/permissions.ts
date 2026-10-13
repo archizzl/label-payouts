@@ -12,9 +12,9 @@ export const AREAS = [
   { key: "inventory", label: "Inventory", hint: "Stock of merch, formats and supplies; changing means adding items and counts.", edit: true, bands: true },
   { key: "payouts", label: "Payouts", hint: "Payout periods and statements; changing means making and paying them.", edit: true, bands: false },
   { key: "funds", label: "Label funds", hint: "What the label holds and has sent on.", edit: true, bands: false },
-  { key: "receipts", label: "Receipts", hint: "Everyone's receipts; changing means approving and reimbursing.", edit: true, bands: false },
-  { key: "catalog", label: "Catalog", hint: "Releases, tracks and merch.", edit: true, bands: false },
-  { key: "roster", label: "Bands & people", hint: "Bands, their members, and payees' details.", edit: true, bands: false },
+  { key: "receipts", label: "Receipts", hint: "Receipts; changing means approving and reimbursing.", edit: true, bands: true },
+  { key: "catalog", label: "Catalog", hint: "Releases, tracks and merch.", edit: true, bands: true },
+  { key: "roster", label: "Bands & people", hint: "Bands, their members, and payees' details.", edit: true, bands: true },
   { key: "rules", label: "Rules", hint: "How money is split and what's withheld.", edit: true, bands: false },
   { key: "fans", label: "Fans", hint: "The email list.", edit: true, bands: false },
 ] as const;

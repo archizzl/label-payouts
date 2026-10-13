@@ -6,6 +6,7 @@ import { db, schema } from "@/db";
 import { subAccountFor } from "@/server/band-accounts";
 import { cancelBandAccountInvite, inviteToBandAccount, unlink } from "@/server/link-actions";
 import type { bandLinksFor } from "@/server/links";
+import { possessive } from "@/lib/plural";
 import { ViewAsButton } from "./viewing-as";
 
 type LinkRow = Awaited<ReturnType<typeof bandLinksFor>> extends Map<number, infer R> ? R : never;
@@ -123,10 +124,10 @@ export async function BandAccountSection({
 
   return (
     <div id="band-account" className="scroll-mt-4">
-      <Card title={`${band.name}’s account`} actions={<ViewAsButton kind="band" id={band.id} name={band.name} />}>
+      <Card title={`${possessive(band.name)} account`} actions={<ViewAsButton kind="band" id={band.id} name={band.name} />}>
         <p className="mb-4 text-sm text-muted">
-          The label made this account for {band.name}. People you invite sign in to it and see this band’s sales, payouts, statements and
-          receipts from the label. They can’t change anything here.
+          The label made this account for {band.name}. This is where the band’s members sign in: they see their own earnings and the
+          band’s sales, payouts, statements and receipts from the label. They can’t change anything.
         </p>
         {logins.length === 0 && openInvites.length === 0 ? (
           <Empty>Nobody signs in to it yet.</Empty>
@@ -158,7 +159,21 @@ export async function BandAccountSection({
             ))}
           </ul>
         )}
-        <Disclosure summary="+ Invite someone to it">
+        {suggestions.length > 0 && (
+          <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
+            <span className="text-muted">Invite:</span>
+            {suggestions.map((m) => (
+              <ActionForm key={m.id} action={inviteToBandAccount} className="inline">
+                <input type="hidden" name="bandId" value={band.id} />
+                <input type="hidden" name="email" value={m.email!} />
+                <SubmitButton variant="secondary" size="sm">
+                  <span className="normal-case">{m.name}</span>
+                </SubmitButton>
+              </ActionForm>
+            ))}
+          </div>
+        )}
+        <Disclosure summary="+ Invite someone else">
           <ActionForm action={inviteToBandAccount} className="flex flex-wrap items-end gap-3">
             <input type="hidden" name="bandId" value={band.id} />
             <Field label="Their email" className="min-w-64 flex-1">

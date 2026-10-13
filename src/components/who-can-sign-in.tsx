@@ -3,9 +3,10 @@ import Link from "next/link";
 import { ActionForm, CopyButton, SubmitButton } from "@/components/client";
 import { Badge, Card, Disclosure, Empty, Field } from "@/components/ui";
 import { db, schema } from "@/db";
-import { cancelInvite, inviteMember, removeAccountMember } from "@/server/account-actions";
+import { cancelInvite, inviteMember, removeAccountMember, saveManagedBands } from "@/server/account-actions";
 import type { Context } from "@/server/context";
-import { inviteMemberTypes, listMemberTypes, memberTypeOf } from "@/server/member-types";
+import { normalizeBandAreas } from "@/lib/permissions";
+import { inviteMemberTypes, listMemberTypes, managedBandsOf, memberTypeOf } from "@/server/member-types";
 import { InviteWhoFields } from "./invite-fields";
 import { RolePicker } from "./role-picker";
 
@@ -19,7 +20,7 @@ export async function WhoCanSignIn({ ctx }: { ctx: Context }) {
   // A label's sub-account for a band: everyone there is an admin of it (it's just the label's view).
   const managed = !!ctx.managedBy;
   const { orgId } = ctx;
-  const [members, invites, people, types, typeOf] = await Promise.all([
+  const [members, invites, people, types, typeOf, managedBands, bands] = await Promise.all([
     db
       .select({ member: schema.member, user: schema.user })
       .from(schema.member)
@@ -33,7 +34,18 @@ export async function WhoCanSignIn({ ctx }: { ctx: Context }) {
     db.select().from(schema.people).where(eq(schema.people.orgId, orgId)).orderBy(asc(schema.people.name)),
     listMemberTypes(orgId),
     memberTypeOf(orgId),
+    managedBandsOf(orgId),
+    db
+      .select({ id: schema.bands.id, name: schema.bands.name })
+      .from(schema.bands)
+      .where(and(eq(schema.bands.orgId, orgId), eq(schema.bands.isLabel, false)))
+      .orderBy(asc(schema.bands.name)),
   ]);
+  // Their member type limits some sections to their own bands: which bands those are.
+  const limitedType = (userId: string) => {
+    const t = types.find((x) => x.id === typeOf.get(userId));
+    return t && normalizeBandAreas(t.bandAreas).length ? t : null;
+  };
   const inviteTypes = await inviteMemberTypes(invites.map((i) => i.id));
   const typeName = (id: number | undefined) => types.find((t) => t.id === id)?.name;
   // The role picker's value for someone: "admin", "member", or "type:<id>".
@@ -62,6 +74,12 @@ export async function WhoCanSignIn({ ctx }: { ctx: Context }) {
             <p className="mb-4 text-sm text-muted">
               People who sign in to this account. Admins manage everything. Members see their own earnings and payouts, plus their band’s sales
               totals, and whatever their member type allows (<Link href="/account#member-types">member types</Link> are in Settings).
+              {ctx.org.kind === "label" && (
+                <>
+                  {" "}
+                  Band members usually sign in to their band’s own account instead: invite them from the band’s page, under People.
+                </>
+              )}
             </p>
           )}
           <table className="data mb-6">
@@ -92,6 +110,9 @@ export async function WhoCanSignIn({ ctx }: { ctx: Context }) {
                         </Badge>
                       ) : (
                         <RolePicker memberId={member.id} name={user.name} saved={roleValue(member.role, typeOf.get(user.id))} options={roleOptions} />
+                      )}
+                      {member.role === "member" && limitedType(user.id) && (
+                        <ManagedBands userId={user.id} name={user.name} bands={bands} picked={managedBands.get(user.id) ?? null} />
                       )}
                     </td>
                     <td className="text-right">
@@ -160,5 +181,37 @@ export async function WhoCanSignIn({ ctx }: { ctx: Context }) {
             </ActionForm>
           </Disclosure>
         </Card>
+  );
+}
+
+/**
+ * The bands someone with a band-limited member type looks after: picked here (a manager), or, by
+ * default, the bands they play in.
+ */
+function ManagedBands({ userId, name, bands, picked }: { userId: string; name: string; bands: { id: number; name: string }[]; picked: number[] | null }) {
+  const summary = picked ? (picked.length ? bands.filter((b) => picked.includes(b.id)).map((b) => b.name).join(", ") : "no bands") : "the bands they play in";
+  return (
+    <details className="mt-1.5 text-xs">
+      <summary className="text-muted">
+        Their bands: <span className="text-link">{summary}</span>
+      </summary>
+      <form action={saveManagedBands} className="mt-2 space-y-1.5 border border-border bg-surface-2 p-3">
+        <input type="hidden" name="userId" value={userId} />
+        <label className="flex items-center gap-2">
+          <input type="radio" name="mode" value="member" defaultChecked={!picked} /> The bands {name} plays in
+        </label>
+        <label className="flex items-center gap-2">
+          <input type="radio" name="mode" value="picked" defaultChecked={!!picked} /> These bands (they manage them, without being in their splits):
+        </label>
+        <div className="grid gap-1 pl-6 sm:grid-cols-2">
+          {bands.map((b) => (
+            <label key={b.id} className="flex items-center gap-2">
+              <input type="checkbox" name="bandId" value={b.id} defaultChecked={picked?.includes(b.id)} /> {b.name}
+            </label>
+          ))}
+        </div>
+        <SubmitButton size="sm">Save</SubmitButton>
+      </form>
+    </details>
   );
 }

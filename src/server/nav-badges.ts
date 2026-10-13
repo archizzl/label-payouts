@@ -29,12 +29,25 @@ export const navBadges = cache(async (ctx: Context): Promise<NavBadges> => {
   return out;
 });
 
-async function ordersWaiting(orgId: string, scope: number[] | null) {
+/**
+ * Whether the account has orders to show: Bandcamp API access (where merch orders come from), or
+ * in-person pickups. Without either the Orders tab only says how to connect, so it's left out.
+ */
+export const ordersInUse = cache(async (orgId: string) => {
   const [[settings], pickups] = await Promise.all([
-    db.select({ openOrders: accountSettings.openOrders }).from(accountSettings).where(eq(accountSettings.orgId, orgId)),
+    db
+      .select({ id: accountSettings.bandcampClientId, secret: accountSettings.bandcampClientSecret, openOrders: accountSettings.openOrders })
+      .from(accountSettings)
+      .where(eq(accountSettings.orgId, orgId)),
     db.select({ bandIds: pickupOrders.bandIds }).from(pickupOrders).where(eq(pickupOrders.orgId, orgId)),
   ]);
-  const open = settings?.openOrders;
+  return { api: !!(settings?.id && settings.secret), openOrders: settings?.openOrders ?? null, pickups, inUse: !!(settings?.id && settings.secret) || pickups.length > 0 };
+});
+
+async function ordersWaiting(orgId: string, scope: number[] | null) {
+  const { api, openOrders, pickups } = await ordersInUse(orgId);
+  // The saved count is from the last fetch; without API access it's out of date, so it doesn't count.
+  const open = api ? openOrders : null;
   const ready = !open ? 0 : scope === null ? open.ready : scope.reduce((a, b) => a + (open.byBand[b] ?? 0), 0);
   return ready + pickups.filter((p) => inBandScope(scope, p.bandIds)).length;
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useRef } from "react";
 import { acceptInvite, createAccount, type FormState, resetPassword, signIn, signUp } from "@/server/account-actions";
 import { buttonClass, Field } from "./ui";
 
@@ -35,14 +35,27 @@ export function SignInForm({ next, email }: { next: string; email?: string }) {
   );
 }
 
-export function SignUpForm({ next, email, code, emailLocked = false }: { next: string; email?: string; code?: string; emailLocked?: boolean }) {
+export function SignUpForm({
+  next,
+  email,
+  name,
+  code,
+  emailLocked = false,
+}: {
+  next: string;
+  email?: string;
+  /** Their name, when whoever invited them already knows it. */
+  name?: string;
+  code?: string;
+  emailLocked?: boolean;
+}) {
   const [state, action, pending] = useActionState(signUp, null);
   return (
     <form action={action} className="space-y-4">
       <input type="hidden" name="next" value={next} />
       {code && <input type="hidden" name="code" value={code} />}
       <Field label="Your name">
-        <input name="name" autoComplete="name" required />
+        <input name="name" autoComplete="name" required defaultValue={name} />
       </Field>
       <Field label="Email">
         <input name="email" type="email" autoComplete="email" required defaultValue={email} readOnly={emailLocked} />
@@ -86,10 +99,19 @@ export function CreateAccountForm() {
   );
 }
 
-export function AcceptInviteForm({ id }: { id: string }) {
+/** Accept an invite. `auto`: straight after creating a login for it, accept without another click. */
+export function AcceptInviteForm({ id, auto = false }: { id: string; auto?: boolean }) {
   const [state, action, pending] = useActionState(acceptInvite, null);
+  const form = useRef<HTMLFormElement>(null);
+  const sent = useRef(false);
+  useEffect(() => {
+    if (auto && !sent.current) {
+      sent.current = true;
+      form.current?.requestSubmit();
+    }
+  }, [auto]);
   return (
-    <form action={action} className="space-y-3">
+    <form ref={form} action={action} className="space-y-3">
       <input type="hidden" name="id" value={id} />
       <Result state={state} />
       <Submit pending={pending}>Accept invite</Submit>

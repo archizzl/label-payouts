@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import type { NextRequest } from "next/server";
 import { db, schema } from "@/db";
 import { getContext } from "@/server/context";
-import { can } from "@/lib/permissions";
+import { bandScope, can, inBandScope } from "@/lib/permissions";
 import { canViewReceipt } from "@/server/expenses";
 import { readStoredFile } from "@/server/receipt-store";
 
@@ -23,7 +23,7 @@ export async function GET(_req: NextRequest, ctx: RouteContext<"/receipts/file/[
   const { file, expense } = row;
 
   const allowed = await canViewReceipt(
-    { orgId: me.orgId, isAdmin: me.isAdmin, userId: me.user.id, personId: me.person?.id ?? null, seesReceipts: can(me.access, "receipts") },
+    { orgId: me.orgId, isAdmin: me.isAdmin, userId: me.user.id, personId: me.person?.id ?? null, seesReceipts: can(me.access, "receipts") && inBandScope(bandScope(me.access, "receipts"), [expense.bandId]) },
     expense,
   );
   if (!allowed) return notFound;

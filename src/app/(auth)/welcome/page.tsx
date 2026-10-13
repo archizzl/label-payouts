@@ -1,5 +1,6 @@
 import { and, eq, gt, sql } from "drizzle-orm";
 import Link from "next/link";
+import { signOut } from "@/server/account-actions";
 import { redirect } from "next/navigation";
 import { ApplicationForm } from "@/components/application-form";
 import { CreateAccountForm } from "@/components/auth-forms";
@@ -80,11 +81,15 @@ export default async function WelcomePage() {
         </>
       )}
 
-      {accounts.length > 0 && (
-        <p className="mt-5 text-sm text-muted">
-          <Link href="/">Back to {accounts[0].name}</Link>
-        </p>
-      )}
+      <div className="mt-5 flex flex-wrap items-center gap-4 text-sm text-muted">
+        {accounts.length > 0 && <Link href="/">Back to {accounts[0].name}</Link>}
+        <form action={signOut} className="ml-auto">
+          <span className="mr-1">Signed in as {user.email}.</span>
+          <button type="submit" className="text-link hover:underline">
+            Sign out
+          </button>
+        </form>
+      </div>
     </div>
   );
 }

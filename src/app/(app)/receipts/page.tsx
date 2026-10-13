@@ -5,7 +5,7 @@ import { ExpenseForm, ExpenseTable, expenseTotals } from "@/components/receipts"
 import { Card, Disclosure, MoneyList, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
 import { ClearFilesPart } from "@/components/receipt-cleanup";
-import { can } from "@/lib/permissions";
+import { bandScope, can, inBandScope } from "@/lib/permissions";
 import { requireAccess } from "@/server/context";
 import { projectsEnabled } from "@/server/features";
 import { clearableFiles } from "@/server/receipt-cleanup";
@@ -19,6 +19,8 @@ export default async function ReceiptsPage({ searchParams }: PageProps<"/receipt
   await connection();
   const { orgId, access } = await requireAccess("receipts");
   const canChange = can(access, "receipts", "edit");
+  // Limited to their own bands: only those bands' receipts (not label-wide ones).
+  const scope = bandScope(access, "receipts");
   const bandFilter = Number((await searchParams).band) || undefined;
   const [all, files, bands, releases, people, projects, clearable] = await Promise.all([
     accountExpenses(orgId, bandFilter ? { bandId: bandFilter } : undefined),
@@ -27,18 +29,20 @@ export default async function ReceiptsPage({ searchParams }: PageProps<"/receipt
     db.select().from(schema.releases).where(eq(schema.releases.orgId, orgId)).orderBy(asc(schema.releases.title)),
     db.select().from(schema.people).where(eq(schema.people.orgId, orgId)).orderBy(asc(schema.people.name)),
     projectsEnabled().then((on) => (on ? accountProjects(orgId) : [])),
-    canChange ? clearableFiles(orgId) : null,
+    canChange && !scope ? clearableFiles(orgId) : null,
   ]);
+  const visible = scope ? all.filter((e) => inBandScope(scope, [e.bandId])) : all;
+  const bandsShown = scope ? bands.filter((b) => scope.includes(b.id)) : bands;
   const projectName = (pid: number) => projects.find((p) => p.id === pid)?.name;
   const personName = (id: number) => people.find((p) => p.id === id)?.name;
   const bandName = (id: number) => bands.find((b) => b.id === id)?.name;
   const payees = new Map(people.map((p) => [p.id, p]));
-  const pending = all.filter((e) => e.status === "pending");
-  const rest = all.filter((e) => e.status !== "pending");
-  const owed = all.filter(owedReimbursement);
-  const recouping = all.filter((e) => e.status === "approved" && e.recoup);
+  const pending = visible.filter((e) => e.status === "pending");
+  const rest = visible.filter((e) => e.status !== "pending");
+  const owed = visible.filter(owedReimbursement);
+  const recouping = visible.filter((e) => e.status === "approved" && e.recoup);
   const form = (e?: (typeof all)[number]) => (
-    <ExpenseForm expense={e} bands={bands} releases={releases} people={people} bandId={bandFilter} projects={projects} />
+    <ExpenseForm expense={e} bands={bandsShown} releases={releases} people={people} bandId={bandFilter} projects={projects} />
   );
 
   return (
@@ -51,7 +55,7 @@ export default async function ReceiptsPage({ searchParams }: PageProps<"/receipt
         <Link href="/receipts" className={`rounded-full px-3 py-1 ${!bandFilter ? "bg-text text-bg" : "bg-surface-2 text-muted"}`}>
           everything
         </Link>
-        {bands.map((b) => (
+        {bandsShown.map((b) => (
           <Link key={b.id} href={`/receipts?band=${b.id}`} className={`rounded-full px-3 py-1 ${bandFilter === b.id ? "bg-text text-bg" : "bg-surface-2 text-muted"}`}>
             {b.name}
           </Link>

@@ -22,22 +22,32 @@ export function Mark() {
 
 type Item = { href: string; label: string };
 
-function itemsFor(account: Account, isAdmin: boolean, areas: Area[], labels: Item[], projects: boolean, managed: boolean): Item[] {
+function itemsFor(
+  account: Account,
+  isAdmin: boolean,
+  areas: Area[],
+  labels: Item[],
+  projects: boolean,
+  managed: boolean,
+  bandHref: string | null,
+  hideOrders: boolean,
+): Item[] {
   // A label's sub-account for one of its bands: the label's books for the band, and who can sign in.
   if (managed) return [...labels, ...(isAdmin ? [{ href: "/account", label: "settings" }] : [])];
   const all: (Item & { area?: Area })[] = [
     { href: "/", label: "dashboard", area: "dashboard" },
     { href: "/sales", label: "sales", area: "sales" },
-    { href: "/orders", label: "orders", area: "orders" },
+    ...(hideOrders ? [] : [{ href: "/orders", label: "orders", area: "orders" as const }]),
     { href: "/inventory", label: "inventory", area: "inventory" },
     { href: "/periods", label: "payouts", area: "payouts" },
     ...(account.kind === "label" ? [{ href: "/funds", label: "label funds", area: "funds" as const }] : []),
     { href: "/receipts", label: "receipts", area: "receipts" },
-    { href: "/bands", label: account.kind === "band" ? "band" : "bands", area: "roster" },
+    // A band account has one band: straight to it. Its money rules are there too, so no Rules tab.
+    { href: account.kind === "band" && bandHref ? bandHref : "/bands", label: account.kind === "band" ? "band" : "bands", area: "roster" },
     { href: "/people", label: "people", area: "roster" },
     // { href: "/fans", label: "fans", area: "fans" },
     { href: "/catalog", label: "catalog", area: "catalog" },
-    { href: "/rules", label: account.kind === "band" ? "rules" : "label rules", area: "rules" },
+    ...(account.kind === "band" ? [] : [{ href: "/rules", label: "label rules", area: "rules" as const }]),
   ];
   if (isAdmin) return [...all, ...(projects ? [{ href: "/projects", label: "projects" }] : []), ...labels, { href: "/account", label: "settings" }];
   // Members: their own earnings, plus whatever their member type lets them see.
@@ -87,6 +97,8 @@ export function Nav({
   showAdminLink = true,
   managed = false,
   viewing = false,
+  bandHref = null,
+  hideOrders = false,
 }: {
   user: { name: string; email: string };
   account: Account;
@@ -110,6 +122,10 @@ export function Nav({
   managed?: boolean;
   /** A label admin viewing as someone else: no switching accounts or signing out from here. */
   viewing?: boolean;
+  /** A band account's own band page. */
+  bandHref?: string | null;
+  /** No Bandcamp API access or pickups yet: the Orders tab would only say how to connect. */
+  hideOrders?: boolean;
 }) {
   const path = usePathname();
   // "New sales" counts from your last look at Sales: once you've opened it, stop showing the number
@@ -121,7 +137,7 @@ export function Nav({
     if (key === "sales" && seenSales) return 0;
     return badges[key] ?? 0;
   };
-  const items = [...itemsFor(account, isAdmin, areas, labels, projects, managed), ...(siteAdmin && showAdminLink && !viewing ? [{ href: "/admin", label: "admin" }] : [])];
+  const items = [...itemsFor(account, isAdmin, areas, labels, projects, managed, bandHref, hideOrders), ...(siteAdmin && showAdminLink && !viewing ? [{ href: "/admin", label: "admin" }] : [])];
   return (
     <header className="no-print border-b border-border bg-surface">
       <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 pt-4 pb-3 md:px-8">
@@ -145,7 +161,7 @@ export function Nav({
         </div>
       </div>
       <nav className="mx-auto max-w-5xl px-4 md:px-8">
-        <ul className="-mb-px flex gap-5 overflow-x-auto">
+        <ul className="-mb-px flex gap-x-5 overflow-x-auto md:flex-wrap md:overflow-visible">
           {items.map((it) => {
             const active = it.href === "/" ? path === "/" : path.startsWith(it.href);
             const n = countFor(it.href);

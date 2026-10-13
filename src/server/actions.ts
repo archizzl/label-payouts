@@ -10,6 +10,7 @@ import { parseReleasePage } from "@/lib/bandcamp-release";
 import { parseCents } from "@/lib/money";
 import { isSalePart, salePartLabel } from "@/lib/sale-parts";
 import { cleanCashtag, cleanVenmoHandle } from "@/lib/paypal-export";
+import { bandScope } from "@/lib/permissions";
 import { plural } from "@/lib/plural";
 import { summarize } from "@/lib/splits";
 import { deleteSubAccount, ensureBandAccounts, renameSubAccount } from "./band-accounts";
@@ -21,6 +22,7 @@ import { requireAccess, requireAdmin } from "./context";
 import { prepare, runSalesSync, saveSales } from "./sync";
 import { computePayoutPeriod, reRouteAll, strandedSales } from "./data";
 import { type PayoutScope, payoutName } from "./period-view";
+import { markSeen } from "./nav-badges";
 import { autoMergeByEmail, findExistingPerson, mergePeople } from "./people";
 
 /*
@@ -101,11 +103,61 @@ function done() {
 
 export type ActionState = { ok?: string; error?: string } | null;
 
+/**
+ * For changes in a section someone may have only for their own bands (a band manager): checks that
+ * what they touch belongs to one of those bands. Admins and unlimited types pass every check.
+ */
+async function scoped(area: "roster" | "catalog") {
+  const ctx = await requireAccess(area, "edit");
+  const { orgId } = ctx;
+  const scope = bandScope(ctx.access, area);
+  const outside = () => new Error("That isn’t one of your bands.");
+  const band = (bandId: number | null | undefined) => {
+    if (scope && !(bandId != null && scope.includes(bandId))) throw outside();
+  };
+  return {
+    ...ctx,
+    band,
+    /** Label-wide things (new bands, merging people…): only for people who see every band. */
+    labelWide: () => {
+      if (scope) throw new Error("That’s for people who look after every band.");
+    },
+    release: async (releaseId: number | null | undefined) => {
+      if (!scope || releaseId == null) return;
+      const [r] = await db.select({ bandId: releases.bandId }).from(releases).where(and(eq(releases.orgId, orgId), eq(releases.id, releaseId)));
+      band(r?.bandId);
+    },
+    track: async (trackId: number) => {
+      if (!scope) return;
+      const [t] = await db
+        .select({ bandId: tracks.bandId, releaseBand: releases.bandId })
+        .from(tracks)
+        .innerJoin(releases, eq(releases.id, tracks.releaseId))
+        .where(and(eq(tracks.orgId, orgId), eq(tracks.id, trackId)));
+      band(t?.releaseBand);
+    },
+    membership: async (membershipId: number) => {
+      if (!scope) return;
+      const [m] = await db.select({ bandId: bandMemberships.bandId }).from(bandMemberships).where(and(eq(bandMemberships.orgId, orgId), eq(bandMemberships.id, membershipId)));
+      band(m?.bandId);
+    },
+    /** A person who plays in (or played in) one of their bands. */
+    person: async (personId: number | null | undefined) => {
+      if (!scope || personId == null) return;
+      const rows = await db.select({ bandId: bandMemberships.bandId }).from(bandMemberships).where(and(eq(bandMemberships.orgId, orgId), eq(bandMemberships.personId, personId)));
+      if (!rows.some((r) => scope.includes(r.bandId))) throw outside();
+    },
+  };
+}
+
 // ---------- bands ----------
 
 export async function saveBand(fd: FormData) {
-  const { orgId } = await requireAccess("roster", "edit");
+  const access = await scoped("roster");
+  const { orgId } = access;
   const id = optInt(fd, "id");
+  if (id) access.band(id);
+  else access.labelWide();
   const values = {
     name: str(fd, "name"),
     aliases: list(fd, "aliases"),
@@ -125,13 +177,15 @@ export async function saveBand(fd: FormData) {
 }
 
 export async function deleteBand(fd: FormData) {
-  const { orgId } = await requireAccess("roster", "edit");
+  const access = await scoped("roster");
+  access.labelWide();
+  const { orgId } = access;
   const id = int(fd, "id");
   const [hasPayouts] = await db
     .select({ id: periods.id })
     .from(periods)
     .where(and(eq(periods.orgId, orgId), eq(periods.bandId, id)));
-  if (hasPayouts) throw new Error("This band has its own payout history, so it can't be deleted. Delete those payout periods first.");
+  if (hasPayouts) throw new Error("This band has payouts of its own, so it can't be deleted. Delete those payouts first.");
   await deleteSubAccount(orgId, id);
   await db.delete(bands).where(and(eq(bands.orgId, orgId), eq(bands.id, id)));
   await reRouteAll(orgId);
@@ -142,8 +196,11 @@ export async function deleteBand(fd: FormData) {
 // ---------- people & memberships ----------
 
 export async function savePerson(fd: FormData) {
-  const { orgId } = await requireAccess("roster", "edit");
+  const access = await scoped("roster");
+  const { orgId } = access;
   const id = optInt(fd, "id");
+  if (id) await access.person(id);
+  else access.labelWide();
   const values = {
     name: str(fd, "name"),
     email: optStr(fd, "email"),
@@ -176,7 +233,9 @@ export async function savePerson(fd: FormData) {
 
 /** Merge one person into another (from the People page). */
 export async function mergePeopleAction(fd: FormData) {
-  const { orgId } = await requireAccess("roster", "edit");
+  const access = await scoped("roster");
+  access.labelWide();
+  const { orgId } = access;
   const intoId = int(fd, "intoId");
   for (const from of fd.getAll("fromId")) await mergePeople(orgId, intoId, Number(from));
   await syncAllPeriodStatuses(orgId);
@@ -184,7 +243,13 @@ export async function mergePeopleAction(fd: FormData) {
 }
 
 export async function deletePerson(_: ActionState, fd: FormData): Promise<ActionState> {
-  const { orgId } = await requireAccess("roster", "edit");
+  const access = await scoped("roster");
+  const { orgId } = access;
+  try {
+    access.labelWide();
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
   const id = int(fd, "id");
   await owned(orgId, people, id);
   const [hasPayouts] = await db.select({ id: payouts.id }).from(payouts).where(eq(payouts.personId, id));
@@ -200,8 +265,10 @@ export async function deletePerson(_: ActionState, fd: FormData): Promise<Action
 
 /** Add an existing person (personId) or a new one (name/email) to a band. */
 export async function addMember(fd: FormData) {
-  const { orgId } = await requireAccess("roster", "edit");
+  const access = await scoped("roster");
+  const { orgId } = access;
   const bandId = int(fd, "bandId");
+  access.band(bandId);
   let personId = optInt(fd, "personId");
   await owned(orgId, bands, bandId);
   await owned(orgId, people, personId);
@@ -238,7 +305,9 @@ export async function addMember(fd: FormData) {
 
 /** Edit a band member: their roles and status in this band, and their name and PayPal details. */
 export async function updateMembership(fd: FormData) {
-  const { orgId } = await requireAccess("roster", "edit");
+  const access = await scoped("roster");
+  const { orgId } = access;
+  await access.membership(int(fd, "membershipId"));
   const [m] = await db
     .update(bandMemberships)
     .set({ roles: list(fd, "roles"), active: bool(fd, "active") })
@@ -256,7 +325,9 @@ export async function updateMembership(fd: FormData) {
 }
 
 export async function removeMember(fd: FormData) {
-  const { orgId } = await requireAccess("roster", "edit");
+  const access = await scoped("roster");
+  const { orgId } = access;
+  await access.membership(int(fd, "membershipId"));
   await db.delete(bandMemberships).where(and(eq(bandMemberships.orgId, orgId), eq(bandMemberships.id, int(fd, "membershipId"))));
   done();
 }
@@ -264,8 +335,11 @@ export async function removeMember(fd: FormData) {
 // ---------- catalog ----------
 
 export async function saveRelease(fd: FormData) {
-  const { orgId } = await requireAccess("catalog", "edit");
+  const access = await scoped("catalog");
+  const { orgId } = access;
   const id = optInt(fd, "id");
+  await access.release(id);
+  access.band(int(fd, "bandId"));
   const values = {
     bandId: int(fd, "bandId"),
     title: str(fd, "title"),
@@ -287,7 +361,9 @@ export async function saveRelease(fd: FormData) {
 }
 
 export async function deleteRelease(fd: FormData) {
-  const { orgId } = await requireAccess("catalog", "edit");
+  const access = await scoped("catalog");
+  const { orgId } = access;
+  await access.release(int(fd, "id"));
   const [r] = await db
     .delete(releases)
     .where(and(eq(releases.orgId, orgId), eq(releases.id, int(fd, "id"))))
@@ -299,8 +375,10 @@ export async function deleteRelease(fd: FormData) {
 
 /** Add tracks: one title per line, optionally "Title | URL". */
 export async function addTracks(fd: FormData) {
-  const { orgId } = await requireAccess("catalog", "edit");
+  const access = await scoped("catalog");
+  const { orgId } = access;
   const releaseId = int(fd, "releaseId");
+  await access.release(releaseId);
   await owned(orgId, releases, releaseId);
   const existing = (await db.select({ id: tracks.id }).from(tracks).where(eq(tracks.releaseId, releaseId))).length;
   const lines = str(fd, "titles")
@@ -320,8 +398,11 @@ export async function addTracks(fd: FormData) {
 }
 
 export async function saveTrack(fd: FormData) {
-  const { orgId } = await requireAccess("catalog", "edit");
+  const access = await scoped("catalog");
+  const { orgId } = access;
+  await access.track(int(fd, "id"));
   const bandId = optInt(fd, "bandId");
+  if (bandId) access.band(bandId);
   await owned(orgId, bands, bandId);
   await db
     .update(tracks)
@@ -338,7 +419,9 @@ export async function saveTrack(fd: FormData) {
 }
 
 export async function deleteTrack(fd: FormData) {
-  const { orgId } = await requireAccess("catalog", "edit");
+  const access = await scoped("catalog");
+  const { orgId } = access;
+  await access.track(int(fd, "id"));
   await db.delete(tracks).where(and(eq(tracks.orgId, orgId), eq(tracks.id, int(fd, "id"))));
   await reRouteAll(orgId);
   done();
@@ -520,11 +603,14 @@ export async function previewImport(_: ImportPreview | null, fd: FormData): Prom
 }
 
 export async function commitImport(fd: FormData): Promise<{ importId?: number; error?: string }> {
-  const { orgId } = await requireAccess("sales", "edit");
+  const ctx = await requireAccess("sales", "edit");
+  const { orgId } = ctx;
   const up = await readUpload(fd);
   const parsed = parseBandcampCsv(up.bytes);
   if (parsed.missingColumns.length) return { error: "Not a Bandcamp sales report" };
   const { importId } = await saveSales(orgId, up.name, parsed);
+  // Sales you've just imported yourself aren't "new" to you.
+  await markSeen(ctx, "sales");
   done();
   return { importId };
 }
@@ -629,7 +715,9 @@ export async function assignRouting(fd: FormData) {
  * Bandcamp subdomain when it has one). Its sales are matched straight away.
  */
 export async function addBandFromArtist(fd: FormData) {
-  const { orgId } = await requireAccess("roster", "edit");
+  const access = await scoped("roster");
+  access.labelWide();
+  const { orgId } = access;
   const name = str(fd, "artist");
   if (!name) throw new Error("Which artist?");
   const existing = (await db.select().from(bands).where(eq(bands.orgId, orgId))).find((b) => b.name.toLowerCase() === name.toLowerCase());
@@ -679,9 +767,11 @@ export async function deleteRoutingOverride(fd: FormData) {
 
 /** One-click: create a release from an unmatched sale group and route it there. */
 export async function createReleaseFromSales(fd: FormData) {
-  const { orgId } = await requireAccess("catalog", "edit");
+  const access = await scoped("catalog");
+  const { orgId } = access;
   const key = str(fd, "key");
   const bandId = int(fd, "bandId");
+  access.band(bandId);
   await owned(orgId, bands, bandId);
   const [sample] = await db
     .select()
@@ -1006,7 +1096,9 @@ export async function deleteLabelTransfer(fd: FormData) {
  * Reuses an existing person with the same email (or name), otherwise creates one.
  */
 export async function saveOutsideArtistContact(fd: FormData) {
-  const { orgId } = await requireAccess("roster", "edit");
+  const access = await scoped("roster");
+  access.labelWide();
+  const { orgId } = access;
   const artistId = int(fd, "artistId");
   const [artist] = await db
     .select()
@@ -1030,7 +1122,9 @@ export async function saveOutsideArtistContact(fd: FormData) {
 
 /** Don't pay an outside artist (e.g. a donated track): the label keeps their share. Or undo that. */
 export async function setOutsideArtistDismissed(fd: FormData) {
-  const { orgId } = await requireAccess("roster", "edit");
+  const access = await scoped("roster");
+  access.labelWide();
+  const { orgId } = access;
   const dismissed = bool(fd, "dismissed");
   const ids = fd.getAll("artistId").map(Number).filter(Number.isFinite);
   if (ids.length) {
@@ -1043,7 +1137,9 @@ export async function setOutsideArtistDismissed(fd: FormData) {
 }
 
 export async function clearOutsideArtistContact(fd: FormData) {
-  const { orgId } = await requireAccess("roster", "edit");
+  const access = await scoped("roster");
+  access.labelWide();
+  const { orgId } = access;
   await db
     .update(outsideArtists)
     .set({ contactPersonId: null })
@@ -1053,7 +1149,9 @@ export async function clearOutsideArtistContact(fd: FormData) {
 
 /** "refresh from Bandcamp" on a release page. */
 export async function refreshReleaseFromBandcamp(_: ActionState, fd: FormData): Promise<ActionState> {
-  const { orgId } = await requireAccess("catalog", "edit");
+  const access = await scoped("catalog");
+  const { orgId } = access;
+  await access.release(int(fd, "id"));
   const [r] = await db
     .select()
     .from(releases)

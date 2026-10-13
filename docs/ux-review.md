@@ -10,6 +10,23 @@ I went through the app on a throwaway copy as five kinds of user, doing what eac
 
 The short version: what people do day to day works well. That's paying people, a member's earnings page, receipts and inventory. Where it gets hard is the money model and where its settings live. Splits, deductions, band funds, label rules and payout periods are spread across five pages. A couple of traps there can strand real money without saying so. The second problem is that band accounts get the label's screens with the word "band" swapped in.
 
+## Status (13 Oct 2026)
+
+Done and live:
+- **1a:** payouts leave unpayable sales owed. Older payouts can release what they swallowed.
+- **1c:** "What the label keeps", with a one-field cut.
+- **Section 3:** the band page has tabs, and a Money rules view.
+- **Import:** "add as a band", grouped by artist.
+- **Band mode,** plus band members' own earnings in their band's account.
+- **Managers:** a managed-bands list. Receipts, Bands & people and Catalog can be limited to own bands.
+- **Navigation:** it wraps, and Orders only shows once it's in use.
+- **Onboarding:** invite name prefill and auto-accept. Sign out on the welcome page.
+- **Wording:** most of the fixes in section 6.
+
+**Still open:**
+- **1b (shipping):** needs a look at a real package sale first.
+- **Payouts** can't be limited to a manager's bands. Whole-label payouts mix bands.
+
 ---
 
 ## 1. Fix first: money is wrong or silently stuck

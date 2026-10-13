@@ -10,6 +10,7 @@ import { SharesSummary, SplitRules, currentRule } from "@/components/split-rules
 import { Card, Disclosure, Empty, Field, MoneyList } from "@/components/ui";
 import { db, schema } from "@/db";
 import { addTracks, deleteRelease, deleteTrack, refreshReleaseFromBandcamp, saveRelease, saveTrack } from "@/server/actions";
+import { bandScope } from "@/lib/permissions";
 import { getContext, requireAccess } from "@/server/context";
 import { bandAssociatedPeople, costDeductionsFor, nameMaps, personOptionsFor, ruleFilter, rulesWhere } from "@/server/data";
 
@@ -25,13 +26,16 @@ export async function generateMetadata({ params }: PageProps<"/catalog/[id]">) {
 
 export default async function ReleasePage({ params, searchParams }: PageProps<"/catalog/[id]">) {
   await connection();
-  const { orgId } = await requireAccess("catalog");
+  const ctx = await requireAccess("catalog");
+  const { orgId } = ctx;
   const id = Number((await params).id);
   const [release] = await db
     .select()
     .from(schema.releases)
     .where(and(eq(schema.releases.orgId, orgId), eq(schema.releases.id, id)));
   if (!release) notFound();
+  const catalogScope = bandScope(ctx.access, "catalog");
+  if (catalogScope && !catalogScope.includes(release.bandId)) notFound();
   const [[band], bands, tracks, people, bandPeople, costDeductions, names, bandRules, labelRules, outsideRows, peopleRows, releaseRules, sales] =
     await Promise.all([
       db.select().from(schema.bands).where(eq(schema.bands.id, release.bandId)),

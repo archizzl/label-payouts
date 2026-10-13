@@ -9,7 +9,7 @@ import { slugify } from "@/lib/slug";
 import { auth } from "./auth";
 import { accountsFor, getSession, requireAdmin, VIEW_AS_COOKIE } from "./context";
 import { AREAS, type Area, normalizeBandAreas, normalizePermissions } from "@/lib/permissions";
-import { assignMemberType, memberTypeForInvite, parseRoleChoice, setInviteMemberType } from "./member-types";
+import { assignMemberType, memberTypeForInvite, parseRoleChoice, setInviteMemberType, setManagedBands } from "./member-types";
 import { preapproved } from "./applications";
 import { normalizeEmail } from "./people";
 import { isSiteAdminEmail } from "./site-admin";
@@ -229,6 +229,21 @@ export async function setMemberRole(fd: FormData) {
   const { role, memberTypeId } = await parseRoleChoice(orgId, str(fd, "role"));
   if (m.role !== role) await auth.api.updateMemberRole({ body: { memberId, role, organizationId: orgId }, headers: await headers() });
   await assignMemberType(orgId, m.userId, memberTypeId);
+  revalidatePath("/", "layout");
+}
+
+/**
+ * The bands someone with a band-limited member type looks after: the ones picked (a manager), or
+ * ("member") the bands they play in.
+ */
+export async function saveManagedBands(fd: FormData) {
+  const { orgId } = await requireAdmin();
+  const userId = str(fd, "userId");
+  const ids = fd.getAll("bandId").map(Number).filter(Number.isInteger);
+  const owned = ids.length
+    ? (await db.select({ id: schema.bands.id }).from(schema.bands).where(eq(schema.bands.orgId, orgId))).map((b) => b.id).filter((id) => ids.includes(id))
+    : [];
+  await setManagedBands(orgId, userId, str(fd, "mode") === "picked" ? owned : null);
   revalidatePath("/", "layout");
 }
 

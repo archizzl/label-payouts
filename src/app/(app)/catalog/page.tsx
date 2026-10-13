@@ -8,6 +8,7 @@ import { Card, Disclosure, Empty, Field, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
 import { saveRelease } from "@/server/actions";
 import { SyncFooter } from "@/components/sync-status";
+import { bandScope } from "@/lib/permissions";
 import { requireAccess } from "@/server/context";
 
 export const metadata = { title: "catalog" };
@@ -15,8 +16,11 @@ export const metadata = { title: "catalog" };
 export default async function CatalogPage({ searchParams }: PageProps<"/catalog">) {
   await connection();
   const bandFilter = Number((await searchParams).band) || null;
-  const { orgId } = await requireAccess("catalog");
-  const [bands, releases, trackCountRows, rules] = await Promise.all([
+  const ctx = await requireAccess("catalog");
+  const { orgId } = ctx;
+  // A band manager: just their bands' releases and merch.
+  const scope = bandScope(ctx.access, "catalog");
+  const [allBands, allReleases, trackCountRows, rules] = await Promise.all([
     db.select().from(schema.bands).where(eq(schema.bands.orgId, orgId)).orderBy(asc(schema.bands.name)),
     db
       .select()
@@ -30,6 +34,8 @@ export default async function CatalogPage({ searchParams }: PageProps<"/catalog"
       .groupBy(schema.tracks.releaseId),
     db.select().from(schema.splitRules).where(eq(schema.splitRules.orgId, orgId)),
   ]);
+  const bands = scope ? allBands.filter((b) => scope.includes(b.id)) : allBands;
+  const releases = scope ? allReleases.filter((r) => scope.includes(r.bandId)) : allReleases;
   const trackCounts = new Map(trackCountRows.map((r) => [r.releaseId, r.n]));
   const splitReleases = new Set(rules.map((r) => r.releaseId));
   /** The split a release without its own uses: the band's merch split, its default, or the label-wide default. */
@@ -132,7 +138,7 @@ export default async function CatalogPage({ searchParams }: PageProps<"/catalog"
           </Card>
         );
       })}
-      {!bandFilter && <OutsideArtists />}
+      {!bandFilter && !scope && <OutsideArtists />}
       {/* {bands.length > 0 && (
         <Disclosure summary="+ Add release">
           <form action={saveRelease} className="grid gap-4 sm:grid-cols-2">

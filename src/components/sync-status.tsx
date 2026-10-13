@@ -25,9 +25,11 @@ export function ago(iso: string) {
  * in (or what went wrong), with a button to sync right now. The hourly sync also runs whenever
  * someone opens the app locally; on the live site, a Mac syncs the catalog every 10 minutes.
  */
-export async function SyncStatus({ orgId }: { orgId: string }) {
+export async function SyncStatus({ orgId, onSettings = false }: { orgId: string; onSettings?: boolean }) {
   const s = await syncStatus(orgId);
   if (!s?.configured) {
+    // On Settings itself the Bandcamp fields are right above: nothing to point to.
+    if (onSettings) return null;
     const { isAdmin: canSetUp } = await getContext();
     return (
       <p className="text-sm text-muted">
@@ -90,10 +92,10 @@ export async function SyncStatus({ orgId }: { orgId: string }) {
 }
 
 /** The sync status as a quiet footer at the bottom of a page. */
-export function SyncFooter({ orgId }: { orgId: string }) {
+export function SyncFooter({ orgId, onSettings = false }: { orgId: string; onSettings?: boolean }) {
   return (
-    <div className="mt-10 border-t border-border pt-4">
-      <SyncStatus orgId={orgId} />
+    <div className="mt-10 border-t border-border pt-4 empty:hidden">
+      <SyncStatus orgId={orgId} onSettings={onSettings} />
     </div>
   );
 }

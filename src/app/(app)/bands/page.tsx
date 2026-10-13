@@ -5,16 +5,25 @@ import { BandFields } from "@/components/band-fields";
 import { Card, Disclosure, Empty, MoneyList, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
 import { SyncFooter } from "@/components/sync-status";
+import { bandScope } from "@/lib/permissions";
 import { requireAccess } from "@/server/context";
 import { linkedBandAccounts } from "@/server/links";
-import { computeAllTime, labelHost } from "@/server/data";
+import { computeAllTime, labelHost, ownBand } from "@/server/data";
+import { redirect } from "next/navigation";
 
 export const metadata = { title: "bands" };
 
 export default async function BandsPage() {
   await connection();
-  const { orgId } = await requireAccess("roster");
-  const [bands, memberCounts, allReleases, splitRules, { summary }, linked] = await Promise.all([
+  const ctx = await requireAccess("roster");
+  const { orgId } = ctx;
+  // A band account has one band: its page is the list.
+  if (ctx.org.kind === "band") {
+    const band = await ownBand(orgId);
+    if (band) redirect(`/bands/${band.id}`);
+  }
+  const scope = bandScope(ctx.access, "roster");
+  const [allBands, memberCounts, allReleases, splitRules, { summary }, linked] = await Promise.all([
     db.select().from(schema.bands).where(eq(schema.bands.orgId, orgId)).orderBy(schema.bands.name),
     db
       .select({ bandId: schema.bandMemberships.bandId, n: count() })
@@ -30,6 +39,7 @@ export default async function BandsPage() {
   const countOf = (bandId: number, merch: boolean) => allReleases.filter((r) => r.bandId === bandId && (r.kind === "merch") === merch).length;
   const hasLabelDefault = splitRules.some((r) => r.scope === "label_default");
   // The label's own band has no Bandcamp address of its own; it's read from its releases.
+  const bands = scope ? allBands.filter((b) => scope.includes(b.id)) : allBands;
   const labelHosts = new Map(await Promise.all(bands.filter((b) => b.isLabel).map(async (b) => [b.id, await labelHost(orgId, b.id)] as const)));
   const splitStatus = (bandId: number) =>
     splitRules.some((r) => r.scope === "band_default" && r.bandId === bandId)
@@ -118,9 +128,11 @@ export default async function BandsPage() {
           </table>
         )}
       </Card>
-      <Disclosure summary="+ add a band by hand">
-        <BandFields />
-      </Disclosure>
+      {!scope && (
+        <Disclosure summary="+ add a band by hand">
+          <BandFields />
+        </Disclosure>
+      )}
       <SyncFooter orgId={orgId} />
     </>
   );

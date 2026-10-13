@@ -6,7 +6,7 @@ import { SalesSection } from "@/components/sales-section";
 import { Badge, Callout, Card, Empty, Money, MoneyList, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
 import { STATUS_LABEL, STATUS_TONE } from "@/lib/status";
-import { nameMaps } from "@/server/data";
+import { computePayoutPeriod, nameMaps } from "@/server/data";
 import { accountExpenses, expenseFileList } from "@/server/expenses";
 import { requireLinkedView } from "@/server/links";
 import { projectsEnabled } from "@/server/features";
@@ -39,6 +39,7 @@ export default async function FromLabelPage({ params, searchParams }: PageProps<
     showProjects ? projectNumbers(labelOrgId) : new Map<number, never>(),
   ]);
   const bandProjects = labelProjects.filter((p) => p.bandId === bandId);
+  const mine = await myEarnings(labelOrgId, bandId, v.ctx.user.email);
   const payoutRows = periods.length
     ? await db
         .select()
@@ -67,6 +68,19 @@ export default async function FromLabelPage({ params, searchParams }: PageProps<
       <Callout tone="neutral">
         This is what {v.labelName} records for {v.bandName}. Only the label can change it; ask them if something looks wrong.
       </Callout>
+
+      {mine && (
+        <Card title={`Your earnings from ${v.labelName}`}>
+          <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <Stat label="Waiting to be paid" totals={mine.owed} emphasis />
+            <Stat label="Received so far" totals={mine.received} />
+            <Stat label="Earned since the last payout" totals={mine.upcoming} />
+          </div>
+          <p className="text-xs text-muted">
+            As {mine.person.name} in {v.labelName}’s books, across every band you’re in there.
+          </p>
+        </Card>
+      )}
 
       <SalesSection
         boardId="label-sales"
@@ -174,5 +188,53 @@ export default async function FromLabelPage({ params, searchParams }: PageProps<
         />
       </Card>
     </>
+  );
+}
+
+/**
+ * The signed-in person's own earnings in the label's books: the label's payee in this band with
+ * their email. Null if there isn't one (or for a label admin viewing as the band).
+ */
+async function myEarnings(labelOrgId: string, bandId: number, email: string) {
+  if (!email) return null;
+  const [person] = (
+    await db
+      .select({ person: schema.people })
+      .from(schema.bandMemberships)
+      .innerJoin(schema.people, eq(schema.people.id, schema.bandMemberships.personId))
+      .where(and(eq(schema.bandMemberships.orgId, labelOrgId), eq(schema.bandMemberships.bandId, bandId)))
+  )
+    .map((r) => r.person)
+    .filter((p) => p.email?.trim().toLowerCase() === email.trim().toLowerCase());
+  if (!person) return null;
+  const [payoutRows, unpaid] = await Promise.all([
+    db
+      .select()
+      .from(schema.payouts)
+      .where(and(eq(schema.payouts.orgId, labelOrgId), eq(schema.payouts.personId, person.id))),
+    computePayoutPeriod(labelOrgId, { id: 0, bandId: null, startDate: "0000-01-01", endDate: "9999-12-31" }),
+  ]);
+  const owed = new Map<string, number>();
+  const received = new Map<string, number>();
+  for (const p of payoutRows) {
+    const m = p.status === "pending" ? owed : received;
+    m.set(p.currency, (m.get(p.currency) ?? 0) + p.amountCents);
+  }
+  const upcoming = new Map<string, number>();
+  for (const cur of unpaid.summary.currencies) {
+    const line = unpaid.summary.byCurrency[cur].byPerson.get(person.id);
+    if (line?.total) upcoming.set(cur, line.total);
+  }
+  return { person, owed, received, upcoming };
+}
+
+function Stat({ label, totals, emphasis }: { label: string; totals: Map<string, number>; emphasis?: boolean }) {
+  return (
+    <div className={`border-l-2 pl-3 ${emphasis ? "border-accent" : "border-border"}`}>
+      <div className="text-xs text-muted lowercase">{label}</div>
+      <div className={`mt-0.5 text-xl font-bold ${emphasis ? "text-accent" : ""}`}>
+        {totals.size ? <MoneyList totals={totals} /> : <Money cents={0} />}
+      </div>
+    </div>
   );
 }

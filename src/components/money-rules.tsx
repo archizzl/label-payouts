@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Money } from "@/components/ui";
+import { possessive } from "@/lib/plural";
 import { type ItemCategory } from "@/lib/bandcamp-csv";
 import { computeLedger, type EngineSale, LABEL_SHARE, type RuleSource, type SaleResult } from "@/lib/splits";
 import { loadEngineContext } from "@/server/data";
@@ -125,7 +126,7 @@ export async function MoneyRules({
           </li>
         )}
         <li>
-          The split is <a href="#default-split">{bandName}’s split</a>
+          The split is <a href="#default-split">{possessive(bandName)} split</a>
           {labelAccount && (
             <>
               {" "}(or, without one, the <Link href="/rules">label-wide split</Link>)

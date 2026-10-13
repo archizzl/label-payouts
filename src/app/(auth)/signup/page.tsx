@@ -42,7 +42,11 @@ export default async function SignupPage({ searchParams }: PageProps<"/signup">)
           ? "For label owners, band members and anyone who gets paid."
           : "Then tell us about your label or band. We’ll set your account up once we’ve had a look."}
       </p>
-      <SignUpForm next={next} email={email} code={invite ? code! : undefined} emailLocked={!!invite?.email || (!invite && !!email)} />
+      <SignUpForm
+        next={next}
+        email={email}
+        name={typeof q.name === "string" ? q.name.slice(0, 120) : undefined}
+        code={invite ? code! : undefined} emailLocked={!!invite?.email || (!invite && !!email)} />
       <p className="mt-5 text-sm text-muted">
         Already have one? <Link href={signIn}>Sign in</Link>
       </p>

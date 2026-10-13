@@ -218,24 +218,27 @@ async function viewAsContext(real: Context): Promise<Context | null> {
   };
 }
 
-type MemberTypeRow = typeof schema.memberTypes.$inferSelect;
+type MemberTypeRow = typeof schema.memberTypes.$inferSelect & { managedBandIds: number[] | null };
 
-/** Their member type in an account, if they have one. */
+/** Their member type in an account, if they have one, with the bands they manage (if picked). */
 async function memberTypeFor(orgId: string, userId: string): Promise<MemberTypeRow | null> {
   const [row] = await db
-    .select({ type: schema.memberTypes })
+    .select({ type: schema.memberTypes, bandIds: schema.memberTypeAssignments.bandIds })
     .from(schema.memberTypeAssignments)
     .innerJoin(schema.memberTypes, eq(schema.memberTypes.id, schema.memberTypeAssignments.memberTypeId))
     .where(and(eq(schema.memberTypeAssignments.orgId, orgId), eq(schema.memberTypeAssignments.userId, userId)));
-  return row?.type ?? null;
+  return row ? { ...row.type, managedBandIds: row.bandIds } : null;
 }
 
-/** What a member type grants, with the bands they're in (looked up only if a section is limited to them). */
+/**
+ * What a member type grants. Sections limited to "their own bands" use the bands they manage, or,
+ * if none were picked, the bands they're in (looked up only if a section is limited).
+ */
 async function accessFrom(orgId: string, isAdmin: boolean, type: MemberTypeRow | null, personId: number | null) {
   if (isAdmin) return { access: { admin: true, permissions: {}, bandAreas: [], bandIds: [] } satisfies Access, memberType: null };
   const bandAreas = normalizeBandAreas(type?.bandAreas);
-  const bandIds =
-    personId === null || !bandAreas.length
+  const memberOf = async () =>
+    personId === null
       ? []
       : (
           await db
@@ -243,6 +246,7 @@ async function accessFrom(orgId: string, isAdmin: boolean, type: MemberTypeRow |
             .from(schema.bandMemberships)
             .where(and(eq(schema.bandMemberships.orgId, orgId), eq(schema.bandMemberships.personId, personId), eq(schema.bandMemberships.active, true)))
         ).map((r) => r.bandId);
+  const bandIds = !bandAreas.length ? [] : (type?.managedBandIds ?? (await memberOf()));
   const access: Access = { admin: false, permissions: normalizePermissions(type?.permissions), bandAreas, bandIds };
   return { access, memberType: type?.name ?? null };
 }

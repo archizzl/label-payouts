@@ -6,20 +6,23 @@ import { onCloudflare } from "@/db";
 import { AREAS, can } from "@/lib/permissions";
 import { syncAccount, syncStatus } from "@/server/auto-sync";
 import { getContext } from "@/server/context";
+import { ownBand } from "@/server/data";
 import { labelsForBandAccount } from "@/server/links";
 import { projectsEnabled } from "@/server/features";
-import { navBadges } from "@/server/nav-badges";
+import { navBadges, ordersInUse } from "@/server/nav-badges";
 import { isSiteAdminEmail } from "@/server/site-admin";
 
 /** Everything you see once signed in: the nav (with your accounts), then the page. */
 export default async function AppLayout({ children }: LayoutProps<"/">) {
   const ctx = await getContext();
-  const [labels, sync, badges, projects] = await Promise.all([
+  const [labels, sync, badges, projects, band, orders] = await Promise.all([
     // A band account's admins see each label it's linked to.
     ctx.isAdmin && ctx.org.kind === "band" ? labelsForBandAccount(ctx.orgId) : [],
     syncStatus(ctx.orgId),
     ctx.viewingAs ? {} : navBadges(ctx),
     projectsEnabled(),
+    ctx.org.kind === "band" && !ctx.managedBy ? ownBand(ctx.orgId) : null,
+    ordersInUse(ctx.orgId),
   ]);
 
   // Locally, opening the app keeps it in step with Bandcamp: at most once an hour, in the background,
@@ -40,6 +43,8 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
       <Nav
         user={{ name: ctx.user.name, email: ctx.user.email }}
         managed={!!ctx.managedBy}
+        bandHref={band ? `/bands/${band.id}` : null}
+        hideOrders={!orders.inUse}
         viewing={!!ctx.viewingAs}
         account={ctx.org}
         accounts={ctx.accounts}
