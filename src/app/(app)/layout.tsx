@@ -43,7 +43,9 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
         badges={badges}
         siteAdmin={isSiteAdminEmail(ctx.user.email)}
         projects={projects}
-        adminHref={process.env.ADMIN_URL || "/admin"}
+        // On the live site the admin dashboard has its own address (admin.labelmaker.ing) and no link
+        // here; locally it's at /admin.
+        showAdminLink={!process.env.ADMIN_URL}
         syncing={due || !!sync?.running}
         labels={labels.map(({ link, label }) => ({ href: `/from-label/${link.id}`, label: `from ${label.name}` }))}
       />
