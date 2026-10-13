@@ -23,9 +23,12 @@ Done and live:
 - **Onboarding:** invite name prefill and auto-accept. Sign out on the welcome page.
 - **Wording:** most of the fixes in section 6.
 
+**Checked: 1b isn't a bug.**
+- In real Bandcamp reports, "net amount" leaves shipping out (e.g. $10 subtotal, $4.50 shipping, $0.63 fee gives a net of $9.37), so members aren't paid shipping.
+- The mismatch only came from the sample CSV in `test/fixtures`, whose net wrongly includes shipping.
+
 **Still open:**
-- **1b (shipping):** needs a look at a real package sale first.
-- **Payouts** can't be limited to a manager's bands. Whole-label payouts mix bands.
+- Payouts can't be limited to a manager's bands. Whole-label payouts mix bands.
 
 ---
 
