@@ -254,8 +254,8 @@ export async function PayoutView({
       {missingPaypal.length > 0 && (
         <Callout>
           No payment details for {missingPaypal.map((l) => l.name).join(", ")}.{" "}
-          <Link href="/people" className="underline">
-            Add them on the People page
+          <Link href="/directory" className="underline">
+            Add them in the Directory
           </Link>
           .
         </Callout>
@@ -462,8 +462,8 @@ export async function PayoutView({
             {holderLine.name} holds the label’s bank account, so their <Money cents={holderLine.amountCents} currency={holderLine.currency} />{" "}
             {finalized ? "is recorded as theirs but stays in the account" : "will be recorded as theirs but stays in the account"}: no
             PayPal payment needed. Change who holds the account on the{" "}
-            <Link href="/people" className="underline">
-              People page
+            <Link href="/directory" className="underline">
+              Directory
             </Link>
             .
           </p>

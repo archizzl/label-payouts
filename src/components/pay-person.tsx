@@ -68,7 +68,7 @@ export function PayPerson({ people, defaultPersonId }: { people: Payee[]; defaul
               ))
             ) : (
               <span className="pb-2 text-sm text-muted">
-                {person.name} has no PayPal.me, Venmo or Cash App saved. Add one on the People page, or pay them another way and record it.
+                {person.name} has no PayPal.me, Venmo or Cash App saved. Add one in the Directory, or pay them another way and record it.
               </span>
             )}
           </div>

@@ -68,7 +68,7 @@ export default async function CatalogPage({ searchParams }: PageProps<"/catalog"
       {bands.length === 0 && (
         <Card>
           <Empty>
-            Add a <Link href="/bands" className="underline">band</Link> first.
+            Add a <Link href="/directory" className="underline">band</Link> first.
           </Empty>
         </Card>
       )}

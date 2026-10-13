@@ -75,7 +75,7 @@ export function PayQueue({ items }: { items: QueueItem[] }) {
         ) : (
           <>
             {skipped.size > 0 && <>Skipped {skipped.size}. </>}
-            {left.some((i) => !primary(i)) && "The rest have no payment details; add them on the People page, or mark them paid by hand below. "}
+            {left.some((i) => !primary(i)) && "The rest have no payment details; add them in the Directory, or mark them paid by hand below. "}
             {skipped.size > 0 && (
               <button type="button" className="text-link" onClick={() => setSkipped(new Set())}>
                 Start again with the skipped ones

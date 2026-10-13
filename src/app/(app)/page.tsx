@@ -91,11 +91,11 @@ export default async function Dashboard() {
       href: "/account",
       hint: "",
     },
-    ...(isBand ? [] : [{ done: bands.length > 0, label: "Add your bands", href: "/bands", hint: "Or let them come in from Bandcamp." }]),
+    ...(isBand ? [] : [{ done: bands.length > 0, label: "Add your bands", href: "/directory", hint: "Or let them come in from Bandcamp." }]),
     {
       done: bands.length > 0 && bandsWithoutMembers.length === 0 && unpayable.length === 0,
       label: isBand ? "Add the band’s members, with how to pay them" : "Add members to each band, with how to pay them",
-      href: isBand && bands[0] ? `/bands/${bands[0].id}?tab=people` : "/bands",
+      href: isBand && bands[0] ? `/bands/${bands[0].id}?tab=people` : "/directory",
       hint: bands.length ? memberHint : "",
     },
     ...(isBand

@@ -214,7 +214,7 @@ async function viewAsContext(real: Context): Promise<Context | null> {
     person,
     accounts: [org],
     managedBy: null,
-    viewingAs: viewing("person", person.name, `/people#p${person.id}`),
+    viewingAs: viewing("person", person.name, `/directory#p${person.id}`),
   };
 }
 

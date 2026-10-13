@@ -6,7 +6,7 @@ import { SubmitButton } from "./client";
 import { buttonClass } from "./ui";
 
 /**
- * What someone can do in this account (People → Who can sign in). Save and Undo only appear once
+ * What someone can do in this account (Directory → Who can sign in). Save and Undo only appear once
  * a different choice is picked.
  */
 export function RolePicker({ memberId, name, saved, options }: { memberId: string; name: string; saved: string; options: ReactNode }) {

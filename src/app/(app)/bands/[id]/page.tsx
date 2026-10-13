@@ -204,6 +204,11 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
 
   return (
     <>
+      {ctx.org.kind === "label" && (
+        <Link href={`/directory#band-${id}`} className="-mt-3 mb-3 inline-block text-sm">
+          ← Directory
+        </Link>
+      )}
       <PageHeader
         title={
           <span className="flex items-center gap-4">

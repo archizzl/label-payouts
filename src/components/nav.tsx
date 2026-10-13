@@ -43,8 +43,9 @@ function itemsFor(
     ...(account.kind === "label" ? [{ href: "/funds", label: "label funds", area: "funds" as const }] : []),
     { href: "/receipts", label: "receipts", area: "receipts" },
     // A band account has one band: straight to it. Its money rules are there too, so no Rules tab.
-    { href: account.kind === "band" && bandHref ? bandHref : "/bands", label: account.kind === "band" ? "band" : "bands", area: "roster" },
-    { href: "/people", label: "people", area: "roster" },
+    // A band account's own band, then everyone (bands and people) in the directory.
+    ...(account.kind === "band" && bandHref ? [{ href: bandHref, label: "band", area: "roster" as const }] : []),
+    { href: "/directory", label: "directory", area: "roster" },
     // { href: "/fans", label: "fans", area: "fans" },
     { href: "/catalog", label: "catalog", area: "catalog" },
     ...(account.kind === "band" ? [] : [{ href: "/rules", label: "label rules", area: "rules" as const }]),
@@ -163,7 +164,11 @@ export function Nav({
       <nav className="mx-auto max-w-5xl px-4 md:px-8">
         <ul className="-mb-px flex gap-x-5 overflow-x-auto md:flex-wrap md:overflow-visible">
           {items.map((it) => {
-            const active = it.href === "/" ? path === "/" : path.startsWith(it.href);
+            // A band's own page sits under the directory (unless the nav has a tab for that band).
+            const active =
+              it.href === "/"
+                ? path === "/"
+                : path.startsWith(it.href) || (it.href === "/directory" && path.startsWith("/bands/") && !items.some((x) => path.startsWith(x.href) && x.href.startsWith("/bands/")));
             const n = countFor(it.href);
             const what = { "/orders": "to ship or hand over", "/sales": "new", "/receipts": "to approve" }[it.href] ?? "";
             return (

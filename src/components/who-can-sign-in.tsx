@@ -13,7 +13,7 @@ import { RolePicker } from "./role-picker";
 const ROLE_LABEL: Record<string, string> = { owner: "owner", admin: "admin", member: "member" };
 
 /**
- * People → Who can sign in (admins only): everyone with a login to this account and what they can
+ * Directory → Who can sign in (admins only): everyone with a login to this account and what they can
  * do, invites waiting, and inviting someone new.
  */
 export async function WhoCanSignIn({ ctx }: { ctx: Context }) {

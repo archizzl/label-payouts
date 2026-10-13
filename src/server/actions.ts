@@ -190,7 +190,7 @@ export async function deleteBand(fd: FormData) {
   await db.delete(bands).where(and(eq(bands.orgId, orgId), eq(bands.id, id)));
   await reRouteAll(orgId);
   done();
-  redirect("/bands");
+  redirect("/directory");
 }
 
 // ---------- people & memberships ----------
@@ -231,7 +231,7 @@ export async function savePerson(fd: FormData) {
   done();
 }
 
-/** Merge one person into another (from the People page). */
+/** Merge one person into another (from the Directory). */
 export async function mergePeopleAction(fd: FormData) {
   const access = await scoped("roster");
   access.labelWide();

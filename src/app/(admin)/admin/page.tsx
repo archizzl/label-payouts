@@ -82,7 +82,7 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
       <Card title={`Applications${waiting.length ? ` (${waiting.length} waiting)` : ""}`}>
         <p className="mb-4 text-sm text-muted">
           People asking for a new label or band account. Approving sets the account up with what they told us, with them as its owner; invite
-          links for the people they listed are waiting in their account’s People page.
+          links for the people they listed are waiting in their account’s Directory.
         </p>
         {waiting.length === 0 ? (
           <Empty>Nothing waiting.</Empty>
