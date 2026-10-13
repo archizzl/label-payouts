@@ -52,6 +52,23 @@ async function ordersWaiting(orgId: string, scope: number[] | null) {
   return ready + pickups.filter((p) => inBandScope(scope, p.bandIds)).length;
 }
 
+/** Whether they hid something ("orders_notice": the dashboard's orders banner) within the last `days`. */
+export async function hiddenWithin(ctx: Context, area: "orders_notice", days: number): Promise<boolean> {
+  const [row] = await db
+    .select({ id: navSeen.id })
+    .from(navSeen)
+    .where(
+      and(
+        eq(navSeen.orgId, ctx.orgId),
+        eq(navSeen.userId, ctx.user.id),
+        eq(navSeen.area, area),
+        // seen_at is UTC text, "YYYY-MM-DD HH24:MI:SS", so it compares as a string.
+        gt(navSeen.seenAt, sql`to_char(now() at time zone 'utc' - make_interval(days => ${days}), 'YYYY-MM-DD HH24:MI:SS')`),
+      ),
+    );
+  return !!row;
+}
+
 async function salesSinceSeen(ctx: Context, scope: number[] | null) {
   const [seen] = await db
     .select({ at: navSeen.seenAt })
@@ -74,7 +91,7 @@ async function salesSinceSeen(ctx: Context, scope: number[] | null) {
 }
 
 /** They've opened a section: what's new is counted from now. */
-export async function markSeen(ctx: Context, area: "sales") {
+export async function markSeen(ctx: Context, area: "sales" | "orders_notice") {
   // Looking as someone else doesn't count as them having looked.
   if (ctx.viewingAs) return;
   await db

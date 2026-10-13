@@ -54,6 +54,20 @@ describe("numbers on the header's tabs", () => {
     expect((await badges.navBadges(ctx(admin))).orders).toBe(2);
   });
 
+  it("hides the orders banner for a week from when it was hidden", async () => {
+    const { userId, ctx } = await setup();
+    const me = ctx(admin);
+    expect(await badges.hiddenWithin(me, "orders_notice", 7)).toBe(false);
+    await badges.markSeen(me, "orders_notice");
+    expect(await badges.hiddenWithin(me, "orders_notice", 7)).toBe(true);
+    // Eight days later it's back.
+    await db
+      .update(schema.navSeen)
+      .set({ seenAt: new Date(Date.now() - 8 * 86_400_000).toISOString().slice(0, 19).replace("T", " ") })
+      .where(eq(schema.navSeen.userId, userId));
+    expect(await badges.hiddenWithin(me, "orders_notice", 7)).toBe(false);
+  });
+
   it("counts sales imported since Sales was last opened", async () => {
     const { orgId, userId, ctx } = await setup();
     await badges.markSeen(ctx(admin), "sales");

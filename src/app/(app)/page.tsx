@@ -151,7 +151,7 @@ export default async function Dashboard() {
       />
 
       <Suspense fallback={null}>
-        <OrdersNotice orgId={orgId} />
+        <OrdersNotice ctx={ctx} />
       </Suspense>
 
       {unrouted > 0 && (
