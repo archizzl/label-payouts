@@ -14,7 +14,8 @@ import { bandScope, can } from "@/lib/permissions";
 import { deletePerson, mergePeopleAction, savePerson, setLabelAccountHolder } from "@/server/actions";
 import { type Context, requireAccess } from "@/server/context";
 import { computeAllTime, labelHost } from "@/server/data";
-import { linkedBandAccounts } from "@/server/links";
+import { type BandAccountSummary, bandAccountSummaries, ensureBandAccounts } from "@/server/band-accounts";
+import { MemberTypesCard } from "@/components/member-types";
 import { possibleDuplicates } from "@/server/people";
 
 export const metadata = { title: "directory" };
@@ -38,7 +39,10 @@ export default async function DirectoryPage() {
   const { orgId } = ctx;
   // A band manager: just their bands and the people in them, and nothing label-wide.
   const scope = bandScope(ctx.access, "roster");
-  const [allBands, everyone, memberships, payoutRows, duplicates, outsideRows, splitRules, releases, { summary }, linked] = await Promise.all([
+  // Bands' own accounts (label admins): bands added since (or from before sub-accounts) get theirs.
+  const showAccounts = ctx.isAdmin && ctx.org.kind === "label";
+  if (showAccounts) await ensureBandAccounts(orgId);
+  const [allBands, everyone, memberships, payoutRows, duplicates, outsideRows, splitRules, releases, { summary }, accounts] = await Promise.all([
     db.select().from(schema.bands).where(eq(schema.bands.orgId, orgId)).orderBy(asc(schema.bands.name)),
     db.select().from(schema.people).where(eq(schema.people.orgId, orgId)).orderBy(asc(schema.people.name)),
     db
@@ -52,7 +56,7 @@ export default async function DirectoryPage() {
     db.select().from(schema.splitRules).where(eq(schema.splitRules.orgId, orgId)),
     db.select({ bandId: schema.releases.bandId, kind: schema.releases.kind }).from(schema.releases).where(eq(schema.releases.orgId, orgId)),
     computeAllTime(orgId),
-    linkedBandAccounts(orgId),
+    showAccounts ? bandAccountSummaries(orgId) : new Map<number, BandAccountSummary>(),
   ]);
   const bands = scope ? allBands.filter((b) => scope.includes(b.id)) : allBands;
   // A band account is one band: its directory is that band and its people.
@@ -199,11 +203,6 @@ export default async function DirectoryPage() {
                   <span className="hover:underline">{b.name}</span>
                 </Link>
                 {b.isLabel && <span className="text-xs text-muted">the label itself</span>}
-                {linked.has(b.id) && (
-                  <span className="text-xs text-good" title={`Linked to the band's own account, ${linked.get(b.id)}`}>
-                    linked
-                  </span>
-                )}
                 <span className="ml-auto flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
                   {b.location && <span>{b.location}</span>}
                   {host ? (
@@ -224,6 +223,7 @@ export default async function DirectoryPage() {
                   </span>
                 </span>
               </div>
+              {accounts.get(b.id) && <BandAccountLine bandId={b.id} account={accounts.get(b.id)!} />}
               {members.length === 0 ? (
                 <p className="px-2.5 py-2 text-sm text-muted">
                   {b.isLabel ? (
@@ -287,14 +287,45 @@ export default async function DirectoryPage() {
         </Card>
       )}
 
-      {/* Logins and invites: admins only (it's who can see and change the books). */}
+      {/* Logins, invites and member types: admins only (it's who can see and change the books). */}
       {ctx.isAdmin && (
-        <div id="who-can-sign-in" className="mt-10">
+        <div id="who-can-sign-in" className="mt-10 scroll-mt-4">
           <WhoCanSignIn ctx={ctx} />
+          <MemberTypesCard orgId={orgId} />
         </div>
       )}
       <SyncFooter orgId={orgId} />
     </>
+  );
+}
+
+/** Under a band's name: its own account, who signs in to it, and "view as". */
+function BandAccountLine({ bandId, account: a }: { bandId: number; account: BandAccountSummary }) {
+  const manage = `/bands/${bandId}?tab=people#band-account`;
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border bg-surface-2/50 px-2.5 py-1.5 text-xs text-muted">
+      {a.managed ? (
+        <>
+          <span>
+            Band account:{" "}
+            {a.logins || a.invited ? (
+              [a.logins && `${a.logins} sign${a.logins === 1 ? "s" : ""} in`, a.invited && `${a.invited} invited`].filter(Boolean).join(" · ")
+            ) : (
+              <>nobody signs in yet</>
+            )}
+          </span>
+          <Link href={manage}>{a.logins || a.invited ? "manage" : "invite them"}</Link>
+          <span className="ml-auto">
+            <ViewAsButton kind="band" id={bandId} />
+          </span>
+        </>
+      ) : (
+        <>
+          <span>Linked to their own account, “{a.name}”.</span>
+          <Link href={manage}>manage</Link>
+        </>
+      )}
+    </div>
   );
 }
 

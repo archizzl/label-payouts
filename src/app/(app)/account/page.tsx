@@ -1,53 +1,29 @@
-import { and, asc, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import Link from "next/link";
 import { connection } from "next/server";
 import { ActionForm, SubmitButton } from "@/components/client";
-import { Callout, Card, Disclosure, Empty, Field, PageHeader } from "@/components/ui";
+import { Callout, Card, Field, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
-import { AREAS, type Area, describePermissions, normalizeBandAreas, normalizePermissions } from "@/lib/permissions";
-import { deleteMemberType, saveAccountSettings, saveMemberType, testBandcampConnection } from "@/server/account-actions";
-import { BandAccountsCard } from "@/components/band-link";
+import { saveAccountSettings, testBandcampConnection } from "@/server/account-actions";
 import { WhoCanSignIn } from "@/components/who-can-sign-in";
-import { ensureBandAccounts } from "@/server/band-accounts";
 import { SyncFooter } from "@/components/sync-status";
 import { setSetupHidden } from "@/server/actions";
 import { bandcampApiOff } from "@/server/bandcamp-api";
 import { type Context, requireAdmin } from "@/server/context";
 import { unlink } from "@/server/link-actions";
-import { bandLinksFor, labelsForBandAccount } from "@/server/links";
-import { listMemberTypes, memberTypeOf } from "@/server/member-types";
+import { labelsForBandAccount } from "@/server/links";
 
 export const metadata = { title: "settings" };
 
-/** Account settings: the account, Bandcamp, linked labels or bands' accounts, and member types. (Who can sign in is on People.) */
+/** Account settings: the account, Bandcamp, and (band accounts) the labels it's linked to. People, logins, member types and bands' accounts are in the Directory. */
 export default async function AccountPage() {
   await connection();
   const ctx = await requireAdmin();
   const { orgId } = ctx;
   if (ctx.managedBy) return <SubAccountSettings ctx={ctx} />;
-  // Bands added since (or from before sub-accounts) get theirs.
-  if (ctx.org.kind === "label") await ensureBandAccounts(orgId);
-  const [[settings], members, labels, types, typeOf] = await Promise.all([
+  const [[settings], labels] = await Promise.all([
     db.select().from(schema.accountSettings).where(eq(schema.accountSettings.orgId, orgId)),
-    db
-      .select({ member: schema.member, user: schema.user })
-      .from(schema.member)
-      .innerJoin(schema.user, eq(schema.user.id, schema.member.userId))
-      .where(eq(schema.member.organizationId, orgId))
-      .orderBy(asc(schema.user.name)),
     ctx.org.kind === "band" ? labelsForBandAccount(orgId) : Promise.resolve([]),
-    listMemberTypes(orgId),
-    memberTypeOf(orgId),
-  ]);
-  const [labelBands, bandLinks] = await Promise.all([
-    ctx.org.kind === "label"
-      ? db
-          .select({ id: schema.bands.id, name: schema.bands.name })
-          .from(schema.bands)
-          .where(and(eq(schema.bands.orgId, orgId), eq(schema.bands.isLabel, false)))
-          .orderBy(asc(schema.bands.name))
-      : [],
-    ctx.org.kind === "label" ? bandLinksFor(orgId) : new Map(),
   ]);
   const kind = ctx.org.kind;
 
@@ -155,49 +131,6 @@ export default async function AccountPage() {
       )}
 
 
-      {ctx.org.kind === "label" && <BandAccountsCard bands={labelBands} links={bandLinks} />}
-
-      <div id="member-types" />
-      <Card title="Member types">
-        <p className="mb-4 text-sm text-muted">
-          Give some members more than their own earnings, e.g. a band’s manager who sees and ships that band’s orders. Make a type, choose what it
-          can see and change, then pick it for someone under <Link href="/directory#who-can-sign-in">Directory → Who can sign in</Link> (or when you invite them).
-        </p>
-        {types.length === 0 ? (
-          <Empty>No member types yet.</Empty>
-        ) : (
-          <ul className="mb-6 divide-y divide-border border-y border-border">
-            {types.map((t) => {
-              const permissions = normalizePermissions(t.permissions);
-              const bandAreas = normalizeBandAreas(t.bandAreas);
-              const holders = members.filter(({ member, user }) => member.role === "member" && typeOf.get(user.id) === t.id).map(({ user }) => user.name);
-              return (
-                <li key={t.id} className="py-3">
-                  <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                    <span className="font-medium">{t.name}</span>
-                    <span className="text-xs text-muted">{holders.length ? holders.join(", ") : "nobody yet"}</span>
-                  </div>
-                  <p className="text-sm text-muted">{describePermissions(permissions, bandAreas)}</p>
-                  <div className="mt-2 flex flex-wrap items-start gap-2">
-                    <Disclosure summary="Change">
-                      <MemberTypeForm id={t.id} name={t.name} permissions={permissions} bandAreas={bandAreas} />
-                    </Disclosure>
-                    <form action={deleteMemberType}>
-                      <input type="hidden" name="id" value={t.id} />
-                      <SubmitButton variant="ghost" size="sm" confirm={`Delete ${t.name}? Anyone with it goes back to seeing just their own earnings.`}>
-                        Delete
-                      </SubmitButton>
-                    </form>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-        <Disclosure summary="+ Add a member type">
-          <MemberTypeForm />
-        </Disclosure>
-      </Card>
       <SyncFooter orgId={ctx.orgId} onSettings />
     </>
   );
@@ -215,76 +148,5 @@ function SubAccountSettings({ ctx }: { ctx: Context }) {
       </p>
       <WhoCanSignIn ctx={ctx} />
     </>
-  );
-}
-
-/** A member type's name, and for each section: nothing, view, or change (and whether just their own bands'). */
-function MemberTypeForm({
-  id,
-  name = "",
-  permissions = {},
-  bandAreas = [],
-}: {
-  id?: number;
-  name?: string;
-  permissions?: ReturnType<typeof normalizePermissions>;
-  bandAreas?: Area[];
-}) {
-  return (
-    // A new type's form stays open after adding, so "Added …" stays in view (and the fields clear for another).
-    <ActionForm action={saveMemberType} className="space-y-4" keepOpen={!id}>
-      {id && <input type="hidden" name="id" value={id} />}
-      <Field label="Name">
-        <input name="name" required defaultValue={name} placeholder="Band manager" className="!w-64" maxLength={60} />
-      </Field>
-      <table className="data">
-        <thead>
-          <tr>
-            <th>Section</th>
-            <th>Nothing</th>
-            <th>View</th>
-            <th>Change</th>
-            <th>Only their own bands</th>
-          </tr>
-        </thead>
-        <tbody>
-          {AREAS.map((a) => {
-            const level = permissions[a.key] ?? "none";
-            return (
-              <tr key={a.key}>
-                <td>
-                  <div className="font-medium">{a.label}</div>
-                  <div className="text-xs text-muted">{a.hint}</div>
-                </td>
-                {(["none", "view", "edit"] as const).map((l) => (
-                  <td key={l}>
-                    {l === "edit" && !a.edit ? null : (
-                      <input
-                        type="radio"
-                        name={`perm:${a.key}`}
-                        value={l}
-                        defaultChecked={level === l}
-                        aria-label={`${a.label}: ${l === "none" ? "nothing" : l === "view" ? "view" : "change"}`}
-                      />
-                    )}
-                  </td>
-                ))}
-                <td>
-                  {a.bands && (
-                    <input type="checkbox" name={`bands:${a.key}`} defaultChecked={bandAreas.includes(a.key)} aria-label={`${a.label}: only their own bands`} />
-                  )}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-      <p className="text-xs text-muted">
-        “Only their own bands” means the bands they play in, or, for a manager, the bands you pick for them under Directory → Who can sign in
-        (managing a band doesn’t put them in its splits). Everyone also sees their own earnings. Settings, who can sign in and label-wide
-        changes (new bands, merging people) stay with admins.
-      </p>
-      <SubmitButton>{id ? "Save" : "Add member type"}</SubmitButton>
-    </ActionForm>
   );
 }

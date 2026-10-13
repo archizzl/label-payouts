@@ -1,5 +1,4 @@
 import { and, asc, eq } from "drizzle-orm";
-import Link from "next/link";
 import { ActionForm, CopyButton, SubmitButton } from "@/components/client";
 import { Badge, Card, Disclosure, Empty, Field } from "@/components/ui";
 import { db, schema } from "@/db";
@@ -10,59 +9,6 @@ import { possessive } from "@/lib/plural";
 import { ViewAsButton } from "./viewing-as";
 
 type LinkRow = Awaited<ReturnType<typeof bandLinksFor>> extends Map<number, infer R> ? R : never;
-
-/**
- * Settings (label accounts): each band's own account. The label makes one for every band; a band
- * that already had its own labelmaker account may be linked to that instead.
- */
-export function BandAccountsCard({ bands, links }: { bands: { id: number; name: string }[]; links: Map<number, LinkRow> }) {
-  return (
-    <Card title="Bands’ accounts">
-      <p className="mb-4 text-sm text-muted">
-        Every band on the label gets its own account, made and linked by the label. Whoever you invite to it sees what the label has for
-        that band: its sales, payouts, statements and receipts. They can’t change anything. Invite people to a band’s account from its page.
-        Use “view as” to see what they see.
-      </p>
-      {bands.length === 0 ? (
-        <Empty>No bands yet.</Empty>
-      ) : (
-        <ul className="divide-y divide-border border-y border-border">
-          {bands.map((b) => {
-            const row = links.get(b.id) ?? null;
-            return (
-              <li key={b.id} id={`band-account-${b.id}`} className="flex flex-wrap items-center gap-x-3 gap-y-2 py-3 text-sm">
-                <Link href={`/bands/${b.id}?tab=people#band-account`} className="min-w-32 font-medium">
-                  {b.name}
-                </Link>
-                {row?.link.status === "active" && row.link.managed ? (
-                  <>
-                    <Badge tone="good">has an account</Badge>
-                    <span className="ml-auto">
-                      <ViewAsButton kind="band" id={b.id} />
-                    </span>
-                  </>
-                ) : row?.link.status === "active" ? (
-                  <>
-                    <Badge tone="good">linked</Badge>
-                    <span className="text-muted">to their own account “{row.bandAccount?.name}”</span>
-                    <form action={unlink} className="ml-auto">
-                      <input type="hidden" name="id" value={row.link.id} />
-                      <SubmitButton variant="ghost" size="sm" confirm={`Unlink ${row.bandAccount?.name}? They'll no longer see ${b.name}'s books.`}>
-                        Unlink
-                      </SubmitButton>
-                    </form>
-                  </>
-                ) : (
-                  <span className="text-muted">being set up</span>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </Card>
-  );
-}
 
 /**
  * On a band's page (label admins): the band's account, who signs in to it and invites waiting, and
@@ -92,13 +38,20 @@ export async function BandAccountSection({
   // A band that linked its own account: the label doesn't run it.
   if (row?.link.status === "active" && !row.link.managed) {
     return (
-      <Card title="Their account" className="scroll-mt-4">
-        <p className="text-sm text-muted">
-          Linked to their own account (“{row.bandAccount?.name}”), which can see this band’s books.{" "}
-          <Link href={`/account#band-account-${band.id}`}>Manage in Settings</Link>.
-        </p>
-        {viewMembers}
-      </Card>
+      <div id="band-account" className="scroll-mt-4">
+        <Card title="Their account">
+          <div className="flex flex-wrap items-center gap-3 text-sm text-muted">
+            <span>Linked to their own account (“{row.bandAccount?.name}”), which can see this band’s books.</span>
+            <form action={unlink} className="ml-auto">
+              <input type="hidden" name="id" value={row.link.id} />
+              <SubmitButton variant="ghost" size="sm" confirm={`Unlink ${row.bandAccount?.name}? They'll no longer see ${band.name}'s books.`}>
+                Unlink
+              </SubmitButton>
+            </form>
+          </div>
+          {viewMembers}
+        </Card>
+      </div>
     );
   }
 

@@ -73,7 +73,7 @@ export async function WhoCanSignIn({ ctx }: { ctx: Context }) {
           ) : (
             <p className="mb-4 text-sm text-muted">
               People who sign in to this account. Admins manage everything. Members see their own earnings and payouts, plus their band’s sales
-              totals, and whatever their member type allows (<Link href="/account#member-types">member types</Link> are in Settings).
+              totals, and whatever their <Link href="#member-types">member type</Link> (below) allows.
               {ctx.org.kind === "label" && (
                 <>
                   {" "}

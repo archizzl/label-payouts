@@ -93,3 +93,43 @@ export async function deleteSubAccount(labelOrgId: string, bandId: number) {
   const row = await subAccountFor(labelOrgId, bandId);
   if (row) await db.delete(organization).where(eq(organization.id, row.org.id));
 }
+
+export type BandAccountSummary = {
+  /** The label made it (a sub-account), or the band linked an account it had already. */
+  managed: boolean;
+  name: string;
+  /** People who sign in to it, and invites waiting. */
+  logins: number;
+  invited: number;
+};
+
+/** Each of a label's bands' accounts, by band id: for the directory. */
+export async function bandAccountSummaries(labelOrgId: string): Promise<Map<number, BandAccountSummary>> {
+  const links = await db
+    .select({ bandId: accountLinks.labelBandId, orgId: accountLinks.bandOrgId, managed: accountLinks.managed, name: organization.name })
+    .from(accountLinks)
+    .innerJoin(organization, eq(organization.id, accountLinks.bandOrgId))
+    .where(and(eq(accountLinks.labelOrgId, labelOrgId), eq(accountLinks.status, "active")));
+  const orgIds = links.map((l) => l.orgId!).filter(Boolean);
+  const [members, invites] = orgIds.length
+    ? await Promise.all([
+        db.select({ orgId: schema.member.organizationId }).from(schema.member).where(inArray(schema.member.organizationId, orgIds)),
+        db
+          .select({ orgId: schema.invitation.organizationId, expiresAt: schema.invitation.expiresAt })
+          .from(schema.invitation)
+          .where(and(inArray(schema.invitation.organizationId, orgIds), eq(schema.invitation.status, "pending"))),
+      ])
+    : [[], []];
+  const now = new Date();
+  return new Map(
+    links.map((l) => [
+      l.bandId,
+      {
+        managed: l.managed,
+        name: l.name,
+        logins: members.filter((m) => m.orgId === l.orgId).length,
+        invited: invites.filter((i) => i.orgId === l.orgId && i.expiresAt > now).length,
+      },
+    ]),
+  );
+}
