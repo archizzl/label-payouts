@@ -270,9 +270,7 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
             }
           >
             {bandPeriods.length === 0 ? (
-              <Empty>
-                  No payouts for {band.name} yet.{ctx.org.kind === "label" && " Pay them on their own, or as part of a whole-label payout."}
-                </Empty>
+              <Empty>No payouts for {band.name} yet.</Empty>
             ) : (
               <table className="data">
                 <thead>
@@ -394,7 +392,7 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
               emptyText={
                 labelDefault
                   ? "No default split of its own, so it uses the label-wide default (below)."
-                  : "No default split yet. Sales without a more specific split will be flagged."
+                  : "No default split yet."
               }
             />
             {defaultRules.length === 0 && labelDefault && (
@@ -596,7 +594,7 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
         <>
           <Card title="Releases" actions={<LinkButton href={`/catalog?band=${id}`} size="sm">Open in catalog</LinkButton>}>
             {music.length === 0 ? (
-              <Empty>No releases yet. They sync from Bandcamp automatically (see Settings for your Bandcamp address), or add them here, or create them from sales under Sales → Import.</Empty>
+              <Empty>No releases yet.</Empty>
             ) : (
               itemTable(music)
             )}
@@ -626,14 +624,14 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
           <Card title="Physical formats">
             <PhysicalFormatsTable
               releases={music}
-              empty="No CDs, vinyl or cassettes. They come in with each release when it syncs from Bandcamp."
+              empty="No CDs, vinyl or cassettes."
               costs={itemCosts}
             />
           </Card>
 
           <Card title="Standalone merch">
             {merch.length === 0 ? (
-              <Empty>No shirts, posters or other merch. They sync from Bandcamp automatically.</Empty>
+              <Empty>No shirts, posters or other merch.</Empty>
             ) : (
               itemTable(merch)
             )}

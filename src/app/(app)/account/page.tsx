@@ -79,7 +79,7 @@ export default async function AccountPage() {
                   {settings.bandcampCheckedAt?.slice(0, 16).replace("T", " ")} UTC.
                 </>
               ) : (
-                "Not connected yet. Test it to see which Bandcamp accounts this access reaches."
+                "Not connected yet."
               )}
             </p>
             <ActionForm action={testBandcampConnection}>

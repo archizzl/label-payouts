@@ -88,7 +88,7 @@ export function SplitEditor(props: Props) {
           (carveOuts ? (
             <p className="text-sm text-muted">No carve-outs: each band’s members share everything evenly.</p>
           ) : (
-            <p className="text-sm text-muted">No band members yet. Add people below or on the band page.</p>
+            <p className="text-sm text-muted">No band members yet.</p>
           ))}
         {rows.map((r, i) => (
           <div key={r.personId} className="flex items-center gap-3">

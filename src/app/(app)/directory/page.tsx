@@ -153,7 +153,7 @@ export default async function DirectoryPage() {
         </Card>
       )}
 
-      {bands.length === 0 && <Empty>No bands yet. They come in from Bandcamp, or add one below.</Empty>}
+      {bands.length === 0 && <Empty>No bands yet.</Empty>}
       <div className="divide-y divide-border border-y border-border">
         {bands.map((b) => {
           const nameOf = (m: Membership) => people.find((p) => p.id === m.personId)?.name ?? "";

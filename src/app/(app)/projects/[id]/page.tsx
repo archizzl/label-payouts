@@ -115,7 +115,7 @@ export default async function ProjectPage({ params }: PageProps<"/projects/[id]"
       </div>
 
       {releaseIds.length === 0 && (
-        <Callout>No releases attached yet, so nothing counts as made back. Edit the project to choose its releases and merch.</Callout>
+        <Callout>No releases attached yet.</Callout>
       )}
       {n.otherCurrencies.length > 0 && (
         <Callout tone="neutral">

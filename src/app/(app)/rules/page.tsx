@@ -118,7 +118,7 @@ export default async function RulesPage() {
           rules={labelDefault}
           people={everyone}
           scope={{ scope: "label_default" }}
-          emptyText="No label-wide default. Bands without their own default split will be flagged at payout time."
+          emptyText="No label-wide default."
         />
         {/* {labelDefault.length > 0 && (
           <p className="mt-3 text-sm text-muted">
@@ -154,7 +154,7 @@ export default async function RulesPage() {
 
       <Card title="Band deductions">
         {bandLevel.length === 0 ? (
-          <p className="text-sm text-muted">None. Add band funds or recoupable costs on each band’s page.</p>
+          <p className="text-sm text-muted">None.</p>
         ) : (
           <table className="data">
             <thead>

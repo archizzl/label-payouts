@@ -97,7 +97,7 @@ Never write to the live database by hand. Changes go through migrations and the 
 - **Schema changes:** edit `src/db/schema.ts`, then run `npx drizzle-kit generate --name <what>`. Migrations only ever add things, so older versions keep working. `npm run deploy` applies them to the live database.
 - **`"use server"` files may only export async functions.** Constants and helpers go in `src/lib`.
 - **Writing:** plain words, no jargon or "e.g." examples in the interface, and real plurals ("1 sale", not "sale(s)").
-- **Keep hints and tooltips to a minimum.** No explanatory intros under card titles, no field hints that explain what happens behind the scenes, no "how this works" notes. Keep empty states, live status, input formats and limits, warnings before destructive actions, and steps the user must follow outside the app.
+- **Keep hints and tooltips to a minimum.** No explanatory intros under card titles, no field hints that explain what happens behind the scenes, no "how this works" notes. Empty states say the fact only ("No payouts for Alex Klint yet."), with no advice after it. Keep live status, input formats and limits, warnings before destructive actions, and steps the user must follow outside the app.
 - **Be proactive with non-breaking improvements.** Ask before breaking, destructive or product decisions.
 
 ## Where things are

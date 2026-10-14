@@ -34,7 +34,7 @@ export default async function SlipsPage({ searchParams }: PageProps<"/orders/sli
           {orders.length} packing slip{orders.length === 1 ? "" : "s"}, one per page.
         </span>
       </div>
-      {orders.length === 0 && <p className="text-sm text-muted">No open orders to print. They may have been marked shipped already.</p>}
+      {orders.length === 0 && <p className="text-sm text-muted">No open orders to print.</p>}
       {orders.map((o) => (
         <section key={o.paymentId} className="mb-10 border border-border p-8 break-after-page print:mb-0 print:border-0">
           <div className="mb-8 flex flex-wrap justify-between gap-6">

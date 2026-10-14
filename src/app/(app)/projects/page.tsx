@@ -36,7 +36,7 @@ export default async function ProjectsPage({ searchParams }: PageProps<"/project
       />
       <Card>
         {shown.length === 0 ? (
-          <Empty>No projects yet. Create one, then assign expenses to it from Receipts.</Empty>
+          <Empty>No projects yet.</Empty>
         ) : (
           <div className="overflow-x-auto">
             <table className="data">

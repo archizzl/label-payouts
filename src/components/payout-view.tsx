@@ -263,13 +263,7 @@ export async function PayoutView({
 
       {currencies.length === 0 && (
         <Card>
-          <Empty>
-            No sales to pay in these dates.{" "}
-            <Link href="/sales/import" className="underline">
-              Import a sales report
-            </Link>{" "}
-            first, or pick other dates.
-          </Empty>
+          <Empty>No sales to pay in these dates.</Empty>
         </Card>
       )}
 

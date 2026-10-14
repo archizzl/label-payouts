@@ -96,7 +96,7 @@ export default async function FansPage({ searchParams }: PageProps<"/fans">) {
 
       {stats.total === 0 ? (
         <Card>
-          <Empty>No fans yet. Import your Bandcamp mailing list above.</Empty>
+          <Empty>No fans yet.</Empty>
         </Card>
       ) : (
         <>
