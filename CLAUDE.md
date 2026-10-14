@@ -37,6 +37,7 @@ npx eslint src
 npx vitest run
 ```
 
+- **If tests time out in their setup** ("Hook timed out"), the machine is busy: rerun with `npx vitest run --maxWorkers=2 --hookTimeout=60000`.
 - **Run tests with the shell's default Node (20).** `better-sqlite3` is built for it, and two import tests fail under Node 22.
 - **Lint:** about 6 old warnings in the catalog pages are expected. There should be no errors.
 
