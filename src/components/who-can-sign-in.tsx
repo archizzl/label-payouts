@@ -1,7 +1,7 @@
 import { and, asc, eq } from "drizzle-orm";
 import Link from "next/link";
 import { ActionForm, CopyButton, SubmitButton } from "@/components/client";
-import { Badge, Card, Disclosure, Empty, Field } from "@/components/ui";
+import { Badge, Card, Disclosure, Field } from "@/components/ui";
 import { db, schema } from "@/db";
 import { cancelInvite, inviteMember, removeAccountMember, saveManagedBands } from "@/server/account-actions";
 import type { Context } from "@/server/context";
@@ -14,7 +14,7 @@ const ROLE_LABEL: Record<string, string> = { owner: "owner", admin: "admin", mem
 
 /**
  * Directory → Who can sign in (admins only): everyone with a login to this account and what they can
- * do, invites waiting, and inviting someone new.
+ * do, open invites, and inviting someone new.
  */
 export async function WhoCanSignIn({ ctx }: { ctx: Context }) {
   // A label's sub-account for a band: everyone there is an admin of it (it's just the label's view).
@@ -130,37 +130,35 @@ export async function WhoCanSignIn({ ctx }: { ctx: Context }) {
                   </tr>
                 );
               })}
-            </tbody>
-          </table>
-
-          <h3 className="mb-2 text-sm font-medium">Invites waiting</h3>
-          {openInvites.length === 0 ? (
-            <Empty>No open invites.</Empty>
-          ) : (
-            <ul className="mb-6 space-y-2">
               {openInvites.map((i) => {
-                const link = `${base}/invite/${i.id}`;
                 const who = i.personId ? people.find((p) => p.id === i.personId)?.name : null;
                 return (
-                  <li key={i.id} className="flex flex-wrap items-center gap-2 text-sm">
-                    <span className="font-medium">{i.email}</span>
-                    {who && <span className="text-muted">as {who}</span>}
-                    <Badge>{i.role === "member" ? (typeName(inviteTypes.get(i.id)) ?? "member") : (i.role ?? "member")}</Badge>
-                    <span className="text-xs text-muted">expires {i.expiresAt.toISOString().slice(0, 10)}</span>
-                    <span className="ml-auto flex gap-2">
-                      <CopyButton text={link} label="Copy invite link" />
-                      <form action={cancelInvite}>
-                        <input type="hidden" name="id" value={i.id} />
-                        <SubmitButton variant="ghost" size="sm" confirm={`Cancel the invite for ${i.email}? Its link stops working.`}>
-                          Cancel invite
-                        </SubmitButton>
-                      </form>
-                    </span>
-                  </li>
+                  <tr key={i.id}>
+                    <td>
+                      <div className="font-medium">
+                        {i.email} <Badge tone="warn">invited</Badge>
+                      </div>
+                    </td>
+                    <td className="text-sm">{who ?? <span className="text-muted">not linked</span>}</td>
+                    <td>
+                      <Badge>{i.role === "member" ? (typeName(inviteTypes.get(i.id)) ?? "member") : (i.role ?? "member")}</Badge>
+                    </td>
+                    <td className="text-right">
+                      <div className="flex justify-end gap-2">
+                        <CopyButton text={`${base}/invite/${i.id}`} label="Copy invite link" />
+                        <form action={cancelInvite}>
+                          <input type="hidden" name="id" value={i.id} />
+                          <SubmitButton variant="ghost" size="sm" confirm={`Cancel the invite for ${i.email}? Its link stops working.`}>
+                            Cancel invite
+                          </SubmitButton>
+                        </form>
+                      </div>
+                    </td>
+                  </tr>
                 );
               })}
-            </ul>
-          )}
+            </tbody>
+          </table>
 
           {/* A label-made band account: one login, shared by the whole band. */}
           {!managed && (
@@ -178,7 +176,7 @@ export async function WhoCanSignIn({ ctx }: { ctx: Context }) {
               )}
               <div className="sm:col-span-3">
                 <SubmitButton>Create invite</SubmitButton>
-                {/* <p className="mt-2 text-xs text-muted">There’s no email sending yet: copy the invite link from the list above and send it to them.</p> */}
+                {/* <p className="mt-2 text-xs text-muted">There’s no email sending yet: copy the invite link from the list and send it to them.</p> */}
               </div>
             </ActionForm>
           </Disclosure>
