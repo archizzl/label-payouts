@@ -229,7 +229,9 @@ export default async function ReleasePage({ params, searchParams }: PageProps<"/
                         )}
                       </span>
                       <span className="ml-auto shrink-0 text-right text-xs">
-                        {cur ? (
+                        {t.labelKeeps ? (
+                          <span className="text-muted">donated (label keeps it)</span>
+                        ) : cur ? (
                           <SharesSummary shares={cur.shares} people={trackPeople} />
                         ) : t.outsideArtistId ? (
                           outsideContact(t.outsideArtistId) ? (
@@ -283,6 +285,9 @@ export default async function ReleasePage({ params, searchParams }: PageProps<"/
                                 ))}
                             </select>
                           </Field>
+                          <label className="flex items-center gap-2 text-sm sm:col-span-2">
+                            <input type="checkbox" name="labelKeeps" defaultChecked={t.labelKeeps} /> Donated: the label keeps this track’s share
+                          </label>
                           <div className="flex items-end gap-2">
                             <SubmitButton size="sm">save track</SubmitButton>
                           </div>

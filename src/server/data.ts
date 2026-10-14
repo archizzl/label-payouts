@@ -105,6 +105,7 @@ export const loadEngineContext = cache(async (orgId: string): Promise<EngineCont
           outside: t.outsideArtistId !== null,
           contactPersonId: t.outsideArtistId !== null ? (outside.get(t.outsideArtistId)?.contactPersonId ?? null) : null,
           labelKeeps: t.outsideArtistId !== null && !!outside.get(t.outsideArtistId)?.dismissed,
+          donated: t.labelKeeps,
         },
       ]),
     ),

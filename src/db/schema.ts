@@ -209,6 +209,8 @@ export const tracks = pgTable(
     artist: text("artist"),
     /** Credited to an artist who isn't on the label (their contact is paid for this track). */
     outsideArtistId: integer("outside_artist_id").references(() => outsideArtists.id, { onDelete: "set null" }),
+    /** Donated: whoever made it, the label keeps this track's share of sales (a fundraiser comp, say). */
+    labelKeeps: boolean("label_keeps").notNull().default(false),
   },
   (t) => [index("tracks_org").on(t.orgId)],
 );

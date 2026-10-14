@@ -271,6 +271,22 @@ describe("split engine", () => {
     expect(byPerson[1] + byPerson[2] + byPerson[3]).toBe(800);
   });
 
+  it("gives a donated track's share to the label, on its own and in an album average", () => {
+    const tracks = new Map([
+      [100, { bandId: null, outside: false, contactPersonId: null, donated: true }],
+      [101, { bandId: null, outside: false, contactPersonId: null }],
+    ]);
+    const c2 = { ...ctx, deductions: [], tracks };
+    const [single] = computeLedger([s(1, { releaseId: 10, trackId: 100, category: "track" })], c2);
+    expect(single.ruleSource).toBe("label_keeps");
+    expect(single.shares).toEqual([]);
+    expect(single.deductions.map((d) => [d.destination, d.cents])).toEqual([["label", 1000]]);
+    // Track 100 donated (half the album to the label), track 101 → band default (1/3 each of the rest).
+    const [album] = computeLedger([s(2, { releaseId: 11, netCents: 600 })], c2);
+    expect(album.deductions.find((d) => d.destination === "label")?.cents).toBe(300);
+    expect(album.shares.reduce((a, x) => a + x.cents, 0)).toBe(300);
+  });
+
   it("recoups fixed costs across sales in date order and skips refunds", () => {
     const c2: EngineContext = {
       ...ctx,

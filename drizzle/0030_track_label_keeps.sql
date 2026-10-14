@@ -1,0 +1,1 @@
+ALTER TABLE "tracks" ADD COLUMN "label_keeps" boolean DEFAULT false NOT NULL;

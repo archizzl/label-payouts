@@ -412,6 +412,7 @@ export async function saveTrack(fd: FormData) {
       isrc: optStr(fd, "isrc"),
       bandId,
       position: optInt(fd, "position") ?? 0,
+      labelKeeps: fd.get("labelKeeps") === "on",
     })
     .where(and(eq(tracks.orgId, orgId), eq(tracks.id, int(fd, "id"))));
   await reRouteAll(orgId);

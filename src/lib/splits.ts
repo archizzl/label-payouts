@@ -91,9 +91,10 @@ export type EngineContext = {
   labelBandIds?: Set<number>;
   /**
    * Per-track attribution on compilations: a track by another band on the label (bandId), or by
-   * an artist who isn't on the label (outside, paid to their contact once there is one).
+   * an artist who isn’t on the label (outside, paid to their contact once there is one), or donated
+   * (the label keeps its share, whoever made it).
    */
-  tracks?: Map<number, { bandId: number | null; outside: boolean; contactPersonId: number | null; labelKeeps?: boolean }>;
+  tracks?: Map<number, { bandId: number | null; outside: boolean; contactPersonId: number | null; labelKeeps?: boolean; donated?: boolean }>;
 };
 
 /** Weight key for "the label keeps this share" (label releases without a split). Never a person id. */
@@ -164,6 +165,8 @@ export function resolveRule(sale: EngineSale, ctx: EngineContext): Resolved | nu
   }
 
   if (sale.trackId !== null) {
+    // A donated track: the label keeps its share, whoever made it.
+    if (ctx.tracks?.get(sale.trackId)?.donated) return { ruleId: null, source: "label_keeps", weights: new Map([[LABEL_SHARE, 1]]) };
     const r = pick((r) => r.scope === "track" && r.trackId === sale.trackId);
     if (r) return { ruleId: r.id, source: "track", weights: weightsOf(r) };
     // A track by an artist who isn't on the label: their contact gets it (flagged until there is one).
@@ -231,7 +234,9 @@ function averageTrackWeights(release: ReleaseSettings, sale: EngineSale, ctx: En
   for (const trackId of release.trackIds) {
     const rule = inEffect(ctx.rules.filter((r) => r.scope === "track" && r.trackId === trackId), sale.date);
     const t = ctx.tracks?.get(trackId);
-    const w = rule
+    const w = t?.donated
+      ? new Map([[LABEL_SHARE, 1]])
+      : rule
       ? weightsOf(rule)
       : t?.outside
         ? t.contactPersonId

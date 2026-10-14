@@ -211,6 +211,13 @@
       "when": 1791998701696,
       "tag": "0029_band_default_member",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1792000950701,
+      "tag": "0030_track_label_keeps",
+      "breakpoints": true
     }
   ]
 }
