@@ -9,6 +9,9 @@ import { STATUS_LABEL, STATUS_TONE } from "@/lib/status";
 import { computePayoutPeriod, nameMaps } from "@/server/data";
 import { accountExpenses, expenseFileList } from "@/server/expenses";
 import { requireLinkedView } from "@/server/links";
+import { bandMemberChoice } from "@/server/band-member";
+import { chooseBandMember } from "@/server/band-member-actions";
+import { SubmitButton } from "@/components/client";
 import { projectsEnabled } from "@/server/features";
 import { accountProjects, projectNumbers } from "@/server/projects";
 
@@ -39,7 +42,10 @@ export default async function FromLabelPage({ params, searchParams }: PageProps<
     showProjects ? projectNumbers(labelOrgId) : new Map<number, never>(),
   ]);
   const bandProjects = labelProjects.filter((p) => p.bandId === bandId);
-  const mine = await myEarnings(labelOrgId, bandId, v.ctx.user.email);
+  // The label's own account for the band: one login, and whoever's using it says which member they
+  // are. A band's own account, linked: matched by its login's email.
+  const members = v.link.managed ? await bandMemberChoice() : null;
+  const mine = await myEarnings(labelOrgId, bandId, members ? { id: members.chosen?.id ?? 0 } : { email: v.ctx.user.email });
   const payoutRows = periods.length
     ? await db
         .select()
@@ -69,15 +75,31 @@ export default async function FromLabelPage({ params, searchParams }: PageProps<
         This is what {v.labelName} records for {v.bandName}. Only the label can change it; ask them if something looks wrong.
       </Callout>
 
+      {members && !members.chosen && members.members.length > 0 && (
+        <Card title="Who’s looking?">
+          <p className="mb-3 text-sm text-muted">Pick yourself to see your own earnings. You can switch to anyone else in the band at the top of the page.</p>
+          <div className="flex flex-wrap gap-2">
+            {members.members.map((m) => (
+              <form key={m.id} action={chooseBandMember}>
+                <input type="hidden" name="personId" value={m.id} />
+                <SubmitButton variant="secondary">
+                  <span className="normal-case">{m.name}</span>
+                </SubmitButton>
+              </form>
+            ))}
+          </div>
+        </Card>
+      )}
+
       {mine && (
-        <Card title={`Your earnings from ${v.labelName}`}>
+        <Card title={members ? `${mine.person.name}’s earnings from ${v.labelName}` : `Your earnings from ${v.labelName}`}>
           <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
             <Stat label="Waiting to be paid" totals={mine.owed} emphasis />
             <Stat label="Received so far" totals={mine.received} />
             <Stat label="Earned since the last payout" totals={mine.upcoming} />
           </div>
           <p className="text-xs text-muted">
-            As {mine.person.name} in {v.labelName}’s books, across every band you’re in there.
+            Across every band {mine.person.name} is in on {v.labelName}.
           </p>
         </Card>
       )}
@@ -195,8 +217,10 @@ export default async function FromLabelPage({ params, searchParams }: PageProps<
  * The signed-in person's own earnings in the label's books: the label's payee in this band with
  * their email. Null if there isn't one (or for a label admin viewing as the band).
  */
-async function myEarnings(labelOrgId: string, bandId: number, email: string) {
-  if (!email) return null;
+/** A member's earnings from the label: the one picked (by id), or whoever has the login's email. */
+async function myEarnings(labelOrgId: string, bandId: number, who: { id: number } | { email: string }) {
+  if ("email" in who ? !who.email : !who.id) return null;
+  const email = "email" in who ? who.email.trim().toLowerCase() : null;
   const [person] = (
     await db
       .select({ person: schema.people })
@@ -205,7 +229,7 @@ async function myEarnings(labelOrgId: string, bandId: number, email: string) {
       .where(and(eq(schema.bandMemberships.orgId, labelOrgId), eq(schema.bandMemberships.bandId, bandId)))
   )
     .map((r) => r.person)
-    .filter((p) => p.email?.trim().toLowerCase() === email.trim().toLowerCase());
+    .filter((p) => ("id" in who ? p.id === who.id : p.email?.trim().toLowerCase() === email));
   if (!person) return null;
   const [payoutRows, unpaid] = await Promise.all([
     db

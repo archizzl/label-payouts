@@ -5,6 +5,7 @@ import { ViewingAsBar } from "@/components/viewing-as";
 import { onCloudflare } from "@/db";
 import { AREAS, can } from "@/lib/permissions";
 import { syncAccount, syncStatus } from "@/server/auto-sync";
+import { bandMemberChoice } from "@/server/band-member";
 import { getContext } from "@/server/context";
 import { ownBand } from "@/server/data";
 import { labelsForBandAccount } from "@/server/links";
@@ -15,7 +16,7 @@ import { isSiteAdminEmail } from "@/server/site-admin";
 /** Everything you see once signed in: the nav (with your accounts), then the page. */
 export default async function AppLayout({ children }: LayoutProps<"/">) {
   const ctx = await getContext();
-  const [labels, sync, badges, projects, band, orders] = await Promise.all([
+  const [labels, sync, badges, projects, band, orders, members] = await Promise.all([
     // A band account's admins see each label it's linked to.
     ctx.isAdmin && ctx.org.kind === "band" ? labelsForBandAccount(ctx.orgId) : [],
     syncStatus(ctx.orgId),
@@ -23,6 +24,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
     projectsEnabled(),
     ctx.org.kind === "band" && !ctx.managedBy ? ownBand(ctx.orgId) : null,
     ordersInUse(ctx.orgId),
+    bandMemberChoice(),
   ]);
 
   // Locally, opening the app keeps it in step with Bandcamp: at most once an hour, in the background,
@@ -43,6 +45,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
       <Nav
         user={{ name: ctx.user.name, email: ctx.user.email }}
         managed={!!ctx.managedBy}
+        member={members && !ctx.viewingAs ? { chosen: members.chosen?.id ?? null, options: members.members } : null}
         bandHref={band ? `/bands/${band.id}` : null}
         hideOrders={!orders.inUse}
         viewing={!!ctx.viewingAs}

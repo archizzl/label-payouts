@@ -162,6 +162,8 @@ export async function WhoCanSignIn({ ctx }: { ctx: Context }) {
             </ul>
           )}
 
+          {/* A label-made band account: one login, shared by the whole band. */}
+          {!managed && (
           <Disclosure summary="+ Invite someone">
             <ActionForm action={inviteMember} className="grid gap-4 sm:grid-cols-3">
               <InviteWhoFields people={unlinked.map((p) => ({ id: p.id, name: p.name, email: p.email }))} />
@@ -180,6 +182,7 @@ export async function WhoCanSignIn({ ctx }: { ctx: Context }) {
               </div>
             </ActionForm>
           </Disclosure>
+          )}
         </Card>
   );
 }

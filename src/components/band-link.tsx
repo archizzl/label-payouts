@@ -1,6 +1,6 @@
 import { and, asc, eq } from "drizzle-orm";
 import { ActionForm, CopyButton, SubmitButton } from "@/components/client";
-import { Badge, Card, Disclosure, Empty, Field } from "@/components/ui";
+import { Badge, Card, Empty, Field } from "@/components/ui";
 import { db, schema } from "@/db";
 import { subAccountFor } from "@/server/band-accounts";
 import { cancelBandAccountInvite, inviteToBandAccount, unlink } from "@/server/link-actions";
@@ -71,24 +71,21 @@ export async function BandAccountSection({
   ]);
   const openInvites = invites.filter((i) => i.expiresAt > new Date());
   const base = process.env.BETTER_AUTH_URL ?? "";
-  const signedIn = new Set(logins.map((l) => l.user.email.toLowerCase()));
-  const invited = new Set(openInvites.map((i) => i.email.toLowerCase()));
-  const suggestions = members.filter((m) => m.email && !signedIn.has(m.email.toLowerCase()) && !invited.has(m.email.toLowerCase()));
+  const emails = members.filter((m) => m.email);
 
   return (
     <div id="band-account" className="scroll-mt-4">
       <Card title={`${possessive(band.name)} account`} actions={<ViewAsButton kind="band" id={band.id} name={band.name} />}>
         <p className="mb-4 text-sm text-muted">
-          The label made this account for {band.name}. This is where the band’s members sign in: they see their own earnings and the
-          band’s sales, payouts, statements and receipts from the label. They can’t change anything.
+          One login for the whole band. Once signed in, they pick which member they are to see that member’s earnings, and can switch
+          to anyone else in the band. They see the band’s sales, payouts, statements and receipts from the label, and can’t change anything.
         </p>
         {logins.length === 0 && openInvites.length === 0 ? (
-          <Empty>Nobody signs in to it yet.</Empty>
+          <Empty>No login yet.</Empty>
         ) : (
           <ul className="mb-4 space-y-2 text-sm">
             {logins.map(({ user }) => (
               <li key={user.id} className="flex flex-wrap items-center gap-2">
-                <span className="font-medium">{user.name}</span>
                 <span className="text-muted">{user.email}</span>
                 <Badge tone="good">signs in</Badge>
               </li>
@@ -112,28 +109,14 @@ export async function BandAccountSection({
             ))}
           </ul>
         )}
-        {suggestions.length > 0 && (
-          <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
-            <span className="text-muted">Invite:</span>
-            {suggestions.map((m) => (
-              <ActionForm key={m.id} action={inviteToBandAccount} className="inline">
-                <input type="hidden" name="bandId" value={band.id} />
-                <input type="hidden" name="email" value={m.email!} />
-                <SubmitButton variant="secondary" size="sm">
-                  <span className="normal-case">{m.name}</span>
-                </SubmitButton>
-              </ActionForm>
-            ))}
-          </div>
-        )}
-        <Disclosure summary="+ Invite someone else">
-          <ActionForm action={inviteToBandAccount} className="flex flex-wrap items-end gap-3">
+        {logins.length === 0 && openInvites.length === 0 && (
+          <ActionForm action={inviteToBandAccount} className="mt-3 flex flex-wrap items-end gap-3">
             <input type="hidden" name="bandId" value={band.id} />
-            <Field label="Their email" className="min-w-64 flex-1">
+            <Field label="The band’s email" hint="Whoever gets the invite sets the password and shares it with the band." className="min-w-64 flex-1">
               <input name="email" type="email" required list={`band-${band.id}-emails`} autoComplete="off" />
             </Field>
             <datalist id={`band-${band.id}-emails`}>
-              {suggestions.map((m) => (
+              {emails.map((m) => (
                 <option key={m.id} value={m.email!}>
                   {m.name}
                 </option>
@@ -142,7 +125,7 @@ export async function BandAccountSection({
             <SubmitButton>Create invite</SubmitButton>
             <p className="w-full text-xs text-muted">There’s no email sending yet: copy the invite link and send it to them.</p>
           </ActionForm>
-        </Disclosure>
+        )}
         {viewMembers}
       </Card>
     </div>

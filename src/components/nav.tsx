@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useRef, useState } from "react";
 import type { Area } from "@/lib/permissions";
 import { signOut, switchAccount } from "@/server/account-actions";
+import { chooseBandMember } from "@/server/band-member-actions";
 import type { Account } from "@/server/context";
 import { SyncIndicator } from "./sync-indicator";
 
@@ -84,6 +85,35 @@ function AccountSwitcher({ account, accounts }: { account: Account; accounts: Ac
   );
 }
 
+/** A band's shared login: which member is using it. Anyone can switch to anyone else in the band. */
+function MemberSwitcher({ member }: { member: NonNullable<NavMember> }) {
+  const form = useRef<HTMLFormElement>(null);
+  return (
+    <form ref={form} action={chooseBandMember}>
+      <select
+        name="personId"
+        defaultValue={member.chosen ?? ""}
+        aria-label="Which member you are"
+        className="!w-auto !py-1 text-sm"
+        onChange={() => form.current?.requestSubmit()}
+      >
+        {member.chosen === null && (
+          <option value="" disabled>
+            Who’s looking?
+          </option>
+        )}
+        {member.options.map((m) => (
+          <option key={m.id} value={m.id}>
+            {m.name}
+          </option>
+        ))}
+      </select>
+    </form>
+  );
+}
+
+type NavMember = { chosen: number | null; options: { id: number; name: string }[] } | null;
+
 export function Nav({
   user,
   account,
@@ -100,6 +130,7 @@ export function Nav({
   viewing = false,
   bandHref = null,
   hideOrders = false,
+  member = null,
 }: {
   user: { name: string; email: string };
   account: Account;
@@ -127,6 +158,8 @@ export function Nav({
   bandHref?: string | null;
   /** No Bandcamp API access or pickups yet: the Orders tab would only say how to connect. */
   hideOrders?: boolean;
+  /** A label-made band account: its members, and which one is using its shared login. */
+  member?: NavMember;
 }) {
   const path = usePathname();
   // "New sales" counts from your last look at Sales: once you've opened it, stop showing the number
@@ -149,9 +182,11 @@ export function Nav({
         <div className="flex flex-wrap items-center gap-3">
           <SyncIndicator active={syncing} />
           <AccountSwitcher account={account} accounts={accounts} />
-          <span className="hidden text-sm text-muted sm:inline">
-            {user.name}
-          </span>
+          {member && member.options.length > 0 ? (
+            <MemberSwitcher member={member} />
+          ) : (
+            <span className="hidden text-sm text-muted sm:inline">{user.name}</span>
+          )}
           {!viewing && (
             <form action={signOut}>
               <button type="submit" className="text-sm text-link hover:underline">

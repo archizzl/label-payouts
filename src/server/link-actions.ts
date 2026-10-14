@@ -1,7 +1,7 @@
 "use server";
 
 import { randomUUID } from "node:crypto";
-import { and, eq, or } from "drizzle-orm";
+import { and, eq, gt, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db, schema } from "@/db";
 import { subAccountFor } from "./band-accounts";
@@ -44,6 +44,13 @@ export async function inviteToBandAccount(_: LinkState, fd: FormData): Promise<L
     .from(schema.invitation)
     .where(and(eq(schema.invitation.organizationId, sub.org.id), eq(schema.invitation.email, email), eq(schema.invitation.status, "pending")));
   if (already) return { error: `${email} already has an invite waiting.` };
+  // One login for the whole band: its members pick which of them they are once signed in.
+  const [login] = await db.select({ id: schema.member.id }).from(schema.member).where(eq(schema.member.organizationId, sub.org.id));
+  const [waiting] = await db
+    .select({ id: schema.invitation.id })
+    .from(schema.invitation)
+    .where(and(eq(schema.invitation.organizationId, sub.org.id), eq(schema.invitation.status, "pending"), gt(schema.invitation.expiresAt, new Date())));
+  if (login || waiting) return { error: `${sub.org.name} already has its login. The whole band shares it.` };
   await db.insert(schema.invitation).values({
     id: randomUUID(),
     organizationId: sub.org.id,
