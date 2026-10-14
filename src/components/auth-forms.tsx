@@ -44,7 +44,7 @@ export function SignUpForm({
 }: {
   next: string;
   email?: string;
-  /** Their name, when whoever invited them already knows it. */
+  /** Their name, when whoever invited them already knows it: then it isn't asked for. */
   name?: string;
   code?: string;
   emailLocked?: boolean;
@@ -54,9 +54,13 @@ export function SignUpForm({
     <form action={action} className="space-y-4">
       <input type="hidden" name="next" value={next} />
       {code && <input type="hidden" name="code" value={code} />}
-      <Field label="Your name">
-        <input name="name" autoComplete="name" required defaultValue={name} />
-      </Field>
+      {name ? (
+        <input type="hidden" name="name" value={name} />
+      ) : (
+        <Field label="Your name">
+          <input name="name" autoComplete="name" required />
+        </Field>
+      )}
       <Field label="Email">
         <input name="email" type="email" autoComplete="email" required defaultValue={email} readOnly={emailLocked} />
       </Field>

@@ -45,14 +45,9 @@ export default async function InvitePage({ params, searchParams }: PageProps<"/i
       .innerJoin(schema.organization, eq(schema.organization.id, schema.accountLinks.labelOrgId))
       .where(and(eq(schema.accountLinks.bandOrgId, org.id), eq(schema.accountLinks.managed, true))),
   ]);
-  // Invited to a band's account from its label: the label's books may know their name.
-  const known =
-    person ??
-    (fromLabel
-      ? (await db.select({ name: schema.people.name, email: schema.people.email }).from(schema.people).where(eq(schema.people.orgId, fromLabel.labelOrgId))).find(
-          (p) => p.email && normalizeEmail(p.email) === normalizeEmail(invite.email),
-        )
-      : undefined);
+  // Who they are, so they needn't type a name: the person they were invited as, or, for a band's
+  // account from its label (one login the whole band shares), the band.
+  const known = person ?? (fromLabel ? { name: org.name } : undefined);
   const q = (path: string, after: string) =>
     `${path}?next=${encodeURIComponent(after)}&email=${encodeURIComponent(invite.email)}${known ? `&name=${encodeURIComponent(known.name)}` : ""}`;
   return (
