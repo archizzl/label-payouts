@@ -204,6 +204,13 @@
       "when": 1791907597414,
       "tag": "0028_managed_bands",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1791998701696,
+      "tag": "0029_band_default_member",
+      "breakpoints": true
     }
   ]
 }

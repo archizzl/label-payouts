@@ -18,6 +18,7 @@ import { type BandAccountSummary, bandAccountSummaries, ensureBandAccounts } fro
 import { MemberTypesCard } from "@/components/member-types";
 import { possibleDuplicates } from "@/server/people";
 import { cancelBandAccountInvite, inviteToBandAccount } from "@/server/link-actions";
+import { DefaultMemberOptions } from "@/components/band-default-member";
 
 export const metadata = { title: "directory" };
 
@@ -190,9 +191,9 @@ export default async function DirectoryPage() {
                   <BandAccountLine
                     bandId={b.id}
                     account={accounts.get(b.id)!}
-                    emails={members.filter((m) => m.active).flatMap((m) => {
+                    members={members.filter((m) => m.active).flatMap((m) => {
                       const p = people.find((x) => x.id === m.personId);
-                      return p?.email ? [{ name: p.name, email: p.email }] : [];
+                      return p ? [{ id: p.id, name: p.name, email: p.email }] : [];
                     })}
                   />
                 )}
@@ -315,7 +316,15 @@ function AddToBand({ bandId, bandName, people }: { bandId: number; bandName: str
 }
 
 /** Under a band's name: its own account, who signs in to it (or a form to invite its login), and "view as". */
-function BandAccountLine({ bandId, account: a, emails }: { bandId: number; account: BandAccountSummary; emails: { name: string; email: string }[] }) {
+function BandAccountLine({
+  bandId,
+  account: a,
+  members,
+}: {
+  bandId: number;
+  account: BandAccountSummary;
+  members: { id: number; name: string; email: string | null }[];
+}) {
   const manage = `/bands/${bandId}?tab=people#band-account`;
   const base = process.env.BETTER_AUTH_URL ?? "";
   return (
@@ -359,12 +368,19 @@ function BandAccountLine({ bandId, account: a, emails }: { bandId: number; accou
                 className="!w-56 !py-0.5 text-xs"
               />
               <datalist id={`band-${bandId}-login-emails`}>
-                {emails.map((e) => (
-                  <option key={e.email} value={e.email}>
-                    {e.name}
-                  </option>
-                ))}
+                {members
+                  .filter((m) => m.email)
+                  .map((m) => (
+                    <option key={m.id} value={m.email!}>
+                      {m.name}
+                    </option>
+                  ))}
               </datalist>
+              {members.length > 0 && (
+                <select name="defaultPersonId" defaultValue="" aria-label="Opens as" className="!w-auto !py-0.5 text-xs">
+                  <DefaultMemberOptions members={members} unlabeled />
+                </select>
+              )}
               <SubmitButton size="sm">Invite</SubmitButton>
             </ActionForm>
           )}

@@ -9,7 +9,8 @@ import { getContext } from "./context";
  * A band account the label made has one login for the whole band. Whoever's using it picks which
  * member they are (any of them, and they can switch to any other): that member's earnings are the
  * ones shown. The choice is a cookie, "<band account id>|<person id>", checked against the band's
- * current members in the label's books on every request.
+ * current members in the label's books on every request. Until someone picks, it's the account's
+ * default member, if it has one.
  */
 
 export const BAND_MEMBER_COOKIE = "lm_band_member";
@@ -34,6 +35,7 @@ export const bandMemberChoice = cache(async (): Promise<{ members: BandMember[];
   if (!ctx.managedBy) return null;
   const members = await bandMembers(ctx.managedBy.labelOrgId, ctx.managedBy.bandId);
   const [orgId, id] = ((await cookies()).get(BAND_MEMBER_COOKIE)?.value ?? "").split("|");
-  const chosen = orgId === ctx.orgId ? (members.find((m) => m.id === Number(id)) ?? null) : null;
+  const picked = orgId === ctx.orgId ? members.find((m) => m.id === Number(id)) : undefined;
+  const chosen = picked ?? members.find((m) => m.id === ctx.managedBy!.defaultPersonId) ?? null;
   return { members, chosen };
 });

@@ -579,6 +579,8 @@ export const accountLinks = pgTable(
     acceptedAt: text("accepted_at"),
     /** The label made this band account for the band (a sub-account), rather than the band linking its own. */
     managed: boolean("managed").notNull().default(false),
+    /** A label-made band account's shared login opens as this member until whoever's using it picks someone else. */
+    defaultPersonId: integer("default_person_id").references(() => people.id, { onDelete: "set null" }),
   },
   (t) => [uniqueIndex("account_links_code").on(t.code), uniqueIndex("account_links_label_band").on(t.labelBandId), index("account_links_band_org").on(t.bandOrgId)],
 );

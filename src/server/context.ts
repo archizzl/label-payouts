@@ -36,7 +36,7 @@ export type Context = {
   /** Every account they belong to, for the account switcher. */
   accounts: Account[];
   /** A band account the label made for one of its bands (a sub-account): the label, and the link to its books. */
-  managedBy: { linkId: number; labelOrgId: string; labelName: string; bandId: number } | null;
+  managedBy: { linkId: number; labelOrgId: string; labelName: string; bandId: number; defaultPersonId: number | null } | null;
   /** A label admin looking at the app as one of its bands or people would see it: read-only. */
   viewingAs: ViewingAs | null;
 };
@@ -180,7 +180,7 @@ async function viewAsContext(real: Context): Promise<Context | null> {
       memberType: null,
       person: null,
       accounts: [org],
-      managedBy: { linkId: row.link.id, labelOrgId: label.id, labelName: label.name, bandId: row.band.id },
+      managedBy: { linkId: row.link.id, labelOrgId: label.id, labelName: label.name, bandId: row.band.id, defaultPersonId: row.link.defaultPersonId },
       viewingAs: viewing("band", row.band.name, `/bands/${row.band.id}`),
     };
   }

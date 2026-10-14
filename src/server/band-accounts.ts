@@ -75,7 +75,13 @@ export async function subAccountFor(labelOrgId: string, bandId: number) {
 /** If this band account is a label's sub-account: the link, and the label's name. */
 export async function managingLabel(bandOrgId: string) {
   const [row] = await db
-    .select({ linkId: accountLinks.id, labelOrgId: accountLinks.labelOrgId, bandId: accountLinks.labelBandId, labelName: organization.name })
+    .select({
+      linkId: accountLinks.id,
+      labelOrgId: accountLinks.labelOrgId,
+      bandId: accountLinks.labelBandId,
+      labelName: organization.name,
+      defaultPersonId: accountLinks.defaultPersonId,
+    })
     .from(accountLinks)
     .innerJoin(organization, eq(organization.id, accountLinks.labelOrgId))
     .where(and(eq(accountLinks.bandOrgId, bandOrgId), eq(accountLinks.managed, true), eq(accountLinks.status, "active")));

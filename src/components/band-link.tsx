@@ -6,6 +6,7 @@ import { subAccountFor } from "@/server/band-accounts";
 import { cancelBandAccountInvite, inviteToBandAccount, unlink } from "@/server/link-actions";
 import type { bandLinksFor } from "@/server/links";
 import { possessive } from "@/lib/plural";
+import { DefaultMemberForm, DefaultMemberOptions } from "./band-default-member";
 import { ViewAsButton } from "./viewing-as";
 
 type LinkRow = Awaited<ReturnType<typeof bandLinksFor>> extends Map<number, infer R> ? R : never;
@@ -122,9 +123,20 @@ export async function BandAccountSection({
                 </option>
               ))}
             </datalist>
+            <Field label="Opens as" className="min-w-48">
+              <select name="defaultPersonId" defaultValue={sub.link.defaultPersonId ?? ""}>
+                <DefaultMemberOptions members={members} />
+              </select>
+            </Field>
             <SubmitButton>Create invite</SubmitButton>
             {/* <p className="w-full text-xs text-muted">There’s no email sending yet: copy the invite link and send it to them.</p> */}
           </ActionForm>
+        )}
+        {(logins.length > 0 || openInvites.length > 0) && members.length > 0 && (
+          <div className="mt-4 flex flex-wrap items-center gap-3 text-sm">
+            <span className="text-muted">Opens as</span>
+            <DefaultMemberForm members={members} value={sub.link.defaultPersonId} bandId={band.id} />
+          </div>
         )}
         {viewMembers}
       </Card>

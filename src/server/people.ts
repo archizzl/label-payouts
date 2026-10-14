@@ -69,6 +69,8 @@ export async function mergePeople(orgId: string, intoId: number, fromId: number)
     // Costs paid to them, and outside artists they're the contact for.
     await tx.update(deductions).set({ personId: intoId }).where(eq(deductions.personId, fromId));
     await tx.update(outsideArtists).set({ contactPersonId: intoId }).where(eq(outsideArtists.contactPersonId, fromId));
+    // A band login that opens as them.
+    await tx.update(schema.accountLinks).set({ defaultPersonId: intoId }).where(eq(schema.accountLinks.defaultPersonId, fromId));
 
     // Payouts: one line per period and currency. Combine amounts and per-band breakdowns; a
     // combined line is only settled if both were.

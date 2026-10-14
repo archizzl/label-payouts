@@ -5,6 +5,7 @@ import { and, eq, gt, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db, schema } from "@/db";
 import { subAccountFor } from "./band-accounts";
+import { bandMembers } from "./band-member";
 import { requireAdmin } from "./context";
 
 const { accountLinks } = schema;
@@ -51,6 +52,11 @@ export async function inviteToBandAccount(_: LinkState, fd: FormData): Promise<L
     .from(schema.invitation)
     .where(and(eq(schema.invitation.organizationId, sub.org.id), eq(schema.invitation.status, "pending"), gt(schema.invitation.expiresAt, new Date())));
   if (login || waiting) return { error: `${sub.org.name} already has its login. The whole band shares it.` };
+  const defaultPersonId = Number(fd.get("defaultPersonId")) || null;
+  if (defaultPersonId && !(await bandMembers(ctx.orgId, sub.link.labelBandId)).some((p) => p.id === defaultPersonId)) {
+    return { error: "Pick someone in the band." };
+  }
+  await db.update(accountLinks).set({ defaultPersonId }).where(eq(accountLinks.id, sub.link.id));
   await db.insert(schema.invitation).values({
     id: randomUUID(),
     organizationId: sub.org.id,

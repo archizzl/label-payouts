@@ -1,0 +1,2 @@
+ALTER TABLE "account_links" ADD COLUMN "default_person_id" integer;--> statement-breakpoint
+ALTER TABLE "account_links" ADD CONSTRAINT "account_links_default_person_id_people_id_fk" FOREIGN KEY ("default_person_id") REFERENCES "public"."people"("id") ON DELETE set null ON UPDATE no action;
