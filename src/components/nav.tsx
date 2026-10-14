@@ -49,7 +49,7 @@ function itemsFor(
     { href: "/directory", label: "directory", area: "roster" },
     // { href: "/fans", label: "fans", area: "fans" },
     { href: "/catalog", label: "catalog", area: "catalog" },
-    ...(account.kind === "band" ? [] : [{ href: "/rules", label: "label rules", area: "rules" as const }]),
+    ...(account.kind === "band" ? [] : [{ href: "/rules", label: "rules", area: "rules" as const }]),
   ];
   if (isAdmin) return [...all, ...(projects ? [{ href: "/projects", label: "projects" }] : []), ...labels, { href: "/account", label: "settings" }];
   // Members: their own earnings, plus whatever their member type lets them see.

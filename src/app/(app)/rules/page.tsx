@@ -49,7 +49,7 @@ export default async function RulesPage() {
 
   return (
     <>
-      <PageHeader title="Label rules" />
+      <PageHeader title="Rules" />
 
       {/* {ctx.org.kind === "label" && (
         <div id="label-cut">
