@@ -40,10 +40,10 @@ export default async function FromLabelPage({ params, searchParams }: PageProps<
 
   return (
     <>
-      <PageHeader title={`${v.bandName} on ${v.labelName}`} subtitle="From the label’s books, read-only." />
-      <Callout tone="neutral">
+      <PageHeader title={`${v.bandName} on ${v.labelName}`} />
+      {/* <Callout tone="neutral">
         This is what {v.labelName} records for {v.bandName}. Only the label can change it; ask them if something looks wrong.
-      </Callout>
+      </Callout> */}
 
       {mine && (
         <Card title={members ? `${mine.person.name}’s earnings from ${v.labelName}` : `Your earnings from ${v.labelName}`}>
