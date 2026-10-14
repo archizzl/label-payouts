@@ -71,9 +71,14 @@ export default async function DirectoryPage() {
   // Limited to some bands: only duplicates that are all their people.
   const shownDuplicates = scope ? duplicates.filter((g) => g.every((d) => people.some((p) => p.id === d.id))) : duplicates;
 
+  // Limited to some bands (a band's own account): only what they were paid from those bands.
+  const amountOf = (r: (typeof payoutRows)[number]) => (scope ? scope.reduce((a, b) => a + (r.byBand[String(b)] ?? 0), 0) : r.amountCents);
   const sumBy = (rows: typeof payoutRows, personId: number) => {
     const m: Totals = new Map();
-    for (const r of rows) if (r.personId === personId) m.set(r.currency, (m.get(r.currency) ?? 0) + r.amountCents);
+    for (const r of rows) {
+      const cents = r.personId === personId ? amountOf(r) : 0;
+      if (cents) m.set(r.currency, (m.get(r.currency) ?? 0) + cents);
+    }
     return m;
   };
   const pending = payoutRows.filter((r) => r.status === "pending");
