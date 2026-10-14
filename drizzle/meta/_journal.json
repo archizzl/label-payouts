@@ -218,6 +218,13 @@
       "when": 1792000950701,
       "tag": "0030_track_label_keeps",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1792004373939,
+      "tag": "0031_clear_chart_layouts",
+      "breakpoints": true
     }
   ]
 }
