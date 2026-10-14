@@ -17,11 +17,14 @@ export const metadata = { title: "receipts" };
 /** Every expense and its receipts: what's waiting for approval first, then everything else. */
 export default async function ReceiptsPage({ searchParams }: PageProps<"/receipts">) {
   await connection();
-  const { orgId, access } = await requireAccess("receipts");
+  const { orgId, access, person, user, lens } = await requireAccess("receipts");
   const canChange = can(access, "receipts", "edit");
   // Limited to their own bands: only those bands' receipts (not label-wide ones).
   const scope = bandScope(access, "receipts");
-  const bandFilter = Number((await searchParams).band) || undefined;
+  const sp = await searchParams;
+  const bandFilter = Number(sp.band) || undefined;
+  // Just the receipts they paid for or sent in (for someone who gets paid here).
+  const mineOnly = !!person && sp.mine === "1";
   const [all, files, bands, releases, people, projects, clearable] = await Promise.all([
     accountExpenses(orgId, bandFilter ? { bandId: bandFilter } : undefined),
     expenseFileList(orgId),
@@ -31,7 +34,9 @@ export default async function ReceiptsPage({ searchParams }: PageProps<"/receipt
     projectsEnabled().then((on) => (on ? accountProjects(orgId) : [])),
     canChange && !scope ? clearableFiles(orgId) : null,
   ]);
-  const visible = scope ? all.filter((e) => inBandScope(scope, [e.bandId])) : all;
+  // A band's shared login sends nothing in itself: "mine" is whoever's using it.
+  const isMine = (e: (typeof all)[number]) => e.paidByPersonId === person?.id || (!lens && e.submittedByUserId === user.id);
+  const visible = (scope ? all.filter((e) => inBandScope(scope, [e.bandId])) : all).filter((e) => !mineOnly || isMine(e));
   const bandsShown = scope ? bands.filter((b) => scope.includes(b.id)) : bands;
   const projectName = (pid: number) => projects.find((p) => p.id === pid)?.name;
   const personName = (id: number) => people.find((p) => p.id === id)?.name;
@@ -53,9 +58,14 @@ export default async function ReceiptsPage({ searchParams }: PageProps<"/receipt
         title="Receipts"
       />
       <nav className="mb-6 flex flex-wrap gap-2 text-sm">
-        <Link href="/receipts" className={`rounded-full px-3 py-1 ${!bandFilter ? "bg-text text-bg" : "bg-surface-2 text-muted"}`}>
+        <Link href="/receipts" className={`rounded-full px-3 py-1 ${!bandFilter && !mineOnly ? "bg-text text-bg" : "bg-surface-2 text-muted"}`}>
           everything
         </Link>
+        {person && (
+          <Link href="/receipts?mine=1" className={`rounded-full px-3 py-1 ${mineOnly ? "bg-text text-bg" : "bg-surface-2 text-muted"}`}>
+            mine
+          </Link>
+        )}
         {bandsShown.map((b) => (
           <Link key={b.id} href={`/receipts?band=${b.id}`} className={`rounded-full px-3 py-1 ${bandFilter === b.id ? "bg-text text-bg" : "bg-surface-2 text-muted"}`}>
             {b.name}
