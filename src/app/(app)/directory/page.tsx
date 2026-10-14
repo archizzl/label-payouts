@@ -329,7 +329,7 @@ function BandAccountLine({
   const manage = `/bands/${bandId}?tab=people#band-account`;
   const base = process.env.BETTER_AUTH_URL ?? "";
   return (
-    <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 border-y border-border bg-surface-2/50 px-2.5 py-1.5 text-xs text-muted">
+    <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
       {a.managed ? (
         <>
           <span>Band account:</span>
