@@ -37,7 +37,7 @@ export type Context = {
   /** Every account they belong to, for the account switcher. */
   accounts: Account[];
   /** A band account the label made for one of its bands (a sub-account): the label, and the link to its books. */
-  managedBy: { linkId: number; labelOrgId: string; labelName: string; bandId: number; defaultPersonId: number | null } | null;
+  managedBy: { linkId: number; labelOrgId: string; labelName: string; bandId: number } | null;
   /** A label admin looking at the app as one of its bands or people would see it: read-only. */
   viewingAs: ViewingAs | null;
   /**
@@ -124,9 +124,6 @@ export const accountContext = cache(async (): Promise<Context> => {
   return view;
 });
 
-/** Which member is using a label-made band account's shared login: "<band account id>|<person id>". */
-export const BAND_MEMBER_COOKIE = "lm_band_member";
-
 /**
  * What a band account sees of the label's books: its own band's part. The one thing it changes is
  * its orders (shipping them); stock counts too, but only through adjustInventory (see requireAccess).
@@ -137,21 +134,15 @@ const LENS_ACCESS = {
 } as const satisfies { permissions: Access["permissions"]; bandAreas: Area[] };
 
 /**
- * Who's using a label-made band account's login, as an id in the label's books (null: the whole band).
- * A member's own login is always them (`fixed`). The band's shared login is whoever was picked in
- * the switcher ("whole band" counts as a pick), else the account's default member.
+ * Who's using a label-made band account's login, as an id in the label's books: a member's own login
+ * is always them (`fixed`); the band's shared login is the whole band (null).
  */
 export const bandLoginPerson = cache(async (ctx: Context): Promise<{ personId: number | null; fixed: boolean }> => {
-  const m = ctx.managedBy!;
   const [own] = await db
     .select({ personId: schema.bandLoginPeople.personId })
     .from(schema.bandLoginPeople)
     .where(and(eq(schema.bandLoginPeople.orgId, ctx.orgId), eq(schema.bandLoginPeople.userId, ctx.user.id)));
-  if (own) return { personId: own.personId, fixed: true };
-  const [cookieOrg, picked] = ((await cookies()).get(BAND_MEMBER_COOKIE)?.value ?? "").split("|");
-  if (cookieOrg === ctx.orgId && picked === "band") return { personId: null, fixed: false };
-  const id = cookieOrg === ctx.orgId && Number(picked) > 0 ? Number(picked) : m.defaultPersonId;
-  return { personId: id ?? null, fixed: false };
+  return own ? { personId: own.personId, fixed: true } : { personId: null, fixed: false };
 });
 
 async function bandLens(ctx: Context, extra: Access["permissions"] = {}): Promise<Context> {
@@ -284,7 +275,7 @@ async function viewAsContext(real: Context): Promise<Context | null> {
       memberType: null,
       person: null,
       accounts: [org],
-      managedBy: { linkId: row.link.id, labelOrgId: label.id, labelName: label.name, bandId: row.band.id, defaultPersonId: row.link.defaultPersonId },
+      managedBy: { linkId: row.link.id, labelOrgId: label.id, labelName: label.name, bandId: row.band.id },
       viewingAs: viewing("band", row.band.name, `/bands/${row.band.id}`),
       lens: false,
     };

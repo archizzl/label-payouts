@@ -2,7 +2,7 @@ import "server-only";
 import { and, asc, eq } from "drizzle-orm";
 import { cache } from "react";
 import { db, schema } from "@/db";
-import { accountContext, BAND_MEMBER_COOKIE, bandLoginPerson } from "./context";
+import { accountContext, bandLoginPerson } from "./context";
 
 /*
  * A band account the label made has one login for the whole band. Whoever's using it picks which
@@ -12,7 +12,6 @@ import { accountContext, BAND_MEMBER_COOKIE, bandLoginPerson } from "./context";
  * default member, if it has one.
  */
 
-export { BAND_MEMBER_COOKIE };
 
 export type BandMember = { id: number; name: string };
 

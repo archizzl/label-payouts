@@ -81,7 +81,6 @@ export async function managingLabel(bandOrgId: string) {
       labelOrgId: accountLinks.labelOrgId,
       bandId: accountLinks.labelBandId,
       labelName: organization.name,
-      defaultPersonId: accountLinks.defaultPersonId,
     })
     .from(accountLinks)
     .innerJoin(organization, eq(organization.id, accountLinks.labelOrgId))

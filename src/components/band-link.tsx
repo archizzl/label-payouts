@@ -6,7 +6,6 @@ import { subAccountFor } from "@/server/band-accounts";
 import { cancelBandAccountInvite, unlink } from "@/server/link-actions";
 import type { bandLinksFor } from "@/server/links";
 import { possessive } from "@/lib/plural";
-import { DefaultMemberForm } from "./band-default-member";
 import { ViewAsButton } from "./viewing-as";
 import { InviteLinkForm, InviteLinkRow } from "./band-invite-links";
 import { bandLoginNames, openInviteLinks } from "@/server/band-invite-links";
@@ -121,12 +120,6 @@ export async function BandAccountSection({
           </ul>
         )}
         <InviteLinkForm bandId={band.id} />
-        {!nothingYet && members.length > 0 && (
-          <div className="mt-4 flex flex-wrap items-center gap-3 text-sm">
-            <span className="text-muted">Opens as</span>
-            <DefaultMemberForm members={members} value={sub.link.defaultPersonId} bandId={band.id} />
-          </div>
-        )}
         {viewMembers}
       </Card>
     </div>

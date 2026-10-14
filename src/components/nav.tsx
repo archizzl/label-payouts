@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import { useRef, useState } from "react";
 import type { Area } from "@/lib/permissions";
 import { signOut, switchAccount } from "@/server/account-actions";
-import { chooseBandMember } from "@/server/band-member-actions";
 import type { Account } from "@/server/context";
 import { SyncIndicator } from "./sync-indicator";
 
@@ -97,32 +96,8 @@ function AccountSwitcher({ account, accounts }: { account: Account; accounts: Ac
   );
 }
 
-/** A band's shared login: which member is using it. Anyone can switch to anyone else in the band. */
-function MemberSwitcher({ member }: { member: NonNullable<NavMember> }) {
-  const form = useRef<HTMLFormElement>(null);
-  return (
-    <form ref={form} action={chooseBandMember}>
-      <select
-        name="personId"
-        // Keyed by the choice, so it shows a new pick (from Settings too) without a reload.
-        key={member.chosen ?? "band"}
-        defaultValue={member.chosen ?? "band"}
-        aria-label="Which member you are"
-        className="!w-auto !py-1 text-sm"
-        onChange={() => form.current?.requestSubmit()}
-      >
-        <option value="band">Whole band</option>
-        {member.options.map((m) => (
-          <option key={m.id} value={m.id}>
-            {m.name}
-          </option>
-        ))}
-      </select>
-    </form>
-  );
-}
-
-type NavMember = { chosen: number | null; options: { id: number; name: string }[]; fixed: boolean } | null;
+/** A band account's login that's one member's own: who. */
+type NavMember = { name: string } | null;
 
 export function Nav({
   user,
@@ -192,14 +167,7 @@ export function Nav({
         <div className="flex flex-wrap items-center gap-3">
           <SyncIndicator active={syncing} />
           <AccountSwitcher account={account} accounts={accounts} />
-          {member?.fixed ? (
-            // A member's own login: it's always them.
-            <span className="hidden text-sm text-muted sm:inline">{member.options.find((o) => o.id === member.chosen)?.name ?? user.name}</span>
-          ) : member && member.options.length > 0 ? (
-            <MemberSwitcher member={member} />
-          ) : (
-            <span className="hidden text-sm text-muted sm:inline">{user.name}</span>
-          )}
+          <span className="hidden text-sm text-muted sm:inline">{member?.name ?? user.name}</span>
           {!viewing && (
             <form action={signOut}>
               <button type="submit" className="text-sm text-link hover:underline">

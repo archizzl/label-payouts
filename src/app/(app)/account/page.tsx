@@ -6,9 +6,8 @@ import { Callout, Card, Field, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
 import { saveAccountSettings, testBandcampConnection } from "@/server/account-actions";
 import { WhoCanSignIn } from "@/components/who-can-sign-in";
-import { DefaultMemberForm } from "@/components/band-default-member";
 import { MyDetails } from "@/components/my-details";
-import { bandMemberChoice, bandMembers } from "@/server/band-member";
+import { bandMemberChoice } from "@/server/band-member";
 import { SyncFooter } from "@/components/sync-status";
 import { setLabelAccountHolder, setSetupHidden } from "@/server/actions";
 import { bandcampApiOff } from "@/server/bandcamp-api";
@@ -167,7 +166,7 @@ export default async function AccountPage() {
 /** A band account the label made: it's the label's to name and set up, so just who signs in. */
 async function SubAccountSettings({ ctx }: { ctx: Context }) {
   const m = ctx.managedBy!;
-  const [members, choice] = await Promise.all([bandMembers(m.labelOrgId, m.bandId), bandMemberChoice()]);
+  const choice = await bandMemberChoice();
   // A member's own login: their details in the label's books, to keep up to date.
   const mine = choice?.fixed && choice.chosen
     ? await db
@@ -185,11 +184,6 @@ async function SubAccountSettings({ ctx }: { ctx: Context }) {
         {m.labelName} made this account for {ctx.org.name}, so you can see <Link href={`/from-label/${m.linkId}`}>what the label has for you</Link>:
         your sales, payouts, statements and receipts. The label keeps the books; ask them if something looks wrong.
       </p> */}
-      {members.length > 0 && !choice?.fixed && (
-        <Card title="Opens as">
-          <DefaultMemberForm members={members} value={m.defaultPersonId} />
-        </Card>
-      )}
       <WhoCanSignIn ctx={ctx} />
     </>
   );
