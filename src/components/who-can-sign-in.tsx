@@ -68,7 +68,7 @@ export async function WhoCanSignIn({ ctx }: { ctx: Context }) {
 
   return (
         <Card title="Who can sign in">
-          {managed ? (
+          {/* {managed ? (
             <p className="mb-4 text-sm text-muted">People who sign in to this account. They all see what the label has for the band.</p>
           ) : (
             <p className="mb-4 text-sm text-muted">
@@ -81,7 +81,7 @@ export async function WhoCanSignIn({ ctx }: { ctx: Context }) {
                 </>
               )}
             </p>
-          )}
+          )} */}
           <table className="data mb-6">
             <thead>
               <tr>

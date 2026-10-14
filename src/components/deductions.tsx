@@ -70,7 +70,7 @@ export function DeductionList({
       {items.map((d) => {
         const desc = describeDeduction(d, names);
         return (
-          <li key={d.id} className="rounded-md border border-border p-3">
+          <li key={d.id} id={`deduction-${d.id}`} className="scroll-mt-6 rounded-md border border-border p-3 target:border-accent">
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-medium">{d.label}</span>
               <Badge tone="accent">{desc.amount}</Badge>

@@ -71,11 +71,11 @@ export async function OutsideArtists() {
           )
         }
       >
-        <p className="mb-3 text-sm text-muted">
+        {/* <p className="mb-3 text-sm text-muted">
           These artists appear on your releases (usually compilations) but aren’t on the label. Add one contact for each (who to
           pay for their tracks), or choose <i>don’t pay</i> if they aren’t owed anything, and the label
           keeps their share. Until you do one or the other, sales of their tracks and of the whole release are held back.
-        </p>
+        </p> */}
         {rows.length > 0 && (
           <ul className="divide-y divide-border border-y border-border">
             {rows.map(({ artist, contact, tracks }) => (

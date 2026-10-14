@@ -832,7 +832,7 @@ export function HeldSentBars({
             </span>
             <div className="text-right tabular-nums">
               {formatCents(src.net, currency)}
-              {total > 0 && held > 0 && <div className="text-xs text-muted">{((held / total) * 100).toFixed(1)}% of what the label still holds</div>}
+              {/* {total > 0 && held > 0 && <div className="text-xs text-muted">{((held / total) * 100).toFixed(1)}% of what the label still holds</div>} */}
               {src.sent > 0 && (
                 <div className="text-xs text-muted">
                   {formatCents(held, currency)} held · {formatCents(src.sent, currency)} sent on

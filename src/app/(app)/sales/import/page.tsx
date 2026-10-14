@@ -159,7 +159,7 @@ export default async function ImportPage({ searchParams }: PageProps<"/sales/imp
 
   return (
     <>
-      <PageHeader title="Sales" subtitle="Pull the label-wide sales report from Bandcamp, or upload it as a CSV. Overlapping reports are safe: sales already imported are skipped." />
+      <PageHeader title="Sales" />
       <SalesTabs active="import" />
       {justImported && (
         <Fading clearParams={["imported"]}>

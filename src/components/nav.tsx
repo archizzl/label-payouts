@@ -40,7 +40,7 @@ function itemsFor(
     ...(hideOrders ? [] : [{ href: "/orders", label: "orders", area: "orders" as const }]),
     { href: "/inventory", label: "inventory", area: "inventory" },
     { href: "/periods", label: "payouts", area: "payouts" },
-    ...(account.kind === "label" ? [{ href: "/funds", label: "label funds", area: "funds" as const }] : []),
+    ...(account.kind === "label" ? [{ href: "/funds", label: "funds", area: "funds" as const }] : []),
     { href: "/receipts", label: "receipts", area: "receipts" },
     // A band account has one band: straight to it. Its money rules are there too, so no Rules tab.
     // A band account's own band, then everyone (bands and people) in the directory.

@@ -53,7 +53,7 @@ export default async function CatalogPage({ searchParams }: PageProps<"/catalog"
 
   return (
     <>
-      <PageHeader title="Catalog" subtitle="Releases, tracks and merch. Give any of them its own split, or let them use the band’s splits." />
+      <PageHeader title="Catalog" />
       <div className="mb-4 flex flex-wrap gap-2 text-sm">
         <Link href="/catalog" className={`rounded-full px-3 py-1 ${!bandFilter ? "bg-text text-bg" : "bg-surface-2 text-muted"}`}>
           all bands

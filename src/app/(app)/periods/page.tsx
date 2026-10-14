@@ -102,7 +102,7 @@ export default async function PeriodsPage({ searchParams }: PageProps<"/periods"
         </nav>
         <ActionForm action={previewPayout} className="grid gap-4 sm:grid-cols-4">
           {forBand && <input type="hidden" name="bandId" value={forBand.id} />}
-          <Field label="Name (optional)" hint="Left blank, it’s named after the band and dates.">
+          <Field label="Name (optional)">
             <input name="name" placeholder={forBand ? `${forBand.name} — ${periodName(defaultStart, defaultEnd)}` : periodName(defaultStart, defaultEnd)} />
           </Field>
           <Field label="From">
@@ -115,7 +115,7 @@ export default async function PeriodsPage({ searchParams }: PageProps<"/periods"
             <SubmitButton>Preview</SubmitButton>
           </div>
         </ActionForm>
-        <p className="mt-2 text-xs text-muted">
+        {/* <p className="mt-2 text-xs text-muted">
           {forBand
             ? `Pays only ${forBand.name}’s sales. `
             : "Pays every band’s sales. "}
@@ -126,7 +126,7 @@ export default async function PeriodsPage({ searchParams }: PageProps<"/periods"
               : ""}
           Sales already paid by another finalized payout are left out automatically, so nothing is paid twice.
           {creds && " New sales are pulled from Bandcamp first."} Nothing is saved until you finalize.
-        </p>
+        </p> */}
       </Card>
 
 

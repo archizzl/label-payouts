@@ -123,7 +123,7 @@ export function ChartView({ chart, format }: { chart: BoardChart; format: ChartF
               <p className="mb-3 text-sm">
                 <span className="text-2xl font-bold tabular-nums">{formatCents(g.grand, g.currency)}</span>{" "}
                 <span className="text-muted">
-                  owed in total{d.groups.length > 1 ? ` (${g.currency})` : ""}, across {g.whom}
+                  owed in total{d.groups.length > 1 ? ` (${g.currency})` : ""}
                 </span>
               </p>
               {format === "table" ? (

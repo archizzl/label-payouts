@@ -226,7 +226,7 @@ export default async function DirectoryPage() {
               <BandFields />
             </Disclosure>
           )}
-          <Disclosure summary="+ Add someone who isn’t in a band">
+          <Disclosure summary="+ Add someone">
             <PersonFields />
           </Disclosure>
         </div>

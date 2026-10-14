@@ -15,9 +15,9 @@ export const metadata = { title: "label funds" };
 
 /** Why each source of label money is there, in a few words. */
 function explain(source: string) {
-  if (source === SHIPPING_SOURCE) return "what fans paid for shipping; never split, it pays for postage";
+  if (source === SHIPPING_SOURCE) return "";
   if (source === LABEL_RELEASES_SOURCE) return "releases under the label’s own name without a split";
-  return "a withholding kept by the label (see Label rules or the band’s page)";
+  return "a withholding kept by the label";
 }
 
 /**
@@ -47,7 +47,7 @@ export default async function FundsPage() {
   // The customizable charts.
   const charts: BoardChart[] = [
     {
-      spec: { kind: "sources", title: "Where the label’s money comes from", shape: "held-sent", wide: true },
+      spec: { kind: "sources", title: "", shape: "held-sent", wide: true },
       data: { shape: "held-sent", currency: cur, total: totalHeld, rows: sources },
     },
     seriesChart("month", "By month", byMonth, { currency: cur }),
@@ -69,10 +69,10 @@ export default async function FundsPage() {
       <PageHeader title="Label funds"/>
 
       <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <Tile label="Left in the label’s account" cents={v(inc.balance)} currency={cur} emphasis />
         <Tile label="Came in to the label" cents={v(inc.income)} currency={cur} />
         <Tile label="Sent on to others" cents={-v(inc.sent) || 0} currency={cur} />
         <Tile label="Spent on expenses" cents={-v(inc.spent) || 0} currency={cur} hint={<Link href="/receipts">receipts</Link>} />
-        <Tile label="Left in the label’s account" cents={v(inc.balance)} currency={cur} emphasis />
       </div>
       {v(inc.holderShare) !== 0 && (
         <p className="-mt-3 mb-6 text-sm text-muted">
@@ -93,7 +93,7 @@ export default async function FundsPage() {
 
       <Card title="Spent on expenses" actions={<Link href="/receipts" className="text-sm">receipts</Link>}>
         {inc.spending.length === 0 ? (
-          <p className="text-sm text-muted">Nothing yet. Expenses the label pays, and receipts it pays people back for, show up here.</p>
+          <p className="text-sm text-muted">Nothing yet.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="data">

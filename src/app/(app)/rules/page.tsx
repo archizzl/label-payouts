@@ -49,9 +49,9 @@ export default async function RulesPage() {
 
   return (
     <>
-      <PageHeader title="Label rules" subtitle="The label-wide default split, what comes off before splitting, and how sales are matched to bands." />
+      <PageHeader title="Label rules" />
 
-      {ctx.org.kind === "label" && (
+      {/* {ctx.org.kind === "label" && (
         <div id="label-cut">
           <Card title="What the label keeps">
             {labelCuts.length > 0 ? (
@@ -106,21 +106,21 @@ export default async function RulesPage() {
             )}
           </Card>
         </div>
-      )}
+      )} */}
 
       <Card title="Label-wide default split">
-        <p className="mb-3 text-sm text-muted">
+        {/* <p className="mb-3 text-sm text-muted">
           Used for any band that doesn’t have its own default split. Each band’s current members share it evenly. You can
           carve out a fixed share for specific people first.
           Band, item-type, release and track splits always take priority.
-        </p>
+        </p> */}
         <SplitRules
           rules={labelDefault}
           people={everyone}
           scope={{ scope: "label_default" }}
           emptyText="No label-wide default. Bands without their own default split will be flagged at payout time."
         />
-        {labelDefault.length > 0 && (
+        {/* {labelDefault.length > 0 && (
           <p className="mt-3 text-sm text-muted">
             {usingLabelDefault.length === 0 ? (
               "Every band has its own default split right now, so this isn’t used yet."
@@ -137,13 +137,13 @@ export default async function RulesPage() {
               </>
             )}
           </p>
-        )}
+        )} */}
       </Card>
 
       <Card title="Label-wide deductions">
-        <p className="mb-3 text-sm text-muted">
+        {/* <p className="mb-3 text-sm text-muted">
           Taken from every sale first. Limit one to a band, release or item type to make it apply only there.
-        </p>
+        </p> */}
         <DeductionList people={peopleOpts} items={labelWide} names={names} bands={bands} releases={releaseOpts} />
         <div className="mt-3">
           <Disclosure summary="+ Add deduction">
@@ -175,7 +175,11 @@ export default async function RulesPage() {
                         {names.band.get(d.bandId!)}
                       </Link>
                     </td>
-                    <td>{d.label}</td>
+                    <td>
+                      <Link href={`/bands/${d.bandId}?tab=money#deduction-${d.id}`} className="hover:underline">
+                        {d.label}
+                      </Link>
+                    </td>
                     <td>{desc.amount}</td>
                     <td className="text-xs text-muted">
                       {desc.scope}
@@ -189,7 +193,7 @@ export default async function RulesPage() {
         )}
       </Card>
 
-      <Card
+      {/* <Card
         title="How sales are matched to bands"
         actions={
           <form action={rerouteAction}>
@@ -240,7 +244,7 @@ export default async function RulesPage() {
             </tbody>
           </table>
         )}
-      </Card>
+      </Card> */}
     </>
   );
 }

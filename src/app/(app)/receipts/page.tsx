@@ -49,7 +49,6 @@ export default async function ReceiptsPage({ searchParams }: PageProps<"/receipt
     <>
       <PageHeader
         title="Receipts"
-        subtitle="Expenses and their receipts: who paid, and whether sales pay them back. Members can submit their own from My earnings."
       />
       <nav className="mb-6 flex flex-wrap gap-2 text-sm">
         <Link href="/receipts" className={`rounded-full px-3 py-1 ${!bandFilter ? "bg-text text-bg" : "bg-surface-2 text-muted"}`}>

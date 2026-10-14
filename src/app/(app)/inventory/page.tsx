@@ -72,7 +72,7 @@ export default async function InventoryPage({ searchParams }: PageProps<"/invent
 
   return (
     <>
-      <PageHeader title="Inventory" subtitle="What you have on hand: merch and music you sell, and supplies you use but don’t sell." />
+      <PageHeader title="Inventory" />
 
       {bandsWithItems.length > 1 && (
         <nav className="mb-6 flex flex-wrap gap-2 text-sm">
@@ -114,16 +114,15 @@ export default async function InventoryPage({ searchParams }: PageProps<"/invent
           <ActionForm action={addFromCatalog} className="flex flex-wrap items-center gap-2" keepOpen>
             {band && <input type="hidden" name="bandId" value={band} />}
             <SubmitButton variant="secondary" size="sm">
-              Add everything from the catalog
+              Sync catalog from bandcamp
             </SubmitButton>
-            <span className="text-xs text-muted">Each format and merch item (one per size) not here yet, starting at 0.</span>
           </ActionForm>
         </div>
       )}
 
       <Card title={`For sale (${products.length})`}>
         {products.length === 0 ? (
-          <Empty>Nothing yet. Add your CDs, records, tapes and merch{canEdit ? ", or add everything from the catalog in one go" : ""}.</Empty>
+          <Empty>Nothing yet.</Empty>
         ) : (
           <ItemTable items={products} bandName={bandName} movesOf={movesOf} canEdit={canEdit} bands={bands} catalog={catalog} ownBandsOnly={!!scope} />
         )}
@@ -131,7 +130,7 @@ export default async function InventoryPage({ searchParams }: PageProps<"/invent
 
       <Card title={`Supplies (${supplies.length})`}>
         {supplies.length === 0 ? (
-          <Empty>No supplies yet: things you use but don’t sell.</Empty>
+          <Empty>Nothing yet.</Empty>
         ) : (
           <ItemTable items={supplies} bandName={bandName} movesOf={movesOf} canEdit={canEdit} bands={bands} catalog={catalog} ownBandsOnly={!!scope} />
         )}

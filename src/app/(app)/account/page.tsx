@@ -50,10 +50,10 @@ export default async function AccountPage() {
           </Field>
           <div className="sm:col-span-2">
             <h3 className="mb-1 text-sm font-medium">Bandcamp API access (optional)</h3>
-            <p className="mb-3 text-xs text-muted">
+            {/* <p className="mb-3 text-xs text-muted">
               Lets this account pull its sales straight from Bandcamp instead of uploading CSVs. Bandcamp gives labels and artists a
               client ID and secret on request. The secret is stored encrypted and never shown again.
-            </p>
+            </p> */}
           </div>
           <Field label="Client ID">
             <input name="bandcampClientId" defaultValue={settings?.bandcampClientId ?? ""} autoComplete="off" />

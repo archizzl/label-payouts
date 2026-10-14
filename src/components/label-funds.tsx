@@ -139,11 +139,11 @@ export async function LabelFunds({ bandId, showTotals = true }: { bandId?: numbe
 
   return (
     <Card title={bandId ? "Label funds sent on" : showTotals ? "Label funds" : "Sent on to others"}>
-      <p className="mb-4 text-sm text-muted">
+      {/* <p className="mb-4 text-sm text-muted">
         {bandId || !showTotals
           ? "Money the label kept from sales and then passed on to someone else."
           : "What the label kept from sales (its cut, label releases, anything routed to it like a fundraiser), what it passed on to others or spent (expenses it paid, people it reimbursed; see Receipts), and what’s left in its account."}
-      </p>
+      </p> */}
 
       {!bandId &&
         showTotals &&

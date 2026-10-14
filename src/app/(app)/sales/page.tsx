@@ -99,7 +99,6 @@ export default async function SalesPage({ searchParams }: PageProps<"/sales">) {
     <>
       <PageHeader
         title="Sales"
-        subtitle="Every sale. Filter, sort and dig in; the totals and charts follow your filters."
         actions={
           page.count > 0 && (
             <a href={`/sales/export${filterQuery(f, { page: 1 })}`} className={buttonClass("secondary")} download>
@@ -233,7 +232,6 @@ export default async function SalesPage({ searchParams }: PageProps<"/sales">) {
               </table>
             </div>
             <Pager f={f} count={page.count} pages={pages} />
-            <p className="mt-3 text-xs text-muted">Click a sale to see everything reported for it. Click a band, type, country or source to filter by it.</p>
           </>
         )}
       </Card>
