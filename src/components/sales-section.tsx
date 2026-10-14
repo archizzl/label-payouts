@@ -1,4 +1,6 @@
+import { and, eq } from "drizzle-orm";
 import Link from "next/link";
+import { db, schema } from "@/db";
 import { SALES_RANGES, salesRangeDates } from "@/lib/dates";
 import { formatCents } from "@/lib/money";
 import { getContext } from "@/server/context";
@@ -44,8 +46,27 @@ export async function SalesSection({
   const today = new Date().toISOString().slice(0, 10);
   const r = salesRangeDates(range, today);
   const orgId = fromOrg ?? (await getContext()).orgId;
-  const report = await salesReport(orgId, { ...scope, from: r.from, to: r.to });
+  const [report, transfers] = await Promise.all([
+    salesReport(orgId, { ...scope, from: r.from, to: r.to }),
+    // What the label sent on to others from this band's (or release's) money.
+    scope.bandId || scope.releaseId
+      ? db
+          .select({ date: schema.labelTransfers.date, currency: schema.labelTransfers.currency, cents: schema.labelTransfers.amountCents })
+          .from(schema.labelTransfers)
+          .where(
+            and(
+              eq(schema.labelTransfers.orgId, orgId),
+              scope.releaseId ? eq(schema.labelTransfers.releaseId, scope.releaseId) : eq(schema.labelTransfers.bandId, scope.bandId!),
+            ),
+          )
+      : [],
+  ]);
   const cur = report.currency ?? "USD";
+  const labelPart = report.label + report.shipping;
+  const sentOn = Math.min(
+    Math.max(0, labelPart),
+    transfers.filter((t) => t.currency === cur && (!r.from || t.date >= r.from) && (!r.to || t.date <= r.to)).reduce((a, t) => a + t.cents, 0),
+  );
   const fees = report.bandcampShare + report.processorFee;
   // Everything fans paid, split by where it ended up. Any gap (e.g. a fee column we don't read)
   // shows as its own segment rather than being hidden.
@@ -63,7 +84,8 @@ export async function SalesSection({
   const segments: Segment[] = [
     { key: "people", label: "To people", value: report.toPeople, color: "var(--series-1)" },
     // Shipping isn't split: it stays with the label, for postage.
-    { key: "label", label: report.shipping ? "Label (incl. shipping)" : "Label", value: report.label + report.shipping, color: "var(--series-2)" },
+    { key: "sent", label: "Sent on by the label", value: sentOn, color: "var(--series-2)" },
+    { key: "label", label: report.shipping ? "Label (incl. shipping)" : "Label", value: labelPart - sentOn, color: sentOn ? "color-mix(in srgb, var(--series-2) 50%, transparent)" : "var(--series-2)" },
     { key: "fund", label: "Band fund", value: report.bandFund, color: "var(--series-3)" },
     { key: "costs", label: "Costs withheld", value: report.costs, color: "var(--series-4)" },
     { key: "bandcamp", label: "Bandcamp’s share", value: report.bandcampShare, color: "var(--series-5)" },
