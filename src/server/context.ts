@@ -100,14 +100,14 @@ export async function accountsFor(userId: string): Promise<Account[]> {
  * yet to /welcome to create one. While a label admin is viewing as a band or a person, it's theirs
  * instead, and nothing can be changed: server actions are refused.
  *
- * A label-made band account sees pages through the label's books, narrowed to its band and
- * read-only (bandLens). Server actions never do: they get the band account itself, so nothing a
- * band login sends can touch the label's data.
+ * A label-made band account sees the label's books narrowed to its band (bandLens), in pages and
+ * in actions alike (an action re-draws the page it came from). The lens only lets it change its
+ * orders, and stock counts through requireAccess's bandMay; its own settings and logins go through
+ * accountContext / requireAdmin.
  */
 export const getContext = cache(async (): Promise<Context> => {
   const ctx = await accountContext();
-  if (!ctx.managedBy || (await headers()).get("next-action")) return ctx;
-  return bandLens(ctx);
+  return ctx.managedBy ? bandLens(ctx) : ctx;
 });
 
 /**
@@ -364,9 +364,8 @@ export async function requireAccess(
   { bandMay = false }: { bandMay?: boolean } = {},
 ): Promise<Context> {
   let ctx = await getContext();
-  // A band login's actions normally get its own small account. Orders, and anything marked bandMay,
-  // act on the label's books instead, narrowed to the band like its pages are.
-  if (ctx.managedBy && !ctx.lens && (area === "orders" || bandMay)) ctx = await bandLens(ctx, bandMay ? { [area]: level } : {});
+  // A band login may do this one thing to its band's part of the label's books.
+  if (ctx.lens && bandMay) ctx = { ...ctx, access: { ...ctx.access, permissions: { ...ctx.access.permissions, [area]: level } } };
   if (!can(ctx.access, area, level)) redirect("/me");
   return ctx;
 }

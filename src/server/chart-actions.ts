@@ -3,17 +3,18 @@
 import { and, eq } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { isLayoutShape } from "@/lib/chart-layout";
-import { getContext } from "./context";
+import { accountContext } from "./context";
 
 /*
  * Saving a person's chart layouts. Anyone signed in can arrange their own charts; layouts belong to
- * the person and the account, never anyone else's.
+ * the person and the account they're in as itself (a band's own account, not the label's books it
+ * looks at), never anyone else's.
  */
 
 const BOARD = /^[a-z0-9-]{1,40}$/;
 
 export async function saveChartLayout(boardId: string, layout: unknown) {
-  const { user, orgId } = await getContext();
+  const { user, orgId } = await accountContext();
   if (!BOARD.test(boardId) || !isLayoutShape(layout)) return;
   const clean = layout.map(({ uid, kind, format }) => ({ uid, kind, format }));
   await db
@@ -26,7 +27,7 @@ export async function saveChartLayout(boardId: string, layout: unknown) {
 }
 
 export async function resetChartLayout(boardId: string) {
-  const { user, orgId } = await getContext();
+  const { user, orgId } = await accountContext();
   if (!BOARD.test(boardId)) return;
   await db
     .delete(schema.chartLayouts)
