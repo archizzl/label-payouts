@@ -94,7 +94,7 @@ Never write to the live database by hand. Changes go through migrations and the 
 - **No `.env`, `.env.local` or `.env.production*` files.** The Cloudflare build bakes them into the live app. Local settings go in `.env.development.local`, live secrets in Cloudflare.
 - **Keep `BANDCAMP_API=off` locally.** Bandcamp allows one API sign-in per client, and the live site holds it.
 - **Test in throwaway copies** (`workers:local`), not on real data.
-- **Schema changes:** edit `src/db/schema.ts`, then run `npx drizzle-kit generate --name <what>`. Migrations only ever add things, so older versions keep working. `npm run deploy` applies them to the live database.
+- **Schema changes:** edit `src/db/schema.ts`, then run `npx drizzle-kit generate --name <what>`. A running `npm run dev` only migrates when it starts: restart it (or run `npm run db:migrate` with `DATABASE_URL=postgres://postgres:local@127.0.0.1:5433/label_payouts`), or the local app and its hourly sync fail on the new column. Migrations only ever add things, so older versions keep working. `npm run deploy` applies them to the live database.
 - **`"use server"` files may only export async functions.** Constants and helpers go in `src/lib`.
 - **Writing:** plain words, no jargon or "e.g." examples in the interface, and real plurals ("1 sale", not "sale(s)").
 - **Keep hints and tooltips to a minimum.** No explanatory intros under card titles, no field hints that explain what happens behind the scenes, no "how this works" notes. Empty states say the fact only ("No payouts for Alex Klint yet."), with no advice after it. Keep live status, input formats and limits, warnings before destructive actions, and steps the user must follow outside the app.
