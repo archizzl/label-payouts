@@ -898,3 +898,41 @@ export const accountApplications = pgTable(
   },
   (t) => [index("account_applications_status").on(t.status), index("account_applications_user").on(t.userId)],
 );
+
+/**
+ * A single-use link to join a label-made band account, made without knowing the joiner's email:
+ * whoever opens it signs in (or signs up with any email) and becomes one of the band's logins.
+ * `orgId` is the band's account. With `personId` (a member in the label's books), that login is
+ * them: it opens as that member (see bandLoginPeople).
+ */
+export const bandInviteLinks = pgTable(
+  "band_invite_links",
+  {
+    id: text("id").primaryKey(),
+    orgId: orgId(),
+    personId: integer("person_id").references(() => people.id, { onDelete: "set null" }),
+    createdByUserId: text("created_by_user_id").references(() => user.id, { onDelete: "set null" }),
+    createdAt: text("created_at").notNull().default(now),
+    expiresAt: text("expires_at").notNull(),
+    usedAt: text("used_at"),
+    usedByUserId: text("used_by_user_id").references(() => user.id, { onDelete: "set null" }),
+    canceledAt: text("canceled_at"),
+  },
+  (t) => [index("band_invite_links_org").on(t.orgId)],
+);
+
+/** A band account's login that belongs to one member (not the band's shared login): who it is. */
+export const bandLoginPeople = pgTable(
+  "band_login_people",
+  {
+    id: id(),
+    orgId: orgId(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    personId: integer("person_id")
+      .notNull()
+      .references(() => people.id, { onDelete: "cascade" }),
+  },
+  (t) => [uniqueIndex("band_login_people_org_user").on(t.orgId, t.userId)],
+);

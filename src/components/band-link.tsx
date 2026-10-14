@@ -1,13 +1,15 @@
 import { and, asc, eq } from "drizzle-orm";
-import { ActionForm, CopyButton, SubmitButton } from "@/components/client";
-import { Badge, Card, Empty, Field } from "@/components/ui";
+import { CopyButton, SubmitButton } from "@/components/client";
+import { Badge, Card, Empty } from "@/components/ui";
 import { db, schema } from "@/db";
 import { subAccountFor } from "@/server/band-accounts";
-import { cancelBandAccountInvite, inviteToBandAccount, unlink } from "@/server/link-actions";
+import { cancelBandAccountInvite, unlink } from "@/server/link-actions";
 import type { bandLinksFor } from "@/server/links";
 import { possessive } from "@/lib/plural";
-import { DefaultMemberForm, DefaultMemberOptions } from "./band-default-member";
+import { DefaultMemberForm } from "./band-default-member";
 import { ViewAsButton } from "./viewing-as";
+import { InviteLinkForm, InviteLinkRow } from "./band-invite-links";
+import { bandLoginNames, openInviteLinks } from "@/server/band-invite-links";
 
 type LinkRow = Awaited<ReturnType<typeof bandLinksFor>> extends Map<number, infer R> ? R : never;
 
@@ -58,7 +60,7 @@ export async function BandAccountSection({
 
   const sub = await subAccountFor(labelOrgId, band.id);
   if (!sub) return null;
-  const [logins, invites] = await Promise.all([
+  const [logins, invites, links, loginNames] = await Promise.all([
     db
       .select({ user: schema.user })
       .from(schema.member)
@@ -69,10 +71,12 @@ export async function BandAccountSection({
       .select()
       .from(schema.invitation)
       .where(and(eq(schema.invitation.organizationId, sub.org.id), eq(schema.invitation.status, "pending"))),
+    openInviteLinks(sub.org.id),
+    bandLoginNames(sub.org.id),
   ]);
   const openInvites = invites.filter((i) => i.expiresAt > new Date());
   const base = process.env.BETTER_AUTH_URL ?? "";
-  const emails = members.filter((m) => m.email);
+  const nothingYet = logins.length === 0 && openInvites.length === 0 && links.length === 0;
 
   return (
     <div id="band-account" className="scroll-mt-4">
@@ -81,14 +85,20 @@ export async function BandAccountSection({
           One login for the whole band. Once signed in, they pick which member they are to see that member’s earnings, and can switch
           to anyone else in the band. They see the band’s sales, payouts, statements and receipts from the label, and can’t change anything.
         </p> */}
-        {logins.length === 0 && openInvites.length === 0 ? (
+        {nothingYet ? (
           <Empty>No login yet.</Empty>
         ) : (
           <ul className="mb-4 space-y-2 text-sm">
             {logins.map(({ user }) => (
               <li key={user.id} className="flex flex-wrap items-center gap-2">
+                <span>{loginNames.get(user.id) ?? band.name}</span>
                 <span className="text-muted">{user.email}</span>
                 <Badge tone="good">signs in</Badge>
+              </li>
+            ))}
+            {links.map((l) => (
+              <li key={l.id}>
+                <InviteLinkRow link={l} bandName={band.name} bandId={band.id} />
               </li>
             ))}
             {openInvites.map((i) => (
@@ -110,29 +120,8 @@ export async function BandAccountSection({
             ))}
           </ul>
         )}
-        {logins.length === 0 && openInvites.length === 0 && (
-          <ActionForm action={inviteToBandAccount} className="mt-3 flex flex-wrap items-end gap-3">
-            <input type="hidden" name="bandId" value={band.id} />
-            <Field label="The band’s email" className="min-w-64 flex-1">
-              <input name="email" type="email" required list={`band-${band.id}-emails`} autoComplete="off" />
-            </Field>
-            <datalist id={`band-${band.id}-emails`}>
-              {emails.map((m) => (
-                <option key={m.id} value={m.email!}>
-                  {m.name}
-                </option>
-              ))}
-            </datalist>
-            <Field label="Opens as" className="min-w-48">
-              <select name="defaultPersonId" defaultValue={sub.link.defaultPersonId ?? ""}>
-                <DefaultMemberOptions members={members} />
-              </select>
-            </Field>
-            <SubmitButton>Create invite</SubmitButton>
-            {/* <p className="w-full text-xs text-muted">There’s no email sending yet: copy the invite link and send it to them.</p> */}
-          </ActionForm>
-        )}
-        {(logins.length > 0 || openInvites.length > 0) && members.length > 0 && (
+        <InviteLinkForm members={members} bandId={band.id} />
+        {!nothingYet && members.length > 0 && (
           <div className="mt-4 flex flex-wrap items-center gap-3 text-sm">
             <span className="text-muted">Opens as</span>
             <DefaultMemberForm members={members} value={sub.link.defaultPersonId} bandId={band.id} />

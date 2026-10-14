@@ -104,16 +104,14 @@ function MemberSwitcher({ member }: { member: NonNullable<NavMember> }) {
     <form ref={form} action={chooseBandMember}>
       <select
         name="personId"
-        defaultValue={member.chosen ?? ""}
+        // Keyed by the choice, so it shows a new pick (from Settings too) without a reload.
+        key={member.chosen ?? "band"}
+        defaultValue={member.chosen ?? "band"}
         aria-label="Which member you are"
         className="!w-auto !py-1 text-sm"
         onChange={() => form.current?.requestSubmit()}
       >
-        {member.chosen === null && (
-          <option value="" disabled>
-            Who’s looking?
-          </option>
-        )}
+        <option value="band">Whole band</option>
         {member.options.map((m) => (
           <option key={m.id} value={m.id}>
             {m.name}
@@ -124,7 +122,7 @@ function MemberSwitcher({ member }: { member: NonNullable<NavMember> }) {
   );
 }
 
-type NavMember = { chosen: number | null; options: { id: number; name: string }[] } | null;
+type NavMember = { chosen: number | null; options: { id: number; name: string }[]; fixed: boolean } | null;
 
 export function Nav({
   user,
@@ -194,7 +192,10 @@ export function Nav({
         <div className="flex flex-wrap items-center gap-3">
           <SyncIndicator active={syncing} />
           <AccountSwitcher account={account} accounts={accounts} />
-          {member && member.options.length > 0 ? (
+          {member?.fixed ? (
+            // A member's own login: it's always them.
+            <span className="hidden text-sm text-muted sm:inline">{member.options.find((o) => o.id === member.chosen)?.name ?? user.name}</span>
+          ) : member && member.options.length > 0 ? (
             <MemberSwitcher member={member} />
           ) : (
             <span className="hidden text-sm text-muted sm:inline">{user.name}</span>

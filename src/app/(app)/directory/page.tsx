@@ -17,8 +17,8 @@ import { labelHost } from "@/server/data";
 import { type BandAccountSummary, bandAccountSummaries, ensureBandAccounts } from "@/server/band-accounts";
 import { MemberTypesCard } from "@/components/member-types";
 import { possibleDuplicates } from "@/server/people";
-import { cancelBandAccountInvite, inviteToBandAccount } from "@/server/link-actions";
-import { DefaultMemberOptions } from "@/components/band-default-member";
+import { cancelBandAccountInvite } from "@/server/link-actions";
+import { InviteLinkForm, InviteLinkRow } from "@/components/band-invite-links";
 
 export const metadata = { title: "directory" };
 
@@ -201,6 +201,7 @@ export default async function DirectoryPage() {
                 {accounts.get(b.id) && (
                   <BandAccountLine
                     bandId={b.id}
+                    bandName={b.name}
                     account={accounts.get(b.id)!}
                     members={members.filter((m) => m.active).flatMap((m) => {
                       const p = people.find((x) => x.id === m.personId);
@@ -319,10 +320,12 @@ function AddToBand({ bandId, bandName, people }: { bandId: number; bandName: str
 /** Under a band's name: its own account, who signs in to it (or a form to invite its login), and "view as". */
 function BandAccountLine({
   bandId,
+  bandName,
   account: a,
   members,
 }: {
   bandId: number;
+  bandName: string;
   account: BandAccountSummary;
   members: { id: number; name: string; email: string | null }[];
 }) {
@@ -355,36 +358,10 @@ function BandAccountLine({
               </form>
             </span>
           ))}
-          {a.logins === 0 && a.invites.length === 0 && (
-            <ActionForm action={inviteToBandAccount} className="flex flex-wrap items-center gap-2">
-              <input type="hidden" name="bandId" value={bandId} />
-              <input
-                name="email"
-                type="email"
-                required
-                placeholder="the band’s email"
-                aria-label="The band’s email"
-                list={`band-${bandId}-login-emails`}
-                autoComplete="off"
-                className="!w-56 !py-0.5 text-xs"
-              />
-              <datalist id={`band-${bandId}-login-emails`}>
-                {members
-                  .filter((m) => m.email)
-                  .map((m) => (
-                    <option key={m.id} value={m.email!}>
-                      {m.name}
-                    </option>
-                  ))}
-              </datalist>
-              {members.length > 0 && (
-                <select name="defaultPersonId" defaultValue="" aria-label="Opens as" className="!w-auto !py-0.5 text-xs">
-                  <DefaultMemberOptions members={members} unlabeled />
-                </select>
-              )}
-              <SubmitButton size="sm">Invite</SubmitButton>
-            </ActionForm>
-          )}
+          {a.links.map((l) => (
+            <InviteLinkRow key={l.id} link={l} bandName={bandName} bandId={bandId} />
+          ))}
+          {a.logins === 0 && a.invites.length === 0 && a.links.length === 0 && <InviteLinkForm members={members} bandId={bandId} small />}
         </>
       ) : (
         <>

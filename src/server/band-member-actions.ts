@@ -14,9 +14,11 @@ export async function chooseBandMember(fd: FormData) {
   const ctx = await accountContext();
   const m = ctx.managedBy;
   if (!m) throw new Error("Only a band’s account has members to choose from.");
-  const id = Number(fd.get("personId"));
-  if (!(await bandMembers(m.labelOrgId, m.bandId)).some((p) => p.id === id)) throw new Error("Pick someone in the band.");
-  (await cookies()).set(BAND_MEMBER_COOKIE, `${ctx.orgId}|${id}`, {
+  // "band": the whole band, nobody in particular.
+  const raw = String(fd.get("personId") ?? "");
+  const id = Number(raw);
+  if (raw !== "band" && !(await bandMembers(m.labelOrgId, m.bandId)).some((p) => p.id === id)) throw new Error("Pick someone in the band.");
+  (await cookies()).set(BAND_MEMBER_COOKIE, `${ctx.orgId}|${raw === "band" ? "band" : id}`, {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",

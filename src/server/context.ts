@@ -136,14 +136,30 @@ const LENS_ACCESS = {
   bandAreas: ["sales", "orders", "inventory", "receipts", "catalog"],
 } as const satisfies { permissions: Access["permissions"]; bandAreas: Area[] };
 
+/**
+ * Who's using a label-made band account's login, as an id in the label's books (null: the whole band).
+ * A member's own login is always them (`fixed`). The band's shared login is whoever was picked in
+ * the switcher ("whole band" counts as a pick), else the account's default member.
+ */
+export const bandLoginPerson = cache(async (ctx: Context): Promise<{ personId: number | null; fixed: boolean }> => {
+  const m = ctx.managedBy!;
+  const [own] = await db
+    .select({ personId: schema.bandLoginPeople.personId })
+    .from(schema.bandLoginPeople)
+    .where(and(eq(schema.bandLoginPeople.orgId, ctx.orgId), eq(schema.bandLoginPeople.userId, ctx.user.id)));
+  if (own) return { personId: own.personId, fixed: true };
+  const [cookieOrg, picked] = ((await cookies()).get(BAND_MEMBER_COOKIE)?.value ?? "").split("|");
+  if (cookieOrg === ctx.orgId && picked === "band") return { personId: null, fixed: false };
+  const id = cookieOrg === ctx.orgId && Number(picked) > 0 ? Number(picked) : m.defaultPersonId;
+  return { personId: id ?? null, fixed: false };
+});
+
 async function bandLens(ctx: Context, extra: Access["permissions"] = {}): Promise<Context> {
   const m = ctx.managedBy!;
-  // Whoever's using it: the member they picked, else the account's default member. Either must
-  // still be a current member of the band in the label's books.
-  const [cookieOrg, cookieId] = ((await cookies()).get(BAND_MEMBER_COOKIE)?.value ?? "").split("|");
-  const candidates = [cookieOrg === ctx.orgId ? Number(cookieId) : 0, m.defaultPersonId ?? 0].filter((id) => id > 0);
+  // Whoever's using it, if they're still a current member of the band in the label's books.
+  const { personId } = await bandLoginPerson(ctx);
   let person: Context["person"] = null;
-  for (const id of candidates) {
+  if (personId) {
     const [row] = await db
       .select({ person: schema.people })
       .from(schema.bandMemberships)
@@ -152,14 +168,11 @@ async function bandLens(ctx: Context, extra: Access["permissions"] = {}): Promis
         and(
           eq(schema.bandMemberships.orgId, m.labelOrgId),
           eq(schema.bandMemberships.bandId, m.bandId),
-          eq(schema.bandMemberships.personId, id),
+          eq(schema.bandMemberships.personId, personId),
           eq(schema.bandMemberships.active, true),
         ),
       );
-    if (row) {
-      person = row.person;
-      break;
-    }
+    person = row?.person ?? null;
   }
   return {
     ...ctx,

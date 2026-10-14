@@ -50,7 +50,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
       <Nav
         user={{ name: ctx.user.name, email: ctx.user.email }}
         managed={ctx.managedBy ? `/from-label/${ctx.managedBy.linkId}` : null}
-        member={members && !ctx.viewingAs ? { chosen: members.chosen?.id ?? null, options: members.members } : null}
+        member={members && !ctx.viewingAs ? { chosen: members.chosen?.id ?? null, options: members.members, fixed: members.fixed } : null}
         bandHref={band ? `/bands/${band.id}` : null}
         hideOrders={!orders.inUse}
         viewing={!!ctx.viewingAs}

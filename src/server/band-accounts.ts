@@ -1,4 +1,5 @@
 import "server-only";
+import { type OpenInviteLink, openInviteLinks } from "./band-invite-links";
 import { randomBytes, randomUUID } from "node:crypto";
 import { and, eq, inArray, TransactionRollbackError } from "drizzle-orm";
 import { db, schema } from "@/db";
@@ -109,6 +110,8 @@ export type BandAccountSummary = {
   invited: number;
   /** Invites waiting, for copying their links from the directory. */
   invites: { id: string; email: string }[];
+  /** Invite links not used yet. */
+  links: OpenInviteLink[];
 };
 
 /** Each of a label's bands' accounts, by band id: for the directory. */
@@ -129,6 +132,7 @@ export async function bandAccountSummaries(labelOrgId: string): Promise<Map<numb
       ])
     : [[], []];
   const now = new Date();
+  const openLinks = new Map(await Promise.all(orgIds.map(async (id) => [id, await openInviteLinks(id)] as const)));
   return new Map(
     links.map((l) => {
       const open = invites.filter((i) => i.orgId === l.orgId && i.expiresAt > now).map((i) => ({ id: i.id, email: i.email }));
@@ -138,8 +142,9 @@ export async function bandAccountSummaries(labelOrgId: string): Promise<Map<numb
           managed: l.managed,
           name: l.name,
           logins: members.filter((m) => m.orgId === l.orgId).length,
-          invited: open.length,
+          invited: open.length + (openLinks.get(l.orgId!)?.length ?? 0),
           invites: open,
+          links: openLinks.get(l.orgId!) ?? [],
         },
       ];
     }),

@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useRef } from "react";
 import { acceptInvite, createAccount, type FormState, resetPassword, signIn, signUp } from "@/server/account-actions";
+import { joinWithInviteLink } from "@/server/band-invite-actions";
 import { buttonClass, Field } from "./ui";
 
 function Result({ state }: { state: FormState }) {
@@ -133,6 +134,26 @@ export function ResetPasswordForm({ token }: { token: string }) {
       </Field>
       <Result state={state} />
       <Submit pending={pending}>Save new password</Submit>
+    </form>
+  );
+}
+
+/** Join a band's account with an invite link. `auto`: straight after signing up or in for it. */
+export function JoinBandForm({ id, label, auto = false }: { id: string; label: string; auto?: boolean }) {
+  const [state, action, pending] = useActionState(joinWithInviteLink, null);
+  const form = useRef<HTMLFormElement>(null);
+  const sent = useRef(false);
+  useEffect(() => {
+    if (auto && !sent.current) {
+      sent.current = true;
+      form.current?.requestSubmit();
+    }
+  }, [auto]);
+  return (
+    <form ref={form} action={action} className="space-y-3">
+      <input type="hidden" name="id" value={id} />
+      <Result state={state} />
+      <Submit pending={pending}>{label}</Submit>
     </form>
   );
 }

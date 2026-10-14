@@ -1,9 +1,8 @@
 import "server-only";
 import { and, asc, eq } from "drizzle-orm";
-import { cookies } from "next/headers";
 import { cache } from "react";
 import { db, schema } from "@/db";
-import { accountContext, BAND_MEMBER_COOKIE } from "./context";
+import { accountContext, BAND_MEMBER_COOKIE, bandLoginPerson } from "./context";
 
 /*
  * A band account the label made has one login for the whole band. Whoever's using it picks which
@@ -29,13 +28,13 @@ export async function bandMembers(labelOrgId: string, bandId: number): Promise<B
     .orderBy(asc(schema.people.name));
 }
 
-/** In a label-made band account: its members, and which of them is using it (null until picked). */
-export const bandMemberChoice = cache(async (): Promise<{ members: BandMember[]; chosen: BandMember | null } | null> => {
+/**
+ * In a label-made band account: its members, and which of them is using it (null: the whole band).
+ * `fixed`: the login is that member's own, so there's nothing to pick.
+ */
+export const bandMemberChoice = cache(async (): Promise<{ members: BandMember[]; chosen: BandMember | null; fixed: boolean } | null> => {
   const ctx = await accountContext();
   if (!ctx.managedBy) return null;
-  const members = await bandMembers(ctx.managedBy.labelOrgId, ctx.managedBy.bandId);
-  const [orgId, id] = ((await cookies()).get(BAND_MEMBER_COOKIE)?.value ?? "").split("|");
-  const picked = orgId === ctx.orgId ? members.find((m) => m.id === Number(id)) : undefined;
-  const chosen = picked ?? members.find((m) => m.id === ctx.managedBy!.defaultPersonId) ?? null;
-  return { members, chosen };
+  const [members, who] = await Promise.all([bandMembers(ctx.managedBy.labelOrgId, ctx.managedBy.bandId), bandLoginPerson(ctx)]);
+  return { members, chosen: members.find((m) => m.id === who.personId) ?? null, fixed: who.fixed };
 });

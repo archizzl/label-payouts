@@ -8,6 +8,9 @@ import type { Context } from "@/server/context";
 import { inviteMemberTypes, listMemberTypes, memberTypeOf } from "@/server/member-types";
 import { InviteWhoFields } from "./invite-fields";
 import { RolePicker } from "./role-picker";
+import { InviteLinkForm, InviteLinkRow } from "./band-invite-links";
+import { bandMembers } from "@/server/band-member";
+import { bandLoginNames, openInviteLinks } from "@/server/band-invite-links";
 
 const ROLE_LABEL: Record<string, string> = { owner: "owner", admin: "admin", member: "member" };
 
@@ -53,6 +56,11 @@ export async function WhoCanSignIn({ ctx }: { ctx: Context }) {
   const base = process.env.BETTER_AUTH_URL ?? "";
   const openInvites = invites.filter((i) => i.expiresAt > new Date());
   const unlinked = people.filter((p) => !p.userId);
+  // A band account: its members in the label's books (for invite links), its open links, and which
+  // member each personal login is (the rest are the band's shared login).
+  const [bandPeople, links, loginNames] = ctx.managedBy
+    ? await Promise.all([bandMembers(ctx.managedBy.labelOrgId, ctx.managedBy.bandId), openInviteLinks(orgId), bandLoginNames(orgId)])
+    : [[], [], new Map<string, string>()];
 
   return (
         <Card title={`Who can sign in to ${ctx.org.name}`}>
@@ -87,7 +95,8 @@ export async function WhoCanSignIn({ ctx }: { ctx: Context }) {
                   <tr key={member.id}>
                     <td>
                       <div className="font-medium">
-                        {user.name} {self && <span className="text-xs font-normal text-muted">(you)</span>}
+                        {managed ? (loginNames.get(user.id) ?? ctx.org.name) : user.name}{" "}
+                        {self && <span className="text-xs font-normal text-muted">(you)</span>}
                       </div>
                       <div className="text-xs text-muted">{user.email}</div>
                     </td>
@@ -147,21 +156,24 @@ export async function WhoCanSignIn({ ctx }: { ctx: Context }) {
                   </tr>
                 );
               })}
+              {links.map((l) => (
+                <tr key={l.id}>
+                  <td colSpan={managed ? 1 : 3}>
+                    <InviteLinkRow link={l} bandName={ctx.org.name} />
+                  </td>
+                  <td />
+                </tr>
+              ))}
             </tbody>
           </table>
 
+          {managed ? (
+            // A band account: an invite link, for the band or one member; whoever opens it picks their own email.
+            <InviteLinkForm members={bandPeople} />
+          ) : (
           <Disclosure summary="+ Invite someone">
             <ActionForm action={inviteMember} className="grid gap-4 sm:grid-cols-3">
-              {managed ? (
-                // A label-made band account: every login is the band's, so just who.
-                <>
-                  <Field label="Their email" className="sm:col-span-2">
-                    <input name="email" type="email" required />
-                  </Field>
-                  <input type="hidden" name="role" value="admin" />
-                </>
-              ) : (
-                <>
+              <>
                   <InviteWhoFields people={unlinked.map((p) => ({ id: p.id, name: p.name, email: p.email }))} />
                   <Field label="Role">
                     <select name="role" defaultValue="member">
@@ -169,13 +181,13 @@ export async function WhoCanSignIn({ ctx }: { ctx: Context }) {
                     </select>
                   </Field>
                 </>
-              )}
               <div className="sm:col-span-3">
                 <SubmitButton>Create invite</SubmitButton>
                 {/* <p className="mt-2 text-xs text-muted">There’s no email sending yet: copy the invite link from the list and send it to them.</p> */}
               </div>
             </ActionForm>
           </Disclosure>
+          )}
         </Card>
   );
 }

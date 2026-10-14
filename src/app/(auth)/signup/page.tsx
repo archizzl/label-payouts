@@ -38,7 +38,7 @@ export default async function SignupPage({ searchParams }: PageProps<"/signup">)
     <>
       <h1 className="mb-1 text-xl font-bold">Create a login</h1>
       <p className="mb-5 text-sm text-muted">
-        {invite || email
+        {invite || email || next.startsWith("/join/")
           ? "For label owners, band members and anyone who gets paid."
           : "Then tell us about your label or band. We’ll set your account up once we’ve had a look."}
       </p>

@@ -225,6 +225,13 @@
       "when": 1792004373939,
       "tag": "0031_clear_chart_layouts",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1792008896857,
+      "tag": "0032_band_invite_links",
+      "breakpoints": true
     }
   ]
 }

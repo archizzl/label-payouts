@@ -175,9 +175,15 @@ async function SubAccountSettings({ ctx }: { ctx: Context }) {
         {m.labelName} made this account for {ctx.org.name}, so you can see <Link href={`/from-label/${m.linkId}`}>what the label has for you</Link>:
         your sales, payouts, statements and receipts. The label keeps the books; ask them if something looks wrong.
       </p> */}
-      {members.length > 0 && (
+      {/* A member's own login is always them: nothing to pick. */}
+      {members.length > 0 && !choice?.fixed && (
         <Card title="Who’s looking?">
           <div className="flex flex-wrap gap-2">
+            <form action={chooseBandMember}>
+              <input type="hidden" name="personId" value="band" />
+              <input type="hidden" name="back" value="/account" />
+              <SubmitButton variant={!choice?.chosen ? "primary" : "secondary"}>Whole band</SubmitButton>
+            </form>
             {members.map((p) => (
               <form key={p.id} action={chooseBandMember}>
                 <input type="hidden" name="personId" value={p.id} />
@@ -190,7 +196,7 @@ async function SubAccountSettings({ ctx }: { ctx: Context }) {
           </div>
         </Card>
       )}
-      {members.length > 0 && (
+      {members.length > 0 && !choice?.fixed && (
         <Card title="Opens as">
           <DefaultMemberForm members={members} value={m.defaultPersonId} />
         </Card>
