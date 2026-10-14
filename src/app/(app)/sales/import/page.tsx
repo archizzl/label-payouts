@@ -200,9 +200,9 @@ export default async function ImportPage({ searchParams }: PageProps<"/sales/imp
 
       {noBand.length > 0 && (
         <Card title={<>Needs a band <Badge tone="warn">{plural(noBand.reduce((a, g) => a + g.count, 0), "sale")}</Badge></>}>
-          <p className="mb-4 text-sm text-muted">
+          {/* <p className="mb-4 text-sm text-muted">
             These sales didn’t match any band. Sort each artist out once and future imports match by themselves.
-          </p>
+          </p> */}
           <ul className="space-y-3">
             {byArtist(noBand, labelSubdomain).map((a) => (
               <li key={a.artist || "?"} className="border border-border p-3">
@@ -260,9 +260,9 @@ export default async function ImportPage({ searchParams }: PageProps<"/sales/imp
 
       {noRelease.length > 0 && (
         <Card title={<>Matched to a band, but not a release <Badge>{noRelease.length} items</Badge></>}>
-          <p className="mb-3 text-sm text-muted">
+          {/* <p className="mb-3 text-sm text-muted">
             Optional. These use the band’s default or item-type split. Match them to a release or track if those have their own splits.
-          </p>
+          </p> */}
           <details>
             <summary className="text-sm font-medium text-accent">Show items</summary>
             <ul className="mt-3 space-y-3">

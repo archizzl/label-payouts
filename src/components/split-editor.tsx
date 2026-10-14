@@ -181,7 +181,7 @@ export function SplitEditor(props: Props) {
           {pending ? "Saving…" : "Save split"}
         </button>
       </div>
-      <p className="text-xs text-muted">Leave the date blank for “always”. Add a newer split with a later date to change shares going forward without rewriting past periods.</p>
+      <p className="text-xs text-muted">Leave the date blank for “always”.</p>
       {state?.error && <p className="text-sm text-bad">{state.error}</p>}
       {state?.ok && <p className="text-sm text-good">{state.ok}</p>}
     </form>

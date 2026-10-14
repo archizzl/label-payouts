@@ -63,10 +63,10 @@ function CategoryField({ value }: { value?: string | null }) {
   );
 }
 
-function ProjectField({ projects, value, hint }: { projects: ProjectOption[]; value?: number | null; hint?: string }) {
+function ProjectField({ projects, value }: { projects: ProjectOption[]; value?: number | null }) {
   if (!projects.length) return null;
   return (
-    <Field label="Project (optional)" hint={hint}>
+    <Field label="Project (optional)">
       <select name="projectId" defaultValue={value ?? ""}>
         <option value="">Not part of a project</option>
         {projects.map((p) => (
@@ -123,7 +123,6 @@ export function ExpenseForm({
       <ProjectField
         projects={projects.filter((p) => !bandId || p.bandId === bandId || p.bandId === null)}
         value={e?.projectId ?? projectId}
-        hint="Counts toward what the project cost."
       />
       <Field label="Band">
         <select name="bandId" defaultValue={e?.bandId ?? bandId ?? ""}>
@@ -137,7 +136,7 @@ export function ExpenseForm({
             ))}
         </select>
       </Field>
-      <Field label="Release (optional)" hint="Pay it back from just this release's sales.">
+      <Field label="Release (optional)">
         <select name="releaseId" defaultValue={e?.releaseId ?? ""}>
           <option value="">Any of the band’s sales</option>
           {bands

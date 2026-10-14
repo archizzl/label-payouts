@@ -13,14 +13,6 @@ type Option = { id: number; name: string };
 /** A release, with its physical formats so a cost can target just one of them. */
 export type ReleaseOption = Option & { bandId: number; formats?: { id: number; title: string }[] };
 
-const KIND_HELP = {
-  percent: "Comes off what’s left after any earlier deductions.",
-  per_unit: "Taken from every matching item sold (× quantity), before the profit is split. Never more than the sale; refunds reverse it.",
-  fixed: "Taken from matching sales, oldest first, until the total is paid off, then it stops.",
-  sale_part:
-    "Takes exactly that part of each matching sale, whatever it was, as Bandcamp reported it (you can see it on each sale in the Sales tab). Never more than the sale; refunds reverse it. (Shipping and sales tax are never split, so there’s nothing to withhold for them: shipping stays with the label.)",
-} as const;
-
 /**
  * Add or edit a deduction. Only the fields that matter for the chosen type and destination are
  * shown; the optional "limit to…" filters are tucked away unless one is already set.
@@ -64,7 +56,7 @@ export function DeductionForm({
         <Field label="Name">
           <input name="label" required defaultValue={d?.label} placeholder={fixedBandId ? "Band fund, Van repair…" : "Label cut"} />
         </Field>
-        <Field label="Type" hint={KIND_HELP[kind]}>
+        <Field label="Type">
           <select name="kind" value={kind} onChange={(e) => setKind(e.target.value as Deduction["kind"])}>
             <option value="percent">Percentage of each sale</option>
             <option value="per_unit">Fixed amount per item sold</option>
@@ -158,7 +150,7 @@ export function DeductionForm({
             </select>
           </Field>
           {kind !== "percent" && formatOptions.length > 0 && (
-            <Field label="Only for one format" hint="E.g. just the Triple Single CD, not its vinyl.">
+            <Field label="Only for one format">
               <select name="formatKey" defaultValue={d?.packageId && d.releaseId ? `${d.releaseId}:${d.packageId}` : ""}>
                 <option value="">Any format</option>
                 {formatOptions.map((f) => (
@@ -169,7 +161,7 @@ export function DeductionForm({
               </select>
             </Field>
           )}
-          <Field label="Only for formats matching words" hint="E.g. “CD” or “cassette, tape”. Digital sales never match.">
+          <Field label="Only for formats matching words" hint="“CD” or “cassette, tape”. Digital sales never match.">
             <input name="formatMatch" defaultValue={d?.formatMatch ?? ""} placeholder="CD" />
           </Field>
           <div className="grid grid-cols-2 gap-2">
@@ -180,7 +172,7 @@ export function DeductionForm({
               <input type="date" name="effectiveTo" defaultValue={d?.effectiveTo ?? ""} />
             </Field>
           </div>
-          <Field label="Order" hint="When several deductions apply, lower numbers come off first. Label-wide ones always come before band ones.">
+          <Field label="Order" hint="Lower numbers come off first.">
             <input name="sortOrder" type="number" defaultValue={d?.sortOrder ?? 0} />
           </Field>
         </div>

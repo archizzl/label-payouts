@@ -75,7 +75,7 @@ export default async function FansPage({ searchParams }: PageProps<"/fans">) {
     <>
       <PageHeader
         title="Fans"
-        subtitle="Your mailing list (imported from Bandcamp), kept here so you can see it grow and take it anywhere. Only admins can see it."
+        subtitle="Your mailing list, imported from Bandcamp."
         actions={
           stats.total > 0 && (
             <a href={`/fans/export${exportQuery ? `?${exportQuery}` : ""}`} className={buttonClass("secondary")} download>
@@ -224,9 +224,9 @@ export default async function FansPage({ searchParams }: PageProps<"/fans">) {
                 )}
               </>
             )}
-            <p className="mt-4 text-xs text-muted">
+            {/* <p className="mt-4 text-xs text-muted">
               If someone asks to be taken off the list, remove them here too, and on Bandcamp (or they’ll come back with the next import).
-            </p>
+            </p> */}
           </Card>
 
           {stats.imports.length > 0 && (

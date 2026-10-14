@@ -168,10 +168,10 @@ export default async function MyEarningsPage({ searchParams }: PageProps<"/me">)
       </Card>
 
       <Card title="My receipts">
-        <p className="mb-3 text-sm text-muted">
+        {/* <p className="mb-3 text-sm text-muted">
           Paid for something for a band? Submit the receipt. Once an admin approves it, you’re paid back, either from the band’s
           sales in your next payout or directly by the label.
-        </p>
+        </p> */}
         <div className="mb-4">
           <Disclosure summary="+ Submit a receipt">
             <SubmitReceiptForm

@@ -198,10 +198,10 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
 
       <Card title="Invite someone">
         <form action={createSignupInvite} className="grid gap-4 sm:grid-cols-[1fr_1fr_8rem_auto] sm:items-end">
-          <Field label="Their email (optional)" hint="Locks the link to that email.">
+          <Field label="Their email (optional)">
             <input name="email" type="email" placeholder="anyone with the link" />
           </Field>
-          <Field label="Note (optional)" hint="Just for you.">
+          <Field label="Note (optional)">
             <input name="note" placeholder="Flag Day’s drummer" />
           </Field>
           <Field label="Expires in">

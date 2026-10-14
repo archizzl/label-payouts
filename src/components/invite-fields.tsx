@@ -27,7 +27,7 @@ export function InviteWhoFields({ people }: { people: { id: number; name: string
       <Field label="Their email">
         <input ref={input} name="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
       </Field>
-      <Field label="They are" hint="Links their login to their earnings.">
+      <Field label="They are">
         <select
           name="personId"
           defaultValue=""

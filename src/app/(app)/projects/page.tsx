@@ -33,7 +33,6 @@ export default async function ProjectsPage({ searchParams }: PageProps<"/project
     <>
       <PageHeader
         title="Projects"
-        subtitle="Albums, EPs, tours, videos: what each one cost, and what its releases have made back in sales."
       />
       <Card>
         {shown.length === 0 ? (

@@ -537,10 +537,10 @@ export async function PayoutView({
           }
         >
           <Disclosure summary={`Show all ${live.results.length} sales and how each was split`}>
-            <p className="mb-2 text-xs text-muted">
+            {/* <p className="mb-2 text-xs text-muted">
               Each sale’s split is shown to the nearest cent. Payout amounts add up everyone’s exact shares and round once per band,
               so they can differ from these by a cent or two.
-            </p>
+            </p> */}
             <div className="overflow-x-auto">
               <table className="data">
                 <thead>

@@ -77,7 +77,7 @@ export default async function FromLabelPage({ params, searchParams }: PageProps<
 
       {members && !members.chosen && members.members.length > 0 && (
         <Card title="Who’s looking?">
-          <p className="mb-3 text-sm text-muted">Pick yourself to see your own earnings. You can switch to anyone else in the band at the top of the page.</p>
+          {/* <p className="mb-3 text-sm text-muted">Pick yourself to see your own earnings. You can switch to anyone else in the band at the top of the page.</p> */}
           <div className="flex flex-wrap gap-2">
             {members.members.map((m) => (
               <form key={m.id} action={chooseBandMember}>

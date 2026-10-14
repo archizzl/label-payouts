@@ -115,10 +115,10 @@ export default async function DirectoryPage() {
 
       {!scope && duplicates.length > 0 && (
         <Card title="Possible duplicates">
-          <p className="mb-3 text-sm text-muted">
+          {/* <p className="mb-3 text-sm text-muted">
             These look like the same person entered more than once. Merging combines their bands, splits and payouts so they’re paid once.
             (People with the same email are merged automatically when you save.)
-          </p>
+          </p> */}
           <ul className="space-y-4">
             {duplicates.map((group) => (
               <li key={group.map((p) => p.id).join("-")} className="space-y-1.5 border-l-2 border-accent pl-3">
@@ -192,9 +192,9 @@ export default async function DirectoryPage() {
                     {members.map((m) => row(people.find((p) => p.id === m.personId)!, m))}
                   </div>
                 )}
-                {members.length === 0 && b.isLabel && (
+                {/* {members.length === 0 && b.isLabel && (
                   <p className="py-2 text-sm text-muted">What the label’s own releases earn stays with the label unless they have a split.</p>
-                )}
+                )} */}
                 <AddToBand bandId={b.id} bandName={b.name} people={people.filter((p) => !members.some((m) => m.personId === p.id && m.active))} />
               </div>
             </details>
@@ -290,7 +290,7 @@ function AddToBand({ bandId, bandName, people }: { bandId: number; bandName: str
           <Field label="Roles (comma-separated)">
             <input name="roles" placeholder="vocals, guitar, songwriter" />
           </Field>
-          <Field label="Email (optional)" hint="Their PayPal email, if they use PayPal." className="sm:col-span-2">
+          <Field label="Email (optional)" className="sm:col-span-2">
             <input name="email" type="email" />
           </Field>
           <div className="sm:col-span-2">
@@ -506,16 +506,16 @@ function PersonFields({ person }: { person?: Person }) {
       <Field label="Name">
         <input name="name" required defaultValue={person?.name} />
       </Field>
-      <Field label="PayPal email" hint="Used for the PayPal bulk payout file.">
+      <Field label="PayPal email">
         <input name="email" type="email" defaultValue={person?.email ?? ""} />
       </Field>
-      <Field label="PayPal.me handle" hint="For one-click PayPal links with the amount filled in.">
+      <Field label="PayPal.me handle">
         <input name="paypalMe" defaultValue={person?.paypalMe ?? ""} />
       </Field>
-      <Field label="Venmo username" hint="US only. For one-click Venmo links with the amount and a note filled in.">
+      <Field label="Venmo username" hint="US only.">
         <input name="venmo" defaultValue={person?.venmo ?? ""} placeholder="@yourname" />
       </Field>
-      <Field label="Cash App $cashtag" hint="For one-click Cash App links with the amount filled in.">
+      <Field label="Cash App $cashtag">
         <input name="cashtag" defaultValue={person?.cashtag ?? ""} placeholder="$yourname" />
       </Field>
       <Field label="Notes">

@@ -202,8 +202,7 @@ export default async function OrdersPage({ searchParams }: PageProps<"/orders">)
         </>
       )}
       <p className="mt-6 text-xs text-muted">
-        Straight from Bandcamp as of {new Date(open.fetchedAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}. Buyers’ details
-        aren’t saved in this app.
+        Straight from Bandcamp as of {new Date(open.fetchedAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}.
       </p>
     </>
   );
@@ -300,7 +299,7 @@ function OrderList({
                           </optgroup>
                         </select>
                       </Field>
-                      <Field label="Receipt (optional)" hint="A photo or PDF of the postage label or receipt." className="sm:col-span-3">
+                      <Field label="Receipt (optional)" className="sm:col-span-3">
                         <input type="file" name="receipt" accept="image/*,application/pdf" multiple className="text-sm" />
                       </Field>
                     </fieldset>
@@ -321,17 +320,17 @@ function OrderList({
                 <Disclosure summary="Pickup">
                   <ActionForm action={markOrderPickup} className="grid gap-3 sm:grid-cols-2">
                     <input type="hidden" name="paymentId" value={o.paymentId} />
-                    <p className="text-sm text-muted sm:col-span-2">
+                    {/* <p className="text-sm text-muted sm:col-span-2">
                       For an order collected in person. It’s marked shipped on Bandcamp now (so it isn’t late), then waits under Waiting for
                       pickup until you hand it over.
-                    </p>
+                    </p> */}
                     <label className="flex items-center gap-2 text-sm sm:col-span-2">
                       <input type="checkbox" name="notify" defaultChecked /> Email {o.buyer.name || "the buyer"} that it’s ready
                     </label>
                     <Field label="Message to them" className="sm:col-span-2">
                       <input name="message" defaultValue={PICKUP_MESSAGE} maxLength={1000} />
                     </Field>
-                    <Field label="Note for you (optional)" hint="When, where, who’s collecting. Only shown here." className="sm:col-span-2">
+                    <Field label="Note for you (optional)" className="sm:col-span-2">
                       <input name="note" maxLength={500} />
                     </Field>
                     <div className="sm:col-span-2">
@@ -537,7 +536,7 @@ function PickupList({ pickups, bandName, canEdit }: { pickups: PickupRow[]; band
           </li>
         ))}
       </ul>
-      <p className="mt-2 text-xs text-muted">Already marked shipped on Bandcamp. Only the buyer’s name and items are kept here, until it’s handed over.</p>
+      <p className="mt-2 text-xs text-muted">Already marked shipped on Bandcamp.</p>
     </Card>
   );
 }

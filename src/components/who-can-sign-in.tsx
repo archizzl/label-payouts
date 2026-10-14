@@ -178,7 +178,7 @@ export async function WhoCanSignIn({ ctx }: { ctx: Context }) {
               )}
               <div className="sm:col-span-3">
                 <SubmitButton>Create invite</SubmitButton>
-                <p className="mt-2 text-xs text-muted">There’s no email sending yet: copy the invite link from the list above and send it to them.</p>
+                {/* <p className="mt-2 text-xs text-muted">There’s no email sending yet: copy the invite link from the list above and send it to them.</p> */}
               </div>
             </ActionForm>
           </Disclosure>

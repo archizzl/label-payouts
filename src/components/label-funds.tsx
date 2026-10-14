@@ -34,7 +34,7 @@ async function TransferForm({ transfer, bandId, sources }: { transfer?: Transfer
   return (
     <ActionForm action={saveLabelTransfer} className="grid gap-4 sm:grid-cols-3">
       {transfer && <input type="hidden" name="id" value={transfer.id} />}
-      <Field label="Sent to" hint="A charity, aid group, venue, or a person.">
+      <Field label="Sent to">
         <input name="recipient" required defaultValue={transfer?.recipient} placeholder="Mutual Aid NYC" />
       </Field>
       <Field label="Amount">
@@ -46,10 +46,10 @@ async function TransferForm({ transfer, bandId, sources }: { transfer?: Transfer
       <Field label="Date sent">
         <input name="date" type="date" required defaultValue={transfer?.date ?? today} />
       </Field>
-      <Field label="From (optional)" hint="Which of the label’s money it came out of. A fundraiser fills in its band and release for you.">
+      <Field label="From (optional)">
         <SourceSelect sources={sourceOptions} defaultValue={transfer?.source ?? ""} />
       </Field>
-      <Field label="Raised by (optional)" hint="The band whose sales this money came from.">
+      <Field label="Raised by (optional)">
         <select name="bandId" defaultValue={forBand ?? ""}>
           <option value="">Not tied to a band</option>
           {bands.map((b) => (
@@ -59,7 +59,7 @@ async function TransferForm({ transfer, bandId, sources }: { transfer?: Transfer
           ))}
         </select>
       </Field>
-      <Field label="From release (optional)" hint="Shows what that release raised against what was sent.">
+      <Field label="From release (optional)">
         <select name="releaseId" defaultValue={transfer?.releaseId ?? ""}>
           <option value="">No specific release</option>
           {bands

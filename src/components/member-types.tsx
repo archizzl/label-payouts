@@ -130,11 +130,11 @@ function MemberTypeForm({
           })}
         </tbody>
       </table>
-      <p className="text-xs text-muted">
+      {/* <p className="text-xs text-muted">
         “Only their own bands” means the bands they play in, or, for a manager, the bands you pick for them under Directory → Who can sign in
         (managing a band doesn’t put them in its splits). Everyone also sees their own earnings. Settings, who can sign in and label-wide
         changes (new bands, merging people) stay with admins.
-      </p>
+      </p> */}
       <SubmitButton>{id ? "Save" : "Add member type"}</SubmitButton>
     </ActionForm>
   );

@@ -299,7 +299,7 @@ function ItemForm({
       <Field label="Name" className="sm:col-span-2">
         <input name="name" required defaultValue={item?.name} placeholder="e.g. Jewel cases, Logo shirt, Flags of the World CD" maxLength={200} />
       </Field>
-      <Field label="Catalog item (optional)" hint="Links it to a format or merch item. Its band comes with it." className="sm:col-span-2">
+      <Field label="Catalog item (optional)" className="sm:col-span-2">
         <select name="catalog" defaultValue={linked}>
           <option value="">Not in the catalog</option>
           {catalog.map((c) => (
@@ -332,7 +332,7 @@ function ItemForm({
       ) : (
         <div />
       )}
-      <Field label="Running low at" hint="Flag it when this many or fewer are left.">
+      <Field label="Running low at">
         <input name="lowAt" type="number" inputMode="numeric" min={0} step={1} defaultValue={item?.lowAt ?? ""} />
       </Field>
       <Field label="Cost each (optional)">

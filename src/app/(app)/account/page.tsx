@@ -94,10 +94,10 @@ export default async function AccountPage() {
       {kind === "label" && people.length > 0 && (
         <div id="label-bank-account" className="scroll-mt-4">
           <Card title="Label bank account">
-            <p className="mb-3 text-sm text-muted">
+            {/* <p className="mb-3 text-sm text-muted">
               Whoever the label’s bank account belongs to doesn’t need to pay themselves. Their share of each payout is recorded as theirs, but
               marked <i>kept in label account</i> instead of being sent through PayPal.
-            </p>
+            </p> */}
             <form action={setLabelAccountHolder} className="flex flex-wrap items-center gap-2">
               <select key={holder?.id ?? "none"} name="personId" defaultValue={holder?.id ?? ""} className="!w-64" aria-label="Who holds the label’s bank account">
                 <option value="">Nobody (pay everyone out)</option>
@@ -128,10 +128,10 @@ export default async function AccountPage() {
 
       {kind === "band" && labels.length > 0 && (
         <Card title="Labels">
-          <p className="mb-4 text-sm text-muted">
+          {/* <p className="mb-4 text-sm text-muted">
             Labels that use labelmaker make an account for each of their bands. This is where you see what the label has for you: your sales,
             payouts, statements and receipts.
-          </p>
+          </p> */}
           {labels.length > 0 && (
             <ul className="mb-4 space-y-2">
               {labels.map(({ link, label, band }) => (

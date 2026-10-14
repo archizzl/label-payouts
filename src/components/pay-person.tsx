@@ -74,9 +74,9 @@ export function PayPerson({ people, defaultPersonId }: { people: Payee[]; defaul
           </div>
         )}
       </div>
-      {person && ways.length > 0 && (
+      {/* {person && ways.length > 0 && (
         <p className="mt-1 text-xs text-muted">Opens the app with the amount and note filled in, and records this send-out. Venmo is US dollars only.</p>
-      )}
+      )} */}
     </div>
   );
 }

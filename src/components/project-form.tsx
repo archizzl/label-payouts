@@ -58,7 +58,7 @@ export function ProjectForm({
       </Field>
       <fieldset className="sm:col-span-3">
         <legend className="mb-1 text-sm font-medium">Releases and merch whose sales count toward it</legend>
-        <p className="mb-2 text-xs text-muted">Their physical formats count too. Add singles, the album, a shirt made for it…</p>
+        {/* <p className="mb-2 text-xs text-muted">Their physical formats count too. Add singles, the album, a shirt made for it…</p> */}
         <div className="max-h-64 space-y-3 overflow-y-auto rounded-sm border border-border p-3">
           {ordered.map((b) => {
             const mine = releases.filter((r) => r.bandId === b.id);

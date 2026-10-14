@@ -268,10 +268,10 @@ export default async function ReleasePage({ params, searchParams }: PageProps<"/
                           <Field label="Bandcamp URL">
                             <input name="url" defaultValue={t.url ?? ""} />
                           </Field>
-                          <Field label="ISRC" hint="Sales with this ISRC are matched to this track.">
+                          <Field label="ISRC">
                             <input name="isrc" defaultValue={t.isrc ?? ""} />
                           </Field>
-                          <Field label="Band" hint="Change this for split releases and compilations.">
+                          <Field label="Band">
                             <select name="bandId" defaultValue={t.bandId ?? ""}>
                               <option value="">Same as release ({band.name})</option>
                               {bands
@@ -333,7 +333,7 @@ export default async function ReleasePage({ params, searchParams }: PageProps<"/
               ))}
             </tbody>
           </table>
-          <p className="mt-2 text-xs text-muted">Sales with any of these SKUs are matched to this item automatically.</p>
+          {/* <p className="mt-2 text-xs text-muted">Sales with any of these SKUs are matched to this item automatically.</p> */}
         </Card>
       )}
 
@@ -372,7 +372,7 @@ export default async function ReleasePage({ params, searchParams }: PageProps<"/
               ))}
             </tbody>
           </table>
-          <p className="mt-2 text-xs text-muted">Merch sales with any of these SKUs or UPCs are matched to this release automatically.</p>
+          {/* <p className="mt-2 text-xs text-muted">Merch sales with any of these SKUs or UPCs are matched to this release automatically.</p> */}
         </Card>
       )}
 
@@ -410,10 +410,10 @@ export default async function ReleasePage({ params, searchParams }: PageProps<"/
               ))}
             </select>
           </Field>
-          <Field label="Title" hint="Used to match sales by name when the URL doesn't match.">
+          <Field label="Title">
             <input name="title" defaultValue={release.title} required />
           </Field>
-          <Field label="Bandcamp URL" hint="Sales with exactly this item URL always route here.">
+          <Field label="Bandcamp URL">
             <input name="url" defaultValue={release.url ?? ""} />
           </Field>
           <Field label="Catalog number">
@@ -423,7 +423,7 @@ export default async function ReleasePage({ params, searchParams }: PageProps<"/
             <input name="releaseDate" type="date" defaultValue={release.releaseDate ?? ""} />
           </Field>
           {release.kind === "album" && (
-            <Field label="Album sales without a release split use…" hint="Only matters when this release has no split of its own.">
+            <Field label="Album sales without a release split use…">
               <select name="albumSplitMode" defaultValue={release.albumSplitMode}>
                 <option value="band_default">the band’s split</option>
                 <option value="average_tracks">the average of the track splits</option>

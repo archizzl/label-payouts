@@ -76,10 +76,10 @@ export async function BandAccountSection({
   return (
     <div id="band-account" className="scroll-mt-4">
       <Card title={`${possessive(band.name)} account`} actions={<ViewAsButton kind="band" id={band.id} name={band.name} />}>
-        <p className="mb-4 text-sm text-muted">
+        {/* <p className="mb-4 text-sm text-muted">
           One login for the whole band. Once signed in, they pick which member they are to see that member’s earnings, and can switch
           to anyone else in the band. They see the band’s sales, payouts, statements and receipts from the label, and can’t change anything.
-        </p>
+        </p> */}
         {logins.length === 0 && openInvites.length === 0 ? (
           <Empty>No login yet.</Empty>
         ) : (
@@ -112,7 +112,7 @@ export async function BandAccountSection({
         {logins.length === 0 && openInvites.length === 0 && (
           <ActionForm action={inviteToBandAccount} className="mt-3 flex flex-wrap items-end gap-3">
             <input type="hidden" name="bandId" value={band.id} />
-            <Field label="The band’s email" hint="Whoever gets the invite sets the password and shares it with the band." className="min-w-64 flex-1">
+            <Field label="The band’s email" className="min-w-64 flex-1">
               <input name="email" type="email" required list={`band-${band.id}-emails`} autoComplete="off" />
             </Field>
             <datalist id={`band-${band.id}-emails`}>
@@ -123,7 +123,7 @@ export async function BandAccountSection({
               ))}
             </datalist>
             <SubmitButton>Create invite</SubmitButton>
-            <p className="w-full text-xs text-muted">There’s no email sending yet: copy the invite link and send it to them.</p>
+            {/* <p className="w-full text-xs text-muted">There’s no email sending yet: copy the invite link and send it to them.</p> */}
           </ActionForm>
         )}
         {viewMembers}

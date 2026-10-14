@@ -307,7 +307,7 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
             <Card title="Projects" actions={<LinkButton href={`/projects?band=${id}`} size="sm">All projects</LinkButton>}>
               {bandProjects.length === 0 ? (
                 <p className="text-sm text-muted">
-                  No projects yet. A project collects what was spent on it and what its releases made back.{" "}
+                  No projects yet.{" "}
                   <Link href={`/projects?band=${id}`}>Create one</Link>.
                 </p>
               ) : (
@@ -386,7 +386,7 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
           </Card>
           <div id="default-split" />
           <Card title={`${possessive(band.name)} split`}>
-            <p className="mb-3 text-sm text-muted">Used for every sale of this band unless a release, track or item-type split below applies.</p>
+            {/* <p className="mb-3 text-sm text-muted">Used for every sale of this band unless a release, track or item-type split below applies.</p> */}
             <SplitRules
               rules={defaultRules}
               people={personOptions}
@@ -557,7 +557,7 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
                 <Field label="Roles (comma-separated)">
                   <input name="roles" placeholder="vocals, guitar, songwriter" />
                 </Field>
-                <Field label="Email (optional)" hint="Their PayPal email, if they use PayPal. You can add this later." className="sm:col-span-2">
+                <Field label="Email (optional)" className="sm:col-span-2">
                   <input name="email" type="email" />
                 </Field>
                 <details className="sm:col-span-2">

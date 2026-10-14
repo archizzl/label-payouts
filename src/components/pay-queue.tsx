@@ -140,7 +140,7 @@ export function PayQueue({ items }: { items: QueueItem[] }) {
       )}
       {error && <p className="mt-2 text-bad">{error}</p>}
       <p className="mt-2 text-xs text-muted">
-        On PayPal, choose <i>Friends and family</i> so there’s no fee. Each link opens in a new tab with the amount filled in.
+        On PayPal, choose <i>Friends and family</i> so there’s no fee.
       </p>
     </div>
   );
