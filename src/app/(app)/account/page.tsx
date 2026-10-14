@@ -8,7 +8,6 @@ import { saveAccountSettings, testBandcampConnection } from "@/server/account-ac
 import { WhoCanSignIn } from "@/components/who-can-sign-in";
 import { DefaultMemberForm } from "@/components/band-default-member";
 import { bandMemberChoice, bandMembers } from "@/server/band-member";
-import { chooseBandMember } from "@/server/band-member-actions";
 import { SyncFooter } from "@/components/sync-status";
 import { setLabelAccountHolder, setSetupHidden } from "@/server/actions";
 import { bandcampApiOff } from "@/server/bandcamp-api";
@@ -175,27 +174,6 @@ async function SubAccountSettings({ ctx }: { ctx: Context }) {
         {m.labelName} made this account for {ctx.org.name}, so you can see <Link href={`/from-label/${m.linkId}`}>what the label has for you</Link>:
         your sales, payouts, statements and receipts. The label keeps the books; ask them if something looks wrong.
       </p> */}
-      {/* A member's own login is always them: nothing to pick. */}
-      {members.length > 0 && !choice?.fixed && (
-        <Card title="Who’s looking?">
-          <div className="flex flex-wrap gap-2">
-            <form action={chooseBandMember}>
-              <input type="hidden" name="personId" value="band" />
-              <input type="hidden" name="back" value="/account" />
-              <SubmitButton variant={!choice?.chosen ? "primary" : "secondary"}>Whole band</SubmitButton>
-            </form>
-            {members.map((p) => (
-              <form key={p.id} action={chooseBandMember}>
-                <input type="hidden" name="personId" value={p.id} />
-                <input type="hidden" name="back" value="/account" />
-                <SubmitButton variant={choice?.chosen?.id === p.id ? "primary" : "secondary"}>
-                  <span className="normal-case">{p.name}</span>
-                </SubmitButton>
-              </form>
-            ))}
-          </div>
-        </Card>
-      )}
       {members.length > 0 && !choice?.fixed && (
         <Card title="Opens as">
           <DefaultMemberForm members={members} value={m.defaultPersonId} />

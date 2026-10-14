@@ -26,8 +26,7 @@ export async function chooseBandMember(fd: FormData) {
     maxAge: 365 * 86_400,
   });
   revalidatePath("/", "layout");
-  // From Settings, stay there; from the switcher at the top, go to their home page.
-  redirect(fd.get("back") === "/account" ? "/account" : `/from-label/${m.linkId}`);
+  redirect(`/from-label/${m.linkId}`);
 }
 
 /**
