@@ -193,6 +193,10 @@ export default async function DirectoryPage() {
                     {members.map((m) => row(people.find((p) => p.id === m.personId)!, m))}
                   </div>
                 )}
+                {/* {members.length === 0 && b.isLabel && (
+                  <p className="py-2 text-sm text-muted">What the label’s own releases earn stays with the label unless they have a split.</p>
+                )} */}
+                <AddToBand bandId={b.id} bandName={b.name} people={people.filter((p) => !members.some((m) => m.personId === p.id && m.active))} />
                 {accounts.get(b.id) && (
                   <BandAccountLine
                     bandId={b.id}
@@ -203,10 +207,6 @@ export default async function DirectoryPage() {
                     })}
                   />
                 )}
-                {/* {members.length === 0 && b.isLabel && (
-                  <p className="py-2 text-sm text-muted">What the label’s own releases earn stays with the label unless they have a split.</p>
-                )} */}
-                <AddToBand bandId={b.id} bandName={b.name} people={people.filter((p) => !members.some((m) => m.personId === p.id && m.active))} />
               </div>
             </details>
           );
@@ -328,7 +328,7 @@ function BandAccountLine({
   const manage = `/bands/${bandId}?tab=people#band-account`;
   const base = process.env.BETTER_AUTH_URL ?? "";
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border bg-surface-2/50 px-2.5 py-1.5 text-xs text-muted">
+    <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 border-y border-border bg-surface-2/50 px-2.5 py-1.5 text-xs text-muted">
       {a.managed ? (
         <>
           <span>Band account:</span>
