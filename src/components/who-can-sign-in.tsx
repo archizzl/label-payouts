@@ -67,7 +67,7 @@ export async function WhoCanSignIn({ ctx }: { ctx: Context }) {
   const unlinked = people.filter((p) => !p.userId);
 
   return (
-        <Card title="Who can sign in">
+        <Card title={`Who can sign in to ${ctx.org.name}`}>
           {/* {managed ? (
             <p className="mb-4 text-sm text-muted">People who sign in to this account. They all see what the label has for the band.</p>
           ) : (
