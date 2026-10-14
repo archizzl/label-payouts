@@ -187,6 +187,12 @@ export default async function DirectoryPage() {
                 </span>
               </summary>
               <div className="mb-4 ml-8">
+                {members.length > 0 && (
+                  <div className="text-sm">
+                    <ColumnHeads />
+                    {members.map((m) => row(people.find((p) => p.id === m.personId)!, m))}
+                  </div>
+                )}
                 {accounts.get(b.id) && (
                   <BandAccountLine
                     bandId={b.id}
@@ -196,12 +202,6 @@ export default async function DirectoryPage() {
                       return p ? [{ id: p.id, name: p.name, email: p.email }] : [];
                     })}
                   />
-                )}
-                {members.length > 0 && (
-                  <div className="text-sm">
-                    <ColumnHeads />
-                    {members.map((m) => row(people.find((p) => p.id === m.personId)!, m))}
-                  </div>
                 )}
                 {/* {members.length === 0 && b.isLabel && (
                   <p className="py-2 text-sm text-muted">What the label’s own releases earn stays with the label unless they have a split.</p>
