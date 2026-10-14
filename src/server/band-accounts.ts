@@ -101,6 +101,8 @@ export type BandAccountSummary = {
   /** People who sign in to it, and invites waiting. */
   logins: number;
   invited: number;
+  /** Invites waiting, for copying their links from the directory. */
+  invites: { id: string; email: string }[];
 };
 
 /** Each of a label's bands' accounts, by band id: for the directory. */
@@ -115,21 +117,25 @@ export async function bandAccountSummaries(labelOrgId: string): Promise<Map<numb
     ? await Promise.all([
         db.select({ orgId: schema.member.organizationId }).from(schema.member).where(inArray(schema.member.organizationId, orgIds)),
         db
-          .select({ orgId: schema.invitation.organizationId, expiresAt: schema.invitation.expiresAt })
+          .select({ id: schema.invitation.id, email: schema.invitation.email, orgId: schema.invitation.organizationId, expiresAt: schema.invitation.expiresAt })
           .from(schema.invitation)
           .where(and(inArray(schema.invitation.organizationId, orgIds), eq(schema.invitation.status, "pending"))),
       ])
     : [[], []];
   const now = new Date();
   return new Map(
-    links.map((l) => [
-      l.bandId,
-      {
-        managed: l.managed,
-        name: l.name,
-        logins: members.filter((m) => m.orgId === l.orgId).length,
-        invited: invites.filter((i) => i.orgId === l.orgId && i.expiresAt > now).length,
-      },
-    ]),
+    links.map((l) => {
+      const open = invites.filter((i) => i.orgId === l.orgId && i.expiresAt > now).map((i) => ({ id: i.id, email: i.email }));
+      return [
+        l.bandId,
+        {
+          managed: l.managed,
+          name: l.name,
+          logins: members.filter((m) => m.orgId === l.orgId).length,
+          invited: open.length,
+          invites: open,
+        },
+      ];
+    }),
   );
 }

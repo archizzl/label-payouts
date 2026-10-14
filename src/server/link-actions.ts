@@ -61,7 +61,8 @@ export async function inviteToBandAccount(_: LinkState, fd: FormData): Promise<L
     inviterId: ctx.user.id,
   });
   revalidatePath(`/bands/${sub.link.labelBandId}`);
-  return { ok: `Invited ${email}. Copy their invite link below and send it to them.` };
+  revalidatePath("/directory");
+  return { ok: `Invited ${email}.` };
 }
 
 /** Label admin: cancel an invite to one of its bands' sub-accounts. */
@@ -74,4 +75,5 @@ export async function cancelBandAccountInvite(fd: FormData) {
     .set({ status: "canceled" })
     .where(and(eq(schema.invitation.id, String(fd.get("id"))), eq(schema.invitation.organizationId, sub.org.id)));
   revalidatePath(`/bands/${sub.link.labelBandId}`);
+  revalidatePath("/directory");
 }

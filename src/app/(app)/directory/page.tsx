@@ -3,7 +3,7 @@ import Link from "next/link";
 import { connection } from "next/server";
 import { redirect } from "next/navigation";
 import { BandFields } from "@/components/band-fields";
-import { ActionForm, OpenLinkedSection, SubmitButton } from "@/components/client";
+import { ActionForm, CopyButton, OpenLinkedSection, SubmitButton } from "@/components/client";
 import { SyncFooter } from "@/components/sync-status";
 import { Badge, Card, Disclosure, Empty, Field, MoneyList, PageHeader, RolesList } from "@/components/ui";
 import { ViewAsButton } from "@/components/viewing-as";
@@ -17,6 +17,7 @@ import { labelHost } from "@/server/data";
 import { type BandAccountSummary, bandAccountSummaries, ensureBandAccounts } from "@/server/band-accounts";
 import { MemberTypesCard } from "@/components/member-types";
 import { possibleDuplicates } from "@/server/people";
+import { cancelBandAccountInvite, inviteToBandAccount } from "@/server/link-actions";
 
 export const metadata = { title: "directory" };
 
@@ -185,7 +186,16 @@ export default async function DirectoryPage() {
                 </span>
               </summary>
               <div className="mb-4 ml-8">
-                {accounts.get(b.id) && <BandAccountLine bandId={b.id} account={accounts.get(b.id)!} />}
+                {accounts.get(b.id) && (
+                  <BandAccountLine
+                    bandId={b.id}
+                    account={accounts.get(b.id)!}
+                    emails={members.filter((m) => m.active).flatMap((m) => {
+                      const p = people.find((x) => x.id === m.personId);
+                      return p?.email ? [{ name: p.name, email: p.email }] : [];
+                    })}
+                  />
+                )}
                 {members.length > 0 && (
                   <div className="text-sm">
                     <ColumnHeads />
@@ -304,22 +314,60 @@ function AddToBand({ bandId, bandName, people }: { bandId: number; bandName: str
   );
 }
 
-/** Under a band's name: its own account, who signs in to it, and "view as". */
-function BandAccountLine({ bandId, account: a }: { bandId: number; account: BandAccountSummary }) {
+/** Under a band's name: its own account, who signs in to it (or a form to invite its login), and "view as". */
+function BandAccountLine({ bandId, account: a, emails }: { bandId: number; account: BandAccountSummary; emails: { name: string; email: string }[] }) {
   const manage = `/bands/${bandId}?tab=people#band-account`;
+  const base = process.env.BETTER_AUTH_URL ?? "";
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border bg-surface-2/50 px-2.5 py-1.5 text-xs text-muted">
       {a.managed ? (
         <>
-          <span>
-            Band account:{" "}
-            {a.logins || a.invited ? (
-              [a.logins && `${a.logins} sign${a.logins === 1 ? "s" : ""} in`, a.invited && `${a.invited} invited`].filter(Boolean).join(" · ")
-            ) : (
-              <>nobody signs in yet</>
-            )}
-          </span>
-          <Link href={manage}>{a.logins || a.invited ? "manage" : "invite them"}</Link>
+          <span>Band account:</span>
+          {a.logins > 0 && (
+            <>
+              <span>
+                {a.logins} sign{a.logins === 1 ? "s" : ""} in
+              </span>
+              <Link href={manage}>manage</Link>
+            </>
+          )}
+          {a.invites.map((i) => (
+            <span key={i.id} className="flex flex-wrap items-center gap-2">
+              <span className="text-text">{i.email}</span>
+              <Badge tone="warn">invited</Badge>
+              <CopyButton text={`${base}/invite/${i.id}`} label="Copy invite link" />
+              <form action={cancelBandAccountInvite}>
+                <input type="hidden" name="bandId" value={bandId} />
+                <input type="hidden" name="id" value={i.id} />
+                <SubmitButton variant="ghost" size="sm" confirm={`Cancel the invite for ${i.email}? Its link stops working.`}>
+                  Cancel invite
+                </SubmitButton>
+              </form>
+            </span>
+          ))}
+          {a.logins === 0 && a.invites.length === 0 && (
+            <ActionForm action={inviteToBandAccount} className="flex flex-wrap items-center gap-2">
+              <input type="hidden" name="bandId" value={bandId} />
+              <input
+                name="email"
+                type="email"
+                required
+                placeholder="the band’s email"
+                aria-label="The band’s email"
+                list={`band-${bandId}-login-emails`}
+                autoComplete="off"
+                className="!w-56 !py-0.5 text-xs"
+              />
+              <datalist id={`band-${bandId}-login-emails`}>
+                {emails.map((e) => (
+                  <option key={e.email} value={e.email}>
+                    {e.name}
+                  </option>
+                ))}
+              </datalist>
+              <SubmitButton size="sm">Invite</SubmitButton>
+            </ActionForm>
+          )}
           <span className="ml-auto">
             <ViewAsButton kind="band" id={bandId} />
           </span>
