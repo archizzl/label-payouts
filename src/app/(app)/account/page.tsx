@@ -109,7 +109,7 @@ export default async function AccountPage() {
               </select>
               <SubmitButton variant="secondary">Save</SubmitButton>
             </form>
-            <p className="mt-2 text-xs text-muted">Choosing someone also marks their unpaid payouts so far as kept.</p>
+            {/* <p className="mt-2 text-xs text-muted">Choosing someone also marks their unpaid payouts so far as kept.</p> */}
           </Card>
         </div>
       )}

@@ -130,15 +130,15 @@ export async function SalesSection({
         <div className="space-y-8">
           {/* Headline numbers */}
           <div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-5">
-            <Figure label="Net received" value={<Money cents={report.net} currency={cur} />} hint="after Bandcamp and payment fees" strong />
-            <Figure label="Fans paid" value={<Money cents={report.gross} currency={cur} />} hint="incl. shipping and tax" />
-            <Figure label="Items sold" value={report.units.toLocaleString()} hint={`${report.saleCount} sale${report.saleCount === 1 ? "" : "s"}`} />
-            <Figure
+            <Figure label="Net received" value={<Money cents={report.net} currency={cur} />} strong />
+            {/* <Figure label="Fans paid" value={<Money cents={report.gross} currency={cur} />} /> */}
+            <Figure label="Sales" value={report.saleCount} hint={`${report.units.toLocaleString()} item${report.units === 1 ? "" : "s"}`} />
+            {/* <Figure
               label="Fees"
               value={<Money cents={fees} currency={cur} />}
-              hint={report.gross ? `${((fees / report.gross) * 100).toFixed(1)}% of what fans paid` : undefined}
-            />
-            <Figure label="Paid above price" value={<Money cents={report.fanExtra} currency={cur} />} hint="fans choosing to pay more" />
+              
+            /> */}
+            {/* <Figure label="Paid above price" value={<Money cents={report.fanExtra} currency={cur} />} /> */}
           </div>
           {report.otherCurrencies.length > 0 && (
             <p className="-mt-4 text-xs text-muted">
@@ -222,11 +222,11 @@ export async function SalesSection({
                     </tr>
                   </tbody>
                 </table>
-                <p className="mt-2 text-xs text-muted">
+                {/* <p className="mt-2 text-xs text-muted">
                   Digital and physical are what fans paid (physical includes shipping). Fees, tax &amp; shipping are Bandcamp’s share,
                   payment processing, any sales tax Bandcamp collected, and shipping (which stays with the label, for postage). Net is
                   what gets split; to people is net after the label’s cut, band funds and costs.
-                </p>
+                </p> */}
               </div>
             </div>
           )}

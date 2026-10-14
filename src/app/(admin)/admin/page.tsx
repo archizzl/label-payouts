@@ -64,7 +64,7 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
 
   return (
     <>
-      <PageHeader title="Admin" subtitle="Invites, logins and accounts across the whole site. Only site admins can see this page." />
+      <PageHeader title="Admin" />
 
       {created && (
         <Callout tone="good">
@@ -80,10 +80,10 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
       {sp.error === "email" && <Callout tone="bad">That email doesn’t look right.</Callout>}
 
       <Card title={`Applications${waiting.length ? ` (${waiting.length} waiting)` : ""}`}>
-        <p className="mb-4 text-sm text-muted">
+        {/* <p className="mb-4 text-sm text-muted">
           People asking for a new label or band account. Approving sets the account up with what they told us, with them as its owner; invite
           links for the people they listed are waiting in their account’s Directory.
-        </p>
+        </p> */}
         {waiting.length === 0 ? (
           <Empty>Nothing waiting.</Empty>
         ) : (
@@ -158,11 +158,11 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
       </Card>
 
       <Card title="Feature flags">
-        <p className="mb-4 text-sm text-muted">
+        {/* <p className="mb-4 text-sm text-muted">
           Features still being built. Choose whether each shows for you, and which accounts have it (everyone who signs in to those
           accounts sees it).
-        </p>
-        <ul className="divide-y divide-border border-y border-border">
+        </p> */}
+        <ul className="divide-y divide-border">
           {FEATURE_FLAGS.map((f) => {
             const mine = flagPrefs.find((p) => p.flag === f.key);
             const granted = new Set(flagAccounts.filter((a) => a.flag === f.key).map((a) => a.orgId));
@@ -214,10 +214,10 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
           </Field>
           <SubmitButton>Make invite link</SubmitButton>
         </form>
-        <p className="mt-2 text-xs text-muted">
+        {/* <p className="mt-2 text-xs text-muted">
           They create their login with the link, then set up their own label or band account. To add someone to an existing account instead, invite
           them from that account’s Settings.
-        </p>
+        </p> */}
       </Card>
 
       <Card title="Invite links">

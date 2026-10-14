@@ -189,16 +189,16 @@ export default async function ReleasePage({ params, searchParams }: PageProps<"/
       <SalesSection boardId="release-sales" scope={{ releaseId: id }} range={(await searchParams).range as string | undefined} basePath={`/catalog/${id}`} />
 
       <Card title={isMerch ? "Split" : "Release split"}>
-        <p className="mb-3 text-sm text-muted">
+        {/* <p className="mb-3 text-sm text-muted">
           {isMerch
             ? "Applies to every sale of this item. Without one, the band’s merch split (or its default split) is used."
             : "Applies to album sales, merch tied to this release, and any track without its own split."}
-        </p>
+        </p> */}
         <SplitRules
           rules={releaseRules}
           people={people}
           scope={{ scope: "release", releaseId: id }}
-          emptyText={isMerch ? "No split for this item yet. Uses the band’s splits." : "No release split. Uses the band’s splits."}
+          emptyText={isMerch ? "No split for this item yet. Uses the band’s splits." : "Uses the band’s splits."}
         />
       </Card>
 

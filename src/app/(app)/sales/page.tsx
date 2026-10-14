@@ -239,7 +239,7 @@ export default async function SalesPage({ searchParams }: PageProps<"/sales">) {
       {main && (
         <>
           <h2 className="mt-10 mb-3 text-sm font-bold">
-            Totals and breakdowns <span className="font-normal text-muted">({main.first} to {main.last}, following your filters)</span>
+            Totals and breakdowns <span className="font-normal text-muted">({main.first} to {main.last})</span>
           </h2>
           <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
             <Tile label="Net received" value={formatCents(main.net, main.currency)} />

@@ -408,10 +408,10 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
 
           <div id="item-type-splits" />
           <Card title="Splits for a kind of item">
-            <p className="mb-4 text-sm text-muted">
+            {/* <p className="mb-4 text-sm text-muted">
               Optional: a different split for merch, digital albums or digital tracks. These apply when the sale has no
               release/track split, unless you tick “use this even when the release/track has its own split”.
-            </p>
+            </p> */}
             <div className="divide-y divide-border border-y border-border">
               {ITEM_CATEGORIES.filter((c) => c.value !== "other").map((c) => {
                 const rules = itemTypeRules.get(c.value) ?? [];
@@ -440,10 +440,10 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
 
           <div id="band-deductions" />
           <Card title="Band funds and costs">
-            <p className="mb-3 text-sm text-muted">
+            {/* <p className="mb-3 text-sm text-muted">
               Money taken from {possessive(band.name)} sales before the split: a band fund, costs paid back from sales, per-item costs.
               {ctx.org.kind === "label" && " Taken after anything the label takes."}
-            </p>
+            </p> */}
             <DeductionList
               people={bandPeople}
               items={bandDeductions}

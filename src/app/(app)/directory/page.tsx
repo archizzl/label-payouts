@@ -101,6 +101,7 @@ export default async function DirectoryPage() {
       contactFor={contactFor(p.id)}
       money={money.get(p.id)!}
       everyone={people}
+      bands={bands}
       ctx={ctx}
       limited={!!scope}
     />
@@ -205,7 +206,7 @@ export default async function DirectoryPage() {
             <summary className="flex flex-wrap items-center gap-x-4 gap-y-1 py-2.5 hover:bg-surface-2">
               <span className="w-4 shrink-0 text-center text-xs text-muted transition group-open/band:rotate-90">▸</span>
               <span className="font-bold">Not in a band</span>
-              <span className="text-xs text-muted">co-writers, producers, contacts for outside artists</span>
+              {/* <span className="text-xs text-muted">co-writers, producers, contacts for outside artists</span> */}
               <span className="ml-auto text-xs text-muted">
                 {inNoBand.length} {inNoBand.length === 1 ? "person" : "people"}
               </span>
@@ -342,6 +343,7 @@ function PersonRow({
   contactFor,
   money,
   everyone,
+  bands,
   ctx,
   limited,
 }: {
@@ -353,6 +355,8 @@ function PersonRow({
   contactFor: string[];
   money: { owed: Totals; paid: Totals };
   everyone: Person[];
+  /** The bands they can be added to (the ones on this page). */
+  bands: Band[];
   ctx: Context;
   limited: boolean;
 }) {
@@ -399,30 +403,7 @@ function PersonRow({
       </summary>
       <div className="mb-3 space-y-4 border border-border bg-surface-2 p-4">
         <PersonFields person={p} />
-        {membership && (
-          <form action={removeMember} className="border-t border-border pt-4">
-            <input type="hidden" name="membershipId" value={membership.id} />
-            <SubmitButton
-              variant="secondary"
-              size="sm"
-              confirm={`Take ${p.name} out of ${membership.band.name}? They stay in your books with their payout history. If they have a share in the band's split, change that on its Money tab.`}
-            >
-              Remove from <span className="normal-case">{membership.band.name}</span>
-            </SubmitButton>
-          </form>
-        )}
-        {bandsOf.length > 0 && (
-          <p className="text-xs text-muted">
-            Roles are set per band, on the band’s People tab:{" "}
-            {bandsOf.map((m, i) => (
-              <span key={m.band.id}>
-                {i > 0 && ", "}
-                <Link href={`/bands/${m.band.id}?tab=people`}>{m.band.name}</Link>
-              </span>
-            ))}
-            .
-          </p>
-        )}
+        <PersonBands person={p} bandsOf={bandsOf} bands={bands} />
         {!limited && everyone.length > 1 && (
           <form action={mergePeopleAction} className="flex flex-wrap items-end gap-2 border-t border-border pt-4">
             <input type="hidden" name="fromId" value={p.id} />
@@ -462,6 +443,59 @@ function PersonRow({
         )}
       </div>
     </details>
+  );
+}
+
+/** In a person's panel: the bands they're in (each with remove), and adding them to another. */
+function PersonBands({ person: p, bandsOf: all, bands }: { person: Person; bandsOf: Membership[]; bands: Band[] }) {
+  // A band manager only sees (and changes) their own bands.
+  const bandsOf = all.filter((m) => bands.some((b) => b.id === m.band.id));
+  const notIn = bands.filter((b) => !bandsOf.some((m) => m.band.id === b.id && m.active));
+  return (
+    <div className="space-y-2 border-t border-border pt-4 text-sm">
+      <p className="text-xs text-muted lowercase">bands</p>
+      {bandsOf.length === 0 && <p className="text-muted">Not in a band.</p>}
+      {bandsOf.length > 0 && (
+        <ul className="space-y-1">
+          {bandsOf.map((m) => (
+            <li key={m.id} className="flex flex-wrap items-center gap-3">
+              <Link href={`/bands/${m.band.id}?tab=people`} className={m.active ? "" : "opacity-60"}>
+                {m.band.name}
+              </Link>
+              {!m.active && <span className="text-xs text-muted">former member</span>}
+              <form action={removeMember} className="ml-auto">
+                <input type="hidden" name="membershipId" value={m.id} />
+                <SubmitButton
+                  variant="ghost"
+                  size="sm"
+                  confirm={`Take ${p.name} out of ${m.band.name}? They stay in your books with their payout history. If they have a share in the band's split, change that on its Money tab.`}
+                >
+                  remove
+                </SubmitButton>
+              </form>
+            </li>
+          ))}
+        </ul>
+      )}
+      {notIn.length > 0 && (
+        <form action={addMember} className="flex flex-wrap items-center gap-2">
+          <input type="hidden" name="personId" value={p.id} />
+          <select name="bandId" required defaultValue="" className="!w-56">
+            <option value="" disabled>
+              Add to a band…
+            </option>
+            {notIn.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
+            ))}
+          </select>
+          <SubmitButton size="sm" variant="secondary">
+            add
+          </SubmitButton>
+        </form>
+      )}
+    </div>
   );
 }
 

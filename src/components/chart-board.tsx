@@ -446,7 +446,7 @@ export function ChartBoard({
           );
         })}
       </div>
-      {shown.length === 0 && <p className="mb-3 text-sm text-muted">All charts here are hidden.</p>}
+      {/* {shown.length === 0 && <p className="mb-3 text-sm text-muted">All charts here are hidden.</p>} */}
       <AddMenu charts={charts} layout={layout} onAdd={add} onReset={reset} />
     </div>
   );
