@@ -160,7 +160,13 @@ async function bandLens(ctx: Context, extra: Access["permissions"] = {}): Promis
 /** The signed-in person's own context, ignoring "view as". */
 export const realContext = cache(async (): Promise<Context> => {
   const session = await getSession();
-  if (!session) redirect("/login");
+  if (!session) {
+    // Which sign-in cookies came with a request that has no session (names and counts, never values).
+    const raw = (await headers()).get("cookie") ?? "";
+    const names = raw.split(";").map((c) => c.split("=")[0].trim()).filter((n) => n.includes("better-auth"));
+    if (names.length) console.log(`signed-out request with auth cookies: ${names.join(", ")}`);
+    redirect("/login");
+  }
   const accounts = await accountsFor(session.user.id);
   if (accounts.length === 0) redirect("/welcome");
   const org = accounts.find((a) => a.id === session.session.activeOrganizationId) ?? accounts[0];
