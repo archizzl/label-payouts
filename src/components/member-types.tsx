@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ActionForm, SubmitButton } from "@/components/client";
 import { Card, Disclosure, Empty, Field } from "@/components/ui";
 import { db, schema } from "@/db";
-import { AREAS, type Area, describePermissions, normalizeBandAreas, normalizePermissions } from "@/lib/permissions";
+import { AREAS, type Area, normalizeBandAreas, normalizePermissions } from "@/lib/permissions";
 import { deleteMemberType, saveMemberType } from "@/server/account-actions";
 import { listMemberTypes, memberTypeOf } from "@/server/member-types";
 
@@ -44,7 +44,6 @@ export async function MemberTypesCard({ orgId }: { orgId: string }) {
                     <span className="font-medium">{t.name}</span>
                     <span className="text-xs text-muted">{holders.length ? holders.join(", ") : "nobody yet"}</span>
                   </div>
-                  <p className="text-sm text-muted">{describePermissions(permissions, bandAreas)}</p>
                   <div className="mt-2 flex flex-wrap items-start gap-2">
                     <Disclosure summary="Change">
                       <MemberTypeForm id={t.id} name={t.name} permissions={permissions} bandAreas={bandAreas} />
@@ -131,8 +130,7 @@ function MemberTypeForm({
         </tbody>
       </table>
       {/* <p className="text-xs text-muted">
-        “Only their own bands” means the bands they play in, or, for a manager, the bands you pick for them under Directory → Who can sign in
-        (managing a band doesn’t put them in its splits). Everyone also sees their own earnings. Settings, who can sign in and label-wide
+        “Only their own bands” means the bands they play in. Everyone also sees their own earnings. Settings, who can sign in and label-wide
         changes (new bands, merging people) stay with admins.
       </p> */}
       <SubmitButton>{id ? "Save" : "Add member type"}</SubmitButton>
