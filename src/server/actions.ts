@@ -256,7 +256,7 @@ export async function deletePerson(_: ActionState, fd: FormData): Promise<Action
   if (hasPayouts) return { error: "This person has payout history, so they can't be deleted. Remove them from their bands instead." };
   const paidTo = await db.select().from(deductions).where(eq(deductions.personId, id));
   if (paidTo.length) {
-    return { error: `This person is paid by the deduction “${paidTo[0].label}”. Change or delete it first (under label rules or the band page).` };
+    return { error: `This person is paid by the deduction “${paidTo[0].label}”. Change or delete it first (under Rules or on the band’s page).` };
   }
   await db.delete(people).where(and(eq(people.orgId, orgId), eq(people.id, id)));
   done();

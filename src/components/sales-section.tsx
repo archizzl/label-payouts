@@ -88,7 +88,7 @@ export async function SalesSection({
         currency: cur,
         segments,
         caption: `Of the ${formatCents(report.gross, cur)} fans paid.`,
-        note: report.shipping > 0 ? `The label’s part includes ${formatCents(report.shipping, cur)} of shipping fans paid. Shipping isn’t split: it stays with the label, for postage.` : undefined,
+        note: report.shipping > 0 ? `Includes ${formatCents(report.shipping, cur)} of shipping, which stays with the label.` : undefined,
       },
     });
   const defaults: [string, ChartFormat?][] = [

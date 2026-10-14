@@ -17,14 +17,14 @@ import { loadEngineContext } from "@/server/data";
 const BASE = 10000;
 
 const SOURCE: Record<RuleSource, string> = {
-  track: "the track’s own split",
-  release: "the release’s own split",
-  album_average: "the album’s tracks’ splits",
-  band_item_type: "the band’s split for this kind of item",
-  band_default: "the band’s split",
-  label_default: "the label-wide default split",
-  outside_artist: "the outside artist’s contact",
-  label_keeps: "the label keeps it (the label’s own releases)",
+  track: "Track’s own split",
+  release: "Release’s own split",
+  album_average: "Album’s track splits",
+  band_item_type: "Band’s split for this kind of item",
+  band_default: "Band’s split",
+  label_default: "Label-wide split",
+  outside_artist: "Outside artist’s contact",
+  label_keeps: "Label keeps it",
 };
 
 const WHERE: Record<string, string> = { label: "kept by the label", band_fund: "into the band fund", expense: "held back for costs", person: "paid to" };
@@ -99,7 +99,6 @@ export async function MoneyRules({
           if (def?.kind === "sale_part") return salePartLabel(def.salePart).toLowerCase();
           return pct(d.cents);
         };
-        const labelTakes = r.deductions.some((d) => d.cents && d.destination === "label");
         return (
           <div key={e.category} className="border border-border bg-surface-2 p-4 text-sm">
             <p className="mb-2 font-medium">{what}, after Bandcamp’s fees:</p>
@@ -126,43 +125,31 @@ export async function MoneyRules({
                 </li>
               )}
             </ul>
-            <p className="mt-2 text-xs text-muted">
-              {labelAccount && !labelTakes && "The label keeps nothing. "}
-              {r.ruleSource === "label_default"
-                ? `${bandName} has no split of its own, so it uses the label-wide default: the band’s current members share it evenly (after any fixed shares set there).`
-                : r.ruleSource
-                  ? `Shared out by ${SOURCE[r.ruleSource]}.`
-                  : null}
-            </p>
+            {r.ruleSource && <p className="mt-2 text-xs text-muted">{SOURCE[r.ruleSource]}</p>}
           </div>
         );
       })}
 
       <ul className="space-y-1.5 text-sm text-muted">
-        {labelAccount && (
-          <li>
-            What the label keeps is set in <Link href="/rules#label-cut">Label rules</Link>; band funds and costs for {bandName} are under{" "}
-            <a href="#band-deductions">Band funds and costs</a> below.
-          </li>
-        )}
         <li>
-          The split is <a href="#default-split">{possessive(bandName)} split</a>
+          Set in <a href="#default-split">{possessive(bandName)} split</a>, <a href="#item-type-splits">splits for a kind of item</a>
+          {labelAccount ? ", " : " and "}
+          <a href="#band-deductions">band funds and costs</a>
           {labelAccount && (
             <>
-              {" "}(or, without one, the <Link href="/rules">label-wide split</Link>)
+              {" "}and <Link href="/rules">Rules</Link>
             </>
           )}
-          , unless a <a href="#item-type-splits">split for a kind of item</a> or a release’s own split applies.
+          .
         </li>
         {ownSplits > 0 && (
           <li>
-            {ownSplits === 1 ? "One release has" : `${ownSplits} releases have`} their own split: see the{" "}
-            <Link href="?tab=catalog">Catalog tab</Link>.
+            {ownSplits === 1 ? "1 release has its" : `${ownSplits} releases have their`} own split: see the <Link href="?tab=catalog">Catalog tab</Link>.
           </li>
         )}
         {recoupable.length > 0 && (
           <li>
-            Recoupable costs come off sales first until they’re paid back:{" "}
+            Recoupable costs:{" "}
             {recoupable.map((d, i) => (
               <span key={d.id}>
                 {i > 0 && ", "}

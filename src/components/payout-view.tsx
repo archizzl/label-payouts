@@ -9,7 +9,7 @@ import { formatCents } from "@/lib/money";
 import { payHandlesSummary, payMethods } from "@/lib/paypal-export";
 import { STATUS_LABEL, STATUS_TONE } from "@/lib/status";
 import { finalizePayout, markAllPaid, releaseUnpaidSales, resyncPreview, setPayoutStatus, undoFinalize } from "@/server/actions";
-import { plural } from "@/lib/plural";
+import { plural, possessive } from "@/lib/plural";
 import { bandcampCredentials } from "@/server/bandcamp-api";
 import { getContext } from "@/server/context";
 import { type PayoutScope, payoutNote, type periodView, type previewView } from "@/server/period-view";
@@ -171,11 +171,11 @@ export async function PayoutView({
 
       {noLabelCut && (
         <Callout tone="neutral">
-          The label keeps nothing from these sales: everything after fees goes to the bands. To take a cut, add one in{" "}
-          <Link href="/rules#label-cut" className="underline">
-            Label rules
+          The label keeps nothing from these sales. To take a cut, add one in{" "}
+          <Link href="/rules" className="underline">
+            Rules
           </Link>
-          , or say there that the label keeps nothing.
+          .
         </Callout>
       )}
       {live.alreadyPaid.length > 0 && (
@@ -459,11 +459,9 @@ export async function PayoutView({
 
         {holderLine && (
           <p className="mt-3 text-xs text-muted">
-            {holderLine.name} holds the label’s bank account, so their <Money cents={holderLine.amountCents} currency={holderLine.currency} />{" "}
-            {finalized ? "is recorded as theirs but stays in the account" : "will be recorded as theirs but stays in the account"}: no
-            PayPal payment needed. Change who holds the account in{" "}
+            {possessive(holderLine.name)} <Money cents={holderLine.amountCents} currency={holderLine.currency} /> stays in the{" "}
             <Link href="/account#label-bank-account" className="underline">
-              Settings
+              label’s bank account
             </Link>
             .
           </p>
