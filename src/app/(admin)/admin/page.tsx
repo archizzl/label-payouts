@@ -87,7 +87,7 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
         {waiting.length === 0 ? (
           <Empty>Nothing waiting.</Empty>
         ) : (
-          <ul className="divide-y divide-border border-y border-border">
+          <ul className="divide-y divide-border border-b border-border">
             {waiting.map(({ app, user }) => (
               <li key={app.id} className="space-y-3 py-4 text-sm">
                 <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">

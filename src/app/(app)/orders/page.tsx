@@ -225,7 +225,7 @@ function OrderList({
   sales: Map<number, OrderSale[]> | null;
 }) {
   return (
-    <ul className="divide-y divide-border border-y border-border">
+    <ul className="divide-y divide-border border-b border-border">
       {orders.map((o) => (
         <li key={o.paymentId} className="grid gap-4 py-4 md:grid-cols-[minmax(0,1fr)_14rem]">
           <div className="min-w-0 space-y-2">
@@ -495,7 +495,7 @@ function PickupList({ pickups, bandName, canEdit }: { pickups: PickupRow[]; band
   if (!pickups.length) return null;
   return (
     <Card title={`Waiting for pickup (${pickups.length})`}>
-      <ul className="divide-y divide-border border-y border-border">
+      <ul className="divide-y divide-border border-b border-border">
         {pickups.map((p) => (
           <li key={p.id} className="grid gap-3 py-3 md:grid-cols-[minmax(0,1fr)_auto]">
             <div className="min-w-0 space-y-1">

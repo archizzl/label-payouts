@@ -33,7 +33,7 @@ export async function MemberTypesCard({ orgId }: { orgId: string }) {
         {types.length === 0 ? (
           <Empty>No member types yet.</Empty>
         ) : (
-          <ul className="mb-6 divide-y divide-border border-y border-border">
+          <ul className="mb-6 divide-y divide-border border-b border-border">
             {types.map((t) => {
               const permissions = normalizePermissions(t.permissions);
               const bandAreas = normalizeBandAreas(t.bandAreas);

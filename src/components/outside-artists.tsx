@@ -77,7 +77,7 @@ export async function OutsideArtists() {
           keeps their share. Until you do one or the other, sales of their tracks and of the whole release are held back.
         </p> */}
         {rows.length > 0 && (
-          <ul className="divide-y divide-border border-y border-border">
+          <ul className="divide-y divide-border border-b border-border">
             {rows.map(({ artist, contact, tracks }) => (
               <li key={artist.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 py-2.5 text-sm">
                 <div className="min-w-[12rem] flex-1">

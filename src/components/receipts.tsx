@@ -284,7 +284,7 @@ export function ExpenseTable({
 }) {
   if (!rows.length) return <Empty>No expenses yet.</Empty>;
   return (
-    <ul className="divide-y divide-border border-y border-border">
+    <ul className="divide-y divide-border border-b border-border">
       {rows.map((e) => (
         <li key={e.id} className="grid gap-2 py-3 sm:grid-cols-[6rem_minmax(0,1fr)_auto]">
           <span className="text-sm text-muted">{e.date}</span>

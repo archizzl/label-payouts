@@ -214,7 +214,7 @@ export default async function ReleasePage({ params, searchParams }: PageProps<"/
           <Empty>No tracks.</Empty>
         ) : (
           // A compact Bandcamp-style tracklist; click a track to manage its split and details.
-          <ul className="divide-y divide-border border-y border-border">
+          <ul className="divide-y divide-border border-b border-border">
             {tracks.map((t) => {
               const trackBandId = t.bandId ?? release.bandId;
               const trackPeople = trackBandId === release.bandId ? people : (peopleForBand.get(trackBandId) ?? people);

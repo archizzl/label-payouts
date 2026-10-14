@@ -410,7 +410,7 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
               Optional: a different split for merch, digital albums or digital tracks. These apply when the sale has no
               release/track split, unless you tick “use this even when the release/track has its own split”.
             </p> */}
-            <div className="divide-y divide-border border-y border-border">
+            <div className="divide-y divide-border border-b border-border">
               {ITEM_CATEGORIES.filter((c) => c.value !== "other").map((c) => {
                 const rules = itemTypeRules.get(c.value) ?? [];
                 return (

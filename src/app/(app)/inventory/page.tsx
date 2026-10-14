@@ -172,7 +172,7 @@ function ItemTable({
   ownBandsOnly: boolean;
 }) {
   return (
-    <ul className="divide-y divide-border border-y border-border">
+    <ul className="divide-y divide-border border-b border-border">
       {items.map((i) => (
         <li key={i.id} className="grid gap-3 py-3 md:grid-cols-[minmax(0,1fr)_7rem]">
           <div className="min-w-0 space-y-1">
