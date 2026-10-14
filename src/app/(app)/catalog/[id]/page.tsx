@@ -10,24 +10,29 @@ import { SharesSummary, SplitRules, currentRule } from "@/components/split-rules
 import { Card, Disclosure, Empty, Field, MoneyList } from "@/components/ui";
 import { db, schema } from "@/db";
 import { addTracks, deleteRelease, deleteTrack, refreshReleaseFromBandcamp, saveRelease, saveTrack } from "@/server/actions";
-import { bandScope } from "@/lib/permissions";
+import { bandScope, can } from "@/lib/permissions";
 import { getContext, requireAccess } from "@/server/context";
 import { bandAssociatedPeople, costDeductionsFor, nameMaps, personOptionsFor, ruleFilter, rulesWhere } from "@/server/data";
 
 /** The tab's title: the release's (or merch item's) name. */
 export async function generateMetadata({ params }: PageProps<"/catalog/[id]">) {
-  const { orgId } = await getContext();
+  const { orgId, access } = await getContext();
   const [release] = await db
-    .select({ title: schema.releases.title })
+    .select({ title: schema.releases.title, bandId: schema.releases.bandId })
     .from(schema.releases)
     .where(and(eq(schema.releases.orgId, orgId), eq(schema.releases.id, Number((await params).id))));
-  return { title: release?.title ?? "release" };
+  // Only name what they could open.
+  const scope = bandScope(access, "catalog");
+  if (!release || !can(access, "catalog") || (scope && !scope.includes(release.bandId))) return { title: "release" };
+  return { title: release.title };
 }
 
 export default async function ReleasePage({ params, searchParams }: PageProps<"/catalog/[id]">) {
   await connection();
   const ctx = await requireAccess("catalog");
   const { orgId } = ctx;
+  // Seeing the catalog without changing it: splits and costs show, the forms don't.
+  const canEdit = can(ctx.access, "catalog", "edit");
   const id = Number((await params).id);
   const [release] = await db
     .select()
@@ -199,6 +204,7 @@ export default async function ReleasePage({ params, searchParams }: PageProps<"/
           people={people}
           scope={{ scope: "release", releaseId: id }}
           emptyText={isMerch ? "No split for this item yet. Uses the band’s splits." : "Uses the band’s splits."}
+          readOnly={!canEdit}
         />
       </Card>
 
@@ -255,8 +261,9 @@ export default async function ReleasePage({ params, searchParams }: PageProps<"/
                     <div className="mb-3 ml-9 space-y-5 border border-border bg-surface-2 p-4">
                       <div>
                         <h3 className="mb-2 text-sm font-bold">split</h3>
-                        <SplitRules rules={rules} people={trackPeople} scope={{ scope: "track", trackId: t.id }} emptyText="No track split. Uses the release or band split." />
+                        <SplitRules rules={rules} people={trackPeople} scope={{ scope: "track", trackId: t.id }} emptyText="No track split. Uses the release or band split." readOnly={!canEdit} />
                       </div>
+                      {canEdit && (
                       <div>
                         <h3 className="mb-2 text-sm font-bold">details</h3>
                         <form action={saveTrack} className="grid gap-3 sm:grid-cols-2">
@@ -299,6 +306,7 @@ export default async function ReleasePage({ params, searchParams }: PageProps<"/
                           </SubmitButton>
                         </form>
                       </div>
+                      )}
                     </div>
                   </details>
                 </li>
@@ -306,6 +314,7 @@ export default async function ReleasePage({ params, searchParams }: PageProps<"/
             })}
           </ul>
         )}
+        {canEdit && (
         <div className="mt-4">
           <Disclosure summary="+ Add tracks">
             <form action={addTracks} className="space-y-3">
@@ -317,6 +326,7 @@ export default async function ReleasePage({ params, searchParams }: PageProps<"/
             </form>
           </Disclosure>
         </div>
+        )}
       </Card>
       )}
 
@@ -371,6 +381,7 @@ export default async function ReleasePage({ params, searchParams }: PageProps<"/
                       currency={p.currency ?? "USD"}
                       people={bandPeople}
                       personName={names.person}
+                      readOnly={!canEdit}
                     />
                   </td>
                 </tr>
@@ -402,6 +413,7 @@ export default async function ReleasePage({ params, searchParams }: PageProps<"/
         </Card>
       )}
 
+      {canEdit && (
       <Card title={isMerch ? "Item settings" : "Release settings"}>
         <form action={saveRelease} className="grid gap-4 sm:grid-cols-2">
           <input type="hidden" name="id" value={id} />
@@ -446,6 +458,7 @@ export default async function ReleasePage({ params, searchParams }: PageProps<"/
           </SubmitButton>
         </form>
       </Card>
+      )}
     </>
   );
 }

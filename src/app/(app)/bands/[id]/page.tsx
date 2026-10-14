@@ -24,7 +24,7 @@ import { linkForLabelBand } from "@/server/links";
 import { LabelFunds } from "@/components/label-funds";
 import { ExpenseForm, ExpenseTable } from "@/components/receipts";
 import { addMember, deleteBand, removeMember, saveRelease, updateMembership } from "@/server/actions";
-import { bandScope } from "@/lib/permissions";
+import { bandScope, can } from "@/lib/permissions";
 import { getContext, requireAccess } from "@/server/context";
 import { projectsEnabled } from "@/server/features";
 import { accountExpenses, expenseFileList } from "@/server/expenses";
@@ -36,7 +36,7 @@ export async function generateMetadata({ params }: PageProps<"/bands/[id]">) {
   const { orgId, access } = await getContext();
   const id = Number((await params).id);
   const scope = bandScope(access, "roster");
-  if (scope && !scope.includes(id)) return { title: "band" };
+  if (!can(access, "roster") || (scope && !scope.includes(id))) return { title: "band" };
   const [band] = await db
     .select({ name: schema.bands.name })
     .from(schema.bands)

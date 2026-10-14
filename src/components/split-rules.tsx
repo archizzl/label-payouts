@@ -40,12 +40,15 @@ export function SplitRules({
   scope,
   emptyText,
   showOverride,
+  readOnly = false,
 }: {
   rules: RuleWithShares[];
   people: PersonOption[];
   scope: Scope;
   emptyText: string;
   showOverride?: boolean;
+  /** Seeing splits without changing them: no edit, delete or new-split controls. */
+  readOnly?: boolean;
 }) {
   const current = currentRule(rules);
   return (
@@ -71,6 +74,7 @@ export function SplitRules({
                 ) : (
                   <SharesSummary shares={r.shares} people={people} />
                 )}
+                {!readOnly && (
                 <div className="mt-3 flex flex-wrap items-start gap-2">
                   <Disclosure summary="Edit">
                     <SplitEditor
@@ -90,13 +94,16 @@ export function SplitRules({
                     </SubmitButton>
                   </form>
                 </div>
+                )}
               </li>
             ))}
         </ul>
       )}
-      <Disclosure summary={rules.length ? "+ New split (from a date)" : "+ Set split"}>
-        <SplitEditor {...scope} people={people} initial={current?.shares} showOverride={showOverride} />
-      </Disclosure>
+      {!readOnly && (
+        <Disclosure summary={rules.length ? "+ New split (from a date)" : "+ Set split"}>
+          <SplitEditor {...scope} people={people} initial={current?.shares} showOverride={showOverride} />
+        </Disclosure>
+      )}
     </div>
   );
 }

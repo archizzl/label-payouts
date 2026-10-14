@@ -44,6 +44,8 @@ export default async function ReceiptsPage({ searchParams }: PageProps<"/receipt
   const form = (e?: (typeof all)[number]) => (
     <ExpenseForm expense={e} bands={bandsShown} releases={releases} people={people} bandId={bandFilter} projects={projects} />
   );
+  // Seeing receipts without changing them: no forms, approve or pay-back buttons.
+  const tableMode = canChange ? ({ mode: "admin", edit: form } as const) : ({ mode: "readonly" } as const);
 
   return (
     <>
@@ -69,15 +71,17 @@ export default async function ReceiptsPage({ searchParams }: PageProps<"/receipt
 
       {pending.length > 0 && (
         <Card title={`Waiting for approval (${pending.length})`}>
-          <ExpenseTable rows={pending} files={files} personName={personName} bandName={bandName} projectName={projectName} mode="admin" edit={form} payees={payees} />
+          <ExpenseTable rows={pending} files={files} personName={personName} bandName={bandName} projectName={projectName} {...tableMode} payees={payees} />
         </Card>
       )}
 
       <Card title="Expenses">
-        <div className="mb-4">
-          <Disclosure summary="+ Add an expense">{form()}</Disclosure>
-        </div>
-        <ExpenseTable rows={rest} files={files} personName={personName} bandName={bandName} projectName={projectName} mode="admin" edit={form} payees={payees} />
+        {canChange && (
+          <div className="mb-4">
+            <Disclosure summary="+ Add an expense">{form()}</Disclosure>
+          </div>
+        )}
+        <ExpenseTable rows={rest} files={files} personName={personName} bandName={bandName} projectName={projectName} {...tableMode} payees={payees} />
       </Card>
 
       {clearable && clearable.files.length > 0 && (

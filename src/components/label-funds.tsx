@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ActionForm, SubmitButton } from "@/components/client";
 import { Card, Disclosure, Empty, Field, Money, MoneyList } from "@/components/ui";
+import { can } from "@/lib/permissions";
 import { db, schema } from "@/db";
 import { centsToDecimal } from "@/lib/money";
 import { deleteLabelTransfer, saveLabelTransfer } from "@/server/actions";
@@ -129,7 +130,8 @@ async function sourceDetails(orgId: string): Promise<SourceInfo[]> {
  * donations), and what's left. With `bandId`, only transfers raised by that band.
  */
 export async function LabelFunds({ bandId, showTotals = true }: { bandId?: number; showTotals?: boolean }) {
-  const { orgId } = await getContext();
+  const { orgId, access } = await getContext();
+  const editable = can(access, "funds", "edit");
   const [funds, names, sources] = await Promise.all([labelFunds(orgId), nameMaps(orgId), sourceDetails(orgId)]);
   const transfers = bandId ? funds.transfers.filter((t) => t.bandId === bandId) : funds.transfers;
   const causes = bandId ? funds.causes.filter((c) => c.bandId === bandId) : funds.causes;
@@ -230,6 +232,7 @@ export async function LabelFunds({ bandId, showTotals = true }: { bandId?: numbe
                   </td>
                   <td className="text-xs text-muted">{[t.method, t.reference].filter(Boolean).join(" · ") || "—"}</td>
                   <td className="text-right">
+                    {editable && (
                     <div className="flex items-start justify-end gap-2">
                       <Disclosure summary="Edit">
                         <TransferForm transfer={t} sources={sources} />
@@ -241,6 +244,7 @@ export async function LabelFunds({ bandId, showTotals = true }: { bandId?: numbe
                         </form>
                       </Disclosure>
                     </div>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -248,11 +252,13 @@ export async function LabelFunds({ bandId, showTotals = true }: { bandId?: numbe
           </table>
         </div>
       )}
-      <div className="mt-4">
-        <Disclosure summary="+ Record money sent out">
-          <TransferForm bandId={bandId} sources={sources} />
-        </Disclosure>
-      </div>
+      {editable && (
+        <div className="mt-4">
+          <Disclosure summary="+ Record money sent out">
+            <TransferForm bandId={bandId} sources={sources} />
+          </Disclosure>
+        </div>
+      )}
     </Card>
   );
 }

@@ -17,6 +17,7 @@ export function ItemCosts({
   currency,
   people,
   personName,
+  readOnly = false,
 }: {
   costs: Deduction[];
   releaseId: number;
@@ -24,6 +25,7 @@ export function ItemCosts({
   currency: string;
   people: { id: number; name: string }[];
   personName: Map<number, string>;
+  readOnly?: boolean;
 }) {
   return (
     <div className="space-y-1">
@@ -36,7 +38,7 @@ export function ItemCosts({
             {d.packageId == null && d.releaseId == null && d.bandId != null && " · band-wide"}
           </span>
           {/* Only costs made for exactly this item can be removed here; broader ones live on the band / label rules pages. */}
-          {d.releaseId === releaseId && (d.packageId ?? null) === (packageId ?? null) && (
+          {!readOnly && d.releaseId === releaseId && (d.packageId ?? null) === (packageId ?? null) && (
             <form action={deleteDeduction}>
               <input type="hidden" name="id" value={d.id} />
               <SubmitButton variant="ghost" size="sm" confirm="Remove this cost?">
@@ -46,6 +48,7 @@ export function ItemCosts({
           )}
         </div>
       ))}
+      {!readOnly && (
       <Disclosure summary="+ cost">
         <form action={saveItemCost} className="flex flex-wrap items-end gap-3">
           <input type="hidden" name="releaseId" value={releaseId} />
@@ -69,6 +72,7 @@ export function ItemCosts({
           <SubmitButton size="sm">add cost</SubmitButton>
         </form>
       </Disclosure>
+      )}
     </div>
   );
 }
