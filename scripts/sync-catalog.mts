@@ -33,6 +33,13 @@ const secret = setting("CATALOG_SYNC_SECRET");
 const startedAt = new Date().toISOString();
 const stamp = () => new Date().toISOString();
 
+// A run stuck on a stalled connection (after the Mac sleeps mid-sync, say) would stop every later
+// one: launchd doesn't start another while it's still going. So a run gives up after 15 minutes.
+setTimeout(() => {
+  console.log(`${stamp()}  Gave up: still going after 15 minutes. The next run starts within a minute.`);
+  process.exit(1);
+}, 15 * 60 * 1000);
+
 // "Sync now" requests waiting on the live site.
 async function requests(): Promise<{ orgId: string; at: string }[]> {
   if (args.local || !secret) return [];

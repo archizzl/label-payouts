@@ -7,6 +7,9 @@ import { bandcampApiOff } from "@/server/bandcamp-api";
 import { catalogSyncRequestedAt } from "@/server/catalog-requests";
 import { getContext } from "@/server/context";
 
+/** How many minutes ago it was. */
+const minutesSince = (iso: string) => (Date.now() - Date.parse(iso)) / 60_000;
+
 /** "5 minutes ago", "1 hour 13 minutes ago", "3 days ago". */
 export function ago(iso: string) {
   const mins = Math.round((Date.now() - Date.parse(iso)) / 60_000);
@@ -77,8 +80,10 @@ export async function SyncStatus({ orgId, onSettings = false }: { orgId: string;
           <p>
             Releases, track lists, artwork and artist photos:{" "}
             {requestedAt
-              ? "update on its way, usually within a minute."
-              : `synced ${ago(s.catalogSyncedAt!)} (every ${CATALOG_SYNC_EVERY_MINUTES} minutes).`}
+              ? minutesSince(requestedAt) > 5
+                ? <span className="text-warn">asked for {ago(requestedAt)}, not done yet. The Mac that runs this sync may be off or asleep.</span>
+                : "update on its way, usually within a minute."
+              :`synced ${ago(s.catalogSyncedAt!)} (every ${CATALOG_SYNC_EVERY_MINUTES} minutes).`}
           </p>
         )}
       </div>
