@@ -157,7 +157,7 @@ export default async function DirectoryPage() {
       )}
 
       {bands.length === 0 && <Empty>No bands yet.</Empty>}
-      <div className="divide-y divide-border border-y border-border">
+      <div className={scope && bands.length === 1 ? "" : "divide-y divide-border border-y border-border"}>
         {bands.map((b) => {
           const nameOf = (m: Membership) => people.find((p) => p.id === m.personId)?.name ?? "";
           // Current members first, then by name.
@@ -166,6 +166,31 @@ export default async function DirectoryPage() {
             .sort((x, y) => Number(y.active) - Number(x.active) || nameOf(x).localeCompare(nameOf(y)));
           const current = members.filter((m) => m.active).length;
           const host = bandcampHost(b);
+          const body = (
+            <>
+                {members.length > 0 && (
+                  <div className="text-sm">
+                    <ColumnHeads />
+                    {members.map((m) => row(people.find((p) => p.id === m.personId)!, m))}
+                  </div>
+                )}
+                <AddToBand bandId={b.id} bandName={b.name} people={people.filter((p) => !members.some((m) => m.personId === p.id && m.active))} />
+                {accounts.get(b.id) && (
+                  <BandAccountLine
+                    bandId={b.id}
+                    account={accounts.get(b.id)!}
+                  />
+                )}
+            </>
+          );
+          // Just one band (a band's own account): its people, without a band to open.
+          if (scope && bands.length === 1) {
+            return (
+              <div key={b.id} id={`band-${b.id}`} className="pb-4">
+                {body}
+              </div>
+            );
+          }
           return (
             <details key={b.id} id={`band-${b.id}`} className="group/band scroll-mt-4">
               <summary className="flex flex-wrap items-center gap-x-4 gap-y-1 py-2.5 hover:bg-surface-2">
@@ -189,24 +214,7 @@ export default async function DirectoryPage() {
                 </span>
                 {accounts.get(b.id)?.managed && <ViewAsButton kind="band" id={b.id} />}
               </summary>
-              <div className="mb-4 ml-8">
-                {members.length > 0 && (
-                  <div className="text-sm">
-                    <ColumnHeads />
-                    {members.map((m) => row(people.find((p) => p.id === m.personId)!, m))}
-                  </div>
-                )}
-                {/* {members.length === 0 && b.isLabel && (
-                  <p className="py-2 text-sm text-muted">What the label’s own releases earn stays with the label unless they have a split.</p>
-                )} */}
-                <AddToBand bandId={b.id} bandName={b.name} people={people.filter((p) => !members.some((m) => m.personId === p.id && m.active))} />
-                {accounts.get(b.id) && (
-                  <BandAccountLine
-                    bandId={b.id}
-                    account={accounts.get(b.id)!}
-                  />
-                )}
-              </div>
+              <div className="mb-4 ml-8">{body}</div>
             </details>
           );
         })}
