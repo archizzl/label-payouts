@@ -98,7 +98,7 @@ export async function BandAccountSection({
             ))}
             {links.map((l) => (
               <li key={l.id}>
-                <InviteLinkRow link={l} bandName={band.name} bandId={band.id} />
+                <InviteLinkRow link={l} bandId={band.id} />
               </li>
             ))}
             {openInvites.map((i) => (
@@ -120,7 +120,7 @@ export async function BandAccountSection({
             ))}
           </ul>
         )}
-        <InviteLinkForm members={members} bandId={band.id} />
+        <InviteLinkForm bandId={band.id} />
         {!nothingYet && members.length > 0 && (
           <div className="mt-4 flex flex-wrap items-center gap-3 text-sm">
             <span className="text-muted">Opens as</span>

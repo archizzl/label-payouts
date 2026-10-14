@@ -1,4 +1,4 @@
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import Link from "next/link";
 import { connection } from "next/server";
 import { ActionForm, SubmitButton } from "@/components/client";
@@ -7,6 +7,7 @@ import { db, schema } from "@/db";
 import { saveAccountSettings, testBandcampConnection } from "@/server/account-actions";
 import { WhoCanSignIn } from "@/components/who-can-sign-in";
 import { DefaultMemberForm } from "@/components/band-default-member";
+import { MyDetails } from "@/components/my-details";
 import { bandMemberChoice, bandMembers } from "@/server/band-member";
 import { SyncFooter } from "@/components/sync-status";
 import { setLabelAccountHolder, setSetupHidden } from "@/server/actions";
@@ -167,9 +168,19 @@ export default async function AccountPage() {
 async function SubAccountSettings({ ctx }: { ctx: Context }) {
   const m = ctx.managedBy!;
   const [members, choice] = await Promise.all([bandMembers(m.labelOrgId, m.bandId), bandMemberChoice()]);
+  // A member's own login: their details in the label's books, to keep up to date.
+  const mine = choice?.fixed && choice.chosen
+    ? await db
+        .select({ person: schema.people, roles: schema.bandMemberships.roles })
+        .from(schema.people)
+        .innerJoin(schema.bandMemberships, and(eq(schema.bandMemberships.personId, schema.people.id), eq(schema.bandMemberships.bandId, m.bandId)))
+        .where(and(eq(schema.people.orgId, m.labelOrgId), eq(schema.people.id, choice.chosen.id)))
+        .then((r) => r[0] ?? null)
+    : null;
   return (
     <>
       <PageHeader title="Settings" subtitle={`${ctx.org.name} · band account`} />
+      {mine && <MyDetails person={mine.person} roles={mine.roles} />}
       {/* <p className="mb-8 text-sm text-muted">
         {m.labelName} made this account for {ctx.org.name}, so you can see <Link href={`/from-label/${m.linkId}`}>what the label has for you</Link>:
         your sales, payouts, statements and receipts. The label keeps the books; ask them if something looks wrong.

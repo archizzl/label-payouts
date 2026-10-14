@@ -201,12 +201,7 @@ export default async function DirectoryPage() {
                 {accounts.get(b.id) && (
                   <BandAccountLine
                     bandId={b.id}
-                    bandName={b.name}
                     account={accounts.get(b.id)!}
-                    members={members.filter((m) => m.active).flatMap((m) => {
-                      const p = people.find((x) => x.id === m.personId);
-                      return p ? [{ id: p.id, name: p.name, email: p.email }] : [];
-                    })}
                   />
                 )}
               </div>
@@ -320,14 +315,10 @@ function AddToBand({ bandId, bandName, people }: { bandId: number; bandName: str
 /** Under a band's name: its own account, who signs in to it (or a form to invite its login), and "view as". */
 function BandAccountLine({
   bandId,
-  bandName,
   account: a,
-  members,
 }: {
   bandId: number;
-  bandName: string;
   account: BandAccountSummary;
-  members: { id: number; name: string; email: string | null }[];
 }) {
   const manage = `/bands/${bandId}?tab=people#band-account`;
   const base = process.env.BETTER_AUTH_URL ?? "";
@@ -359,9 +350,9 @@ function BandAccountLine({
             </span>
           ))}
           {a.links.map((l) => (
-            <InviteLinkRow key={l.id} link={l} bandName={bandName} bandId={bandId} />
+            <InviteLinkRow key={l.id} link={l} bandId={bandId} />
           ))}
-          {a.logins === 0 && a.invites.length === 0 && a.links.length === 0 && <InviteLinkForm members={members} bandId={bandId} small />}
+          {a.logins === 0 && a.invites.length === 0 && a.links.length === 0 && <InviteLinkForm bandId={bandId} />}
         </>
       ) : (
         <>

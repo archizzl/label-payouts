@@ -9,7 +9,6 @@ import { inviteMemberTypes, listMemberTypes, memberTypeOf } from "@/server/membe
 import { InviteWhoFields } from "./invite-fields";
 import { RolePicker } from "./role-picker";
 import { InviteLinkForm, InviteLinkRow } from "./band-invite-links";
-import { bandMembers } from "@/server/band-member";
 import { bandLoginNames, openInviteLinks } from "@/server/band-invite-links";
 
 const ROLE_LABEL: Record<string, string> = { owner: "owner", admin: "admin", member: "member" };
@@ -58,9 +57,7 @@ export async function WhoCanSignIn({ ctx }: { ctx: Context }) {
   const unlinked = people.filter((p) => !p.userId);
   // A band account: its members in the label's books (for invite links), its open links, and which
   // member each personal login is (the rest are the band's shared login).
-  const [bandPeople, links, loginNames] = ctx.managedBy
-    ? await Promise.all([bandMembers(ctx.managedBy.labelOrgId, ctx.managedBy.bandId), openInviteLinks(orgId), bandLoginNames(orgId)])
-    : [[], [], new Map<string, string>()];
+  const [links, loginNames] = ctx.managedBy ? await Promise.all([openInviteLinks(orgId), bandLoginNames(orgId)]) : [[], new Map<string, string>()];
 
   return (
         <Card title={`Who can sign in to ${ctx.org.name}`}>
@@ -159,7 +156,7 @@ export async function WhoCanSignIn({ ctx }: { ctx: Context }) {
               {links.map((l) => (
                 <tr key={l.id}>
                   <td colSpan={managed ? 1 : 3}>
-                    <InviteLinkRow link={l} bandName={ctx.org.name} />
+                    <InviteLinkRow link={l} />
                   </td>
                   <td />
                 </tr>
@@ -169,7 +166,7 @@ export async function WhoCanSignIn({ ctx }: { ctx: Context }) {
 
           {managed ? (
             // A band account: an invite link, for the band or one member; whoever opens it picks their own email.
-            <InviteLinkForm members={bandPeople} />
+            <InviteLinkForm />
           ) : (
           <Disclosure summary="+ Invite someone">
             <ActionForm action={inviteMember} className="grid gap-4 sm:grid-cols-3">

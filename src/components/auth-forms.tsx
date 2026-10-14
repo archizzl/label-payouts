@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { acceptInvite, createAccount, type FormState, resetPassword, signIn, signUp } from "@/server/account-actions";
 import { joinWithInviteLink } from "@/server/band-invite-actions";
 import { buttonClass, Field } from "./ui";
@@ -138,22 +138,48 @@ export function ResetPasswordForm({ token }: { token: string }) {
   );
 }
 
-/** Join a band's account with an invite link. `auto`: straight after signing up or in for it. */
-export function JoinBandForm({ id, label, auto = false }: { id: string; label: string; auto?: boolean }) {
+/**
+ * Join a band's account with an invite link. `members`: the band's members without a login of their
+ * own yet, to pick from (or add yourself, or be the band's shared login); null when the link already
+ * says who. `auto`: straight after signing up or in, when there's nothing to choose.
+ */
+export function JoinBandForm({ id, bandName, members, auto = false }: { id: string; bandName: string; members: { id: number; name: string }[] | null; auto?: boolean }) {
   const [state, action, pending] = useActionState(joinWithInviteLink, null);
+  const [as, setAs] = useState(members?.[0] ? String(members[0].id) : "new");
   const form = useRef<HTMLFormElement>(null);
   const sent = useRef(false);
   useEffect(() => {
-    if (auto && !sent.current) {
+    if (auto && !members && !sent.current) {
       sent.current = true;
       form.current?.requestSubmit();
     }
-  }, [auto]);
+  }, [auto, members]);
   return (
-    <form ref={form} action={action} className="space-y-3">
+    <form ref={form} action={action} className="space-y-4">
       <input type="hidden" name="id" value={id} />
+      {members && (
+        <fieldset className="space-y-2">
+          <legend className="mb-1 text-sm font-medium">Who are you?</legend>
+          {members.map((m) => (
+            <label key={m.id} className="flex items-center gap-2 text-sm">
+              <input type="radio" name="as" value={m.id} checked={as === String(m.id)} onChange={() => setAs(String(m.id))} /> {m.name}
+            </label>
+          ))}
+          <label className="flex items-center gap-2 text-sm">
+            <input type="radio" name="as" value="new" checked={as === "new"} onChange={() => setAs("new")} /> I’m not listed
+          </label>
+          {as === "new" && (
+            <Field label="Your name">
+              <input name="name" autoComplete="name" required />
+            </Field>
+          )}
+          <label className="flex items-center gap-2 text-sm">
+            <input type="radio" name="as" value="band" checked={as === "band"} onChange={() => setAs("band")} /> The whole band (one shared login)
+          </label>
+        </fieldset>
+      )}
       <Result state={state} />
-      <Submit pending={pending}>{label}</Submit>
+      <Submit pending={pending}>{`Join ${bandName}`}</Submit>
     </form>
   );
 }

@@ -1,6 +1,7 @@
 import "server-only";
 import { and, eq, gt, isNull } from "drizzle-orm";
 import { db, schema } from "@/db";
+import { bandMembers } from "./band-member";
 
 /*
  * Single-use links to join a label-made band account (see schema.bandInviteLinks). Whoever opens
@@ -44,11 +45,21 @@ export async function usableInviteLink(id: string) {
     .where(eq(schema.bandInviteLinks.id, id));
   if (!row || row.link.usedAt || row.link.canceledAt || row.link.expiresAt <= stamp(new Date())) return null;
   const [label] = await db
-    .select({ name: schema.organization.name })
+    .select({ name: schema.organization.name, labelOrgId: schema.accountLinks.labelOrgId, bandId: schema.accountLinks.labelBandId })
     .from(schema.accountLinks)
     .innerJoin(schema.organization, eq(schema.organization.id, schema.accountLinks.labelOrgId))
     .where(and(eq(schema.accountLinks.bandOrgId, row.org.id), eq(schema.accountLinks.managed, true)));
-  return { link: row.link, band: row.org, personName: row.personName, labelName: label?.name ?? null };
+  if (!label) return null;
+  return { link: row.link, band: row.org, personName: row.personName, labelName: label.name, labelOrgId: label.labelOrgId, bandId: label.bandId };
+}
+
+/** The band's members in the label's books who don't have a login of their own on its account yet. */
+export async function unclaimedMembers(bandOrgId: string, labelOrgId: string, bandId: number) {
+  const [members, claimed] = await Promise.all([
+    bandMembers(labelOrgId, bandId),
+    db.select({ personId: schema.bandLoginPeople.personId }).from(schema.bandLoginPeople).where(eq(schema.bandLoginPeople.orgId, bandOrgId)),
+  ]);
+  return members.filter((m) => !claimed.some((c) => c.personId === m.id));
 }
 
 /** The member each of a band account's personal logins is, by user id. */

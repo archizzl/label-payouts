@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { JoinBandForm } from "@/components/auth-forms";
 import { LinkButton } from "@/components/ui";
-import { usableInviteLink } from "@/server/band-invite-links";
+import { unclaimedMembers, usableInviteLink } from "@/server/band-invite-links";
 import { getSession } from "@/server/context";
 
 export const metadata = { title: "join" };
@@ -24,17 +24,22 @@ export default async function JoinPage({ params, searchParams }: PageProps<"/joi
   const { band, personName, labelName } = found;
   // Back here after signing up or in, joining by itself.
   const after = `/join/${id}?go=1`;
-  // A new login is named for who it is: the member, or the band itself.
+  // A new login is named for the member the link names, else the band (they say who they are next).
   const name = personName ?? band.name;
   return (
     <>
       <h1 className="mb-2 text-xl font-bold">Join {band.name}</h1>
       <p className="mb-5 text-sm text-muted">
-        {personName ? `Sign in as ${personName}` : `Sign in as ${band.name}`}
-        {labelName ? `, to see what ${labelName} has for the band.` : "."}
+        {personName ? `Sign in as ${personName}` : session ? "Say who you are in the band" : "Sign in or create a login, then say who you are in the band"}
+        {labelName ? `, to see what ${labelName} has for ${personName ? "the band" : "you"}.` : "."}
       </p>
       {session ? (
-        <JoinBandForm id={id} label={`Join ${band.name}`} auto={(await searchParams).go === "1"} />
+        <JoinBandForm
+          id={id}
+          bandName={band.name}
+          members={found.link.personId ? null : await unclaimedMembers(band.id, found.labelOrgId, found.bandId)}
+          auto={(await searchParams).go === "1"}
+        />
       ) : (
         <div className="space-y-3">
           <LinkButton href={`/signup?next=${encodeURIComponent(after)}&name=${encodeURIComponent(name)}`} variant="primary" className="w-full">
