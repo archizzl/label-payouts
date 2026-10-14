@@ -12,12 +12,24 @@ import { STATUS_LABEL, STATUS_TONE } from "@/lib/status";
 import { previewPayout } from "@/server/actions";
 import { bandcampCredentials } from "@/server/bandcamp-api";
 import { requireAccess } from "@/server/context";
+import { BandPayouts } from "@/components/band-payouts";
 
 export const metadata = { title: "payouts" };
 
 export default async function PeriodsPage({ searchParams }: PageProps<"/periods">) {
   await connection();
-  const { orgId } = await requireAccess("payouts");
+  const ctx = await requireAccess("payouts");
+  // A band's own account: just its part of the label's payouts.
+  if (ctx.lens) {
+    const m = ctx.managedBy!;
+    return (
+      <>
+        <PageHeader title="Payouts" />
+        <BandPayouts labelOrgId={ctx.orgId} bandId={m.bandId} bandName={ctx.org.name} statementHref={(id) => `/from-label/${m.linkId}/statement/${id}`} />
+      </>
+    );
+  }
+  const { orgId } = ctx;
   const [periods, payouts, bands, [salesRange], creds] = await Promise.all([
     db.select().from(schema.periods).where(eq(schema.periods.orgId, orgId)).orderBy(desc(schema.periods.startDate)),
     db.select().from(schema.payouts).where(eq(schema.payouts.orgId, orgId)),

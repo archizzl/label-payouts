@@ -16,17 +16,18 @@ import { STATUS_LABEL, STATUS_TONE } from "@/lib/status";
 import { outsideArtistRows } from "@/components/outside-artists";
 import { SyncFooter } from "@/components/sync-status";
 import { setSetupHidden } from "@/server/actions";
-import { requireAccess } from "@/server/context";
+import { getContext, requireAccess } from "@/server/context";
 import { computeAllTime } from "@/server/data";
 
 export const metadata = { title: "dashboard" };
 
 export default async function Dashboard() {
   await connection();
+  // A band's account from its label: its home is the label's books for it.
+  const own = await getContext();
+  if (own.managedBy) redirect(`/from-label/${own.managedBy.linkId}`);
   const ctx = await requireAccess("dashboard");
   const { orgId, isAdmin } = ctx;
-  // A band's account from its label: its home is the label's books for it.
-  if (ctx.managedBy) redirect(`/from-label/${ctx.managedBy.linkId}`);
   const [bands, memberships, defaults, saleRows, periods, outside, { summary }, people, releaseRows, fundExpenses] = await Promise.all([
     db.select().from(schema.bands).where(eq(schema.bands.orgId, orgId)),
     db.select().from(schema.bandMemberships).where(eq(schema.bandMemberships.orgId, orgId)),

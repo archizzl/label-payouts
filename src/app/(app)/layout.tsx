@@ -44,14 +44,15 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
       {ctx.viewingAs && <ViewingAsBar viewing={ctx.viewingAs} />}
       <Nav
         user={{ name: ctx.user.name, email: ctx.user.email }}
-        managed={!!ctx.managedBy}
+        managed={ctx.managedBy ? `/from-label/${ctx.managedBy.linkId}` : null}
         member={members && !ctx.viewingAs ? { chosen: members.chosen?.id ?? null, options: members.members } : null}
         bandHref={band ? `/bands/${band.id}` : null}
         hideOrders={!orders.inUse}
         viewing={!!ctx.viewingAs}
         account={ctx.org}
         accounts={ctx.accounts}
-        isAdmin={ctx.isAdmin}
+        // A band login is an admin of its own small account (settings), not of the label's books.
+        isAdmin={ctx.lens ? ctx.org.role !== "member" : ctx.isAdmin}
         areas={AREAS.filter((a) => can(ctx.access, a.key)).map((a) => a.key)}
         badges={badges}
         siteAdmin={isSiteAdminEmail(ctx.user.email)}

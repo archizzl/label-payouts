@@ -29,12 +29,24 @@ function itemsFor(
   areas: Area[],
   labels: Item[],
   projects: boolean,
-  managed: boolean,
+  managed: string | null,
   bandHref: string | null,
   hideOrders: boolean,
 ): Item[] {
-  // A label's sub-account for one of its bands: the label's books for the band, and who can sign in.
-  if (managed) return [...labels, ...(isAdmin ? [{ href: "/account", label: "settings" }] : [])];
+  // A label's sub-account for one of its bands: the label's books, just for the band, and its settings.
+  if (managed) {
+    return [
+      { href: managed, label: "dashboard" },
+      { href: "/sales", label: "sales" },
+      ...(hideOrders ? [] : [{ href: "/orders", label: "orders" }]),
+      { href: "/inventory", label: "inventory" },
+      { href: "/periods", label: "payouts" },
+      { href: "/funds", label: "funds" },
+      { href: "/receipts", label: "receipts" },
+      { href: "/catalog", label: "catalog" },
+      ...(isAdmin ? [{ href: "/account", label: "settings" }] : []),
+    ];
+  }
   const all: (Item & { area?: Area })[] = [
     { href: "/", label: "dashboard", area: "dashboard" },
     { href: "/sales", label: "sales", area: "sales" },
@@ -126,7 +138,7 @@ export function Nav({
   siteAdmin = false,
   projects = false,
   showAdminLink = true,
-  managed = false,
+  managed = null,
   viewing = false,
   bandHref = null,
   hideOrders = false,
@@ -150,8 +162,8 @@ export function Nav({
   projects?: boolean;
   /** Link to the admin dashboard (site admins; not on the live site, where it has its own address). */
   showAdminLink?: boolean;
-  /** A band account a label made for one of its bands. */
-  managed?: boolean;
+  /** A band account a label made for one of its bands: its home page (the label's books for it). */
+  managed?: string | null;
   /** A label admin viewing as someone else: no switching accounts or signing out from here. */
   viewing?: boolean;
   /** A band account's own band page. */

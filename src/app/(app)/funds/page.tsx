@@ -26,7 +26,17 @@ function explain(source: string) {
  */
 export default async function FundsPage() {
   await connection();
-  const { orgId } = await requireAccess("funds");
+  const ctx = await requireAccess("funds");
+  // A band's own account: what the label sent on from its money.
+  if (ctx.lens) {
+    return (
+      <>
+        <PageHeader title="Label funds" />
+        <LabelFunds bandId={ctx.managedBy!.bandId} />
+      </>
+    );
+  }
+  const { orgId } = ctx;
   const [inc, names] = await Promise.all([labelIncome(orgId), nameMaps(orgId)]);
   const cur = inc.currencies[0] ?? "USD";
   const v = (m: Totals) => m.get(cur) ?? 0;

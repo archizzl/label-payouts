@@ -3,7 +3,7 @@ import { and, asc, eq } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { cache } from "react";
 import { db, schema } from "@/db";
-import { getContext } from "./context";
+import { accountContext, BAND_MEMBER_COOKIE } from "./context";
 
 /*
  * A band account the label made has one login for the whole band. Whoever's using it picks which
@@ -13,7 +13,7 @@ import { getContext } from "./context";
  * default member, if it has one.
  */
 
-export const BAND_MEMBER_COOKIE = "lm_band_member";
+export { BAND_MEMBER_COOKIE };
 
 export type BandMember = { id: number; name: string };
 
@@ -31,7 +31,7 @@ export async function bandMembers(labelOrgId: string, bandId: number): Promise<B
 
 /** In a label-made band account: its members, and which of them is using it (null until picked). */
 export const bandMemberChoice = cache(async (): Promise<{ members: BandMember[]; chosen: BandMember | null } | null> => {
-  const ctx = await getContext();
+  const ctx = await accountContext();
   if (!ctx.managedBy) return null;
   const members = await bandMembers(ctx.managedBy.labelOrgId, ctx.managedBy.bandId);
   const [orgId, id] = ((await cookies()).get(BAND_MEMBER_COOKIE)?.value ?? "").split("|");

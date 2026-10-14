@@ -6,6 +6,7 @@ import { ExpenseTable, SubmitReceiptForm } from "@/components/receipts";
 import { Badge, Callout, Card, Disclosure, Empty, Money, MoneyList, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
 import { linkMyself } from "@/server/account-actions";
+import { redirect } from "next/navigation";
 import { getContext } from "@/server/context";
 import { projectsEnabled } from "@/server/features";
 import { computePayoutPeriod, nameMaps } from "@/server/data";
@@ -27,6 +28,8 @@ const STATUS = {
 export default async function MyEarningsPage({ searchParams }: PageProps<"/me">) {
   await connection();
   const ctx = await getContext();
+  // A band's own account: its home shows the member's earnings.
+  if (ctx.lens) redirect(`/from-label/${ctx.managedBy!.linkId}`);
   const { orgId, person } = ctx;
 
   if (!person) {

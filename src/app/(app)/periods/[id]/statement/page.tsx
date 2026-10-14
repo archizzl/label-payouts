@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { connection } from "next/server";
 import { PrintButton } from "@/components/client";
 import { BandStatement } from "@/components/statement";
@@ -12,8 +12,9 @@ export default async function StatementPage({ params, searchParams }: PageProps<
   await connection();
   const id = Number((await params).id);
   const only = Number((await searchParams).band) || null;
-  const { orgId } = await requireAccess("payouts");
-  const view = await periodView(orgId, id);
+  const ctx = await requireAccess("payouts");
+  if (ctx.lens) redirect(`/from-label/${ctx.managedBy!.linkId}/statement/${id}`);
+  const view = await periodView(ctx.orgId, id);
   if (!view) notFound();
   const { period, live, names } = view;
 

@@ -6,12 +6,12 @@ import { redirect } from "next/navigation";
 import { BAND_MEMBER_COOKIE, bandMembers } from "./band-member";
 import { and, eq } from "drizzle-orm";
 import { db, schema } from "@/db";
-import { getContext, requireAdmin } from "./context";
+import { accountContext, requireAdmin } from "./context";
 import { subAccountFor } from "./band-accounts";
 
 /** In a band account the label made: say which member of the band is using it. */
 export async function chooseBandMember(fd: FormData) {
-  const ctx = await getContext();
+  const ctx = await accountContext();
   const m = ctx.managedBy;
   if (!m) throw new Error("Only a band’s account has members to choose from.");
   const id = Number(fd.get("personId"));
@@ -24,7 +24,8 @@ export async function chooseBandMember(fd: FormData) {
     maxAge: 365 * 86_400,
   });
   revalidatePath("/", "layout");
-  redirect(`/from-label/${m.linkId}`);
+  // From Settings, stay there; from the switcher at the top, go to their home page.
+  redirect(fd.get("back") === "/account" ? "/account" : `/from-label/${m.linkId}`);
 }
 
 /**

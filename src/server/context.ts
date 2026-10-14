@@ -39,6 +39,11 @@ export type Context = {
   managedBy: { linkId: number; labelOrgId: string; labelName: string; bandId: number; defaultPersonId: number | null } | null;
   /** A label admin looking at the app as one of its bands or people would see it: read-only. */
   viewingAs: ViewingAs | null;
+  /**
+   * A label-made band account looking at the label's books, narrowed to its band (see bandLens):
+   * orgId is the label's, the access is read-only, and person is whichever member is using it.
+   */
+  lens: boolean;
 };
 
 export type ViewingAs = {
@@ -78,8 +83,22 @@ export async function accountsFor(userId: string): Promise<Account[]> {
  * The request's context. Sends people who aren't signed in to /login, and people with no account
  * yet to /welcome to create one. While a label admin is viewing as a band or a person, it's theirs
  * instead, and nothing can be changed: server actions are refused.
+ *
+ * A label-made band account sees pages through the label's books, narrowed to its band and
+ * read-only (bandLens). Server actions never do: they get the band account itself, so nothing a
+ * band login sends can touch the label's data.
  */
 export const getContext = cache(async (): Promise<Context> => {
+  const ctx = await accountContext();
+  if (!ctx.managedBy || (await headers()).get("next-action")) return ctx;
+  return bandLens(ctx);
+});
+
+/**
+ * The account they're in, as itself: for a label-made band account, just that small account (its
+ * settings, who signs in to it, which member is using it). Server actions always get this.
+ */
+export const accountContext = cache(async (): Promise<Context> => {
   const real = await realContext();
   const view = await viewAsContext(real);
   if (!view) return real;
@@ -88,6 +107,52 @@ export const getContext = cache(async (): Promise<Context> => {
   }
   return view;
 });
+
+/** Which member is using a label-made band account's shared login: "<band account id>|<person id>". */
+export const BAND_MEMBER_COOKIE = "lm_band_member";
+
+/** What a band account sees of the label's books: its own band's part, without changing anything. */
+const LENS_ACCESS = {
+  permissions: { sales: "view", orders: "view", inventory: "view", payouts: "view", funds: "view", receipts: "view", catalog: "view" },
+  bandAreas: ["sales", "orders", "inventory", "receipts", "catalog"],
+} as const satisfies { permissions: Access["permissions"]; bandAreas: Area[] };
+
+async function bandLens(ctx: Context): Promise<Context> {
+  const m = ctx.managedBy!;
+  // Whoever's using it: the member they picked, else the account's default member. Either must
+  // still be a current member of the band in the label's books.
+  const [cookieOrg, cookieId] = ((await cookies()).get(BAND_MEMBER_COOKIE)?.value ?? "").split("|");
+  const candidates = [cookieOrg === ctx.orgId ? Number(cookieId) : 0, m.defaultPersonId ?? 0].filter((id) => id > 0);
+  let person: Context["person"] = null;
+  for (const id of candidates) {
+    const [row] = await db
+      .select({ person: schema.people })
+      .from(schema.bandMemberships)
+      .innerJoin(schema.people, eq(schema.people.id, schema.bandMemberships.personId))
+      .where(
+        and(
+          eq(schema.bandMemberships.orgId, m.labelOrgId),
+          eq(schema.bandMemberships.bandId, m.bandId),
+          eq(schema.bandMemberships.personId, id),
+          eq(schema.bandMemberships.active, true),
+        ),
+      );
+    if (row) {
+      person = row.person;
+      break;
+    }
+  }
+  return {
+    ...ctx,
+    orgId: m.labelOrgId,
+    role: "member",
+    isAdmin: false,
+    access: { admin: false, permissions: { ...LENS_ACCESS.permissions }, bandAreas: [...LENS_ACCESS.bandAreas], bandIds: [m.bandId] },
+    memberType: null,
+    person,
+    lens: true,
+  };
+}
 
 /** The signed-in person's own context, ignoring "view as". */
 export const realContext = cache(async (): Promise<Context> => {
@@ -124,6 +189,7 @@ export const realContext = cache(async (): Promise<Context> => {
     accounts,
     managedBy,
     viewingAs: null,
+    lens: false,
   };
 });
 
@@ -182,6 +248,7 @@ async function viewAsContext(real: Context): Promise<Context | null> {
       accounts: [org],
       managedBy: { linkId: row.link.id, labelOrgId: label.id, labelName: label.name, bandId: row.band.id, defaultPersonId: row.link.defaultPersonId },
       viewingAs: viewing("band", row.band.name, `/bands/${row.band.id}`),
+      lens: false,
     };
   }
 
@@ -215,6 +282,7 @@ async function viewAsContext(real: Context): Promise<Context | null> {
     accounts: [org],
     managedBy: null,
     viewingAs: viewing("person", person.name, `/directory#p${person.id}`),
+    lens: false,
   };
 }
 
@@ -268,7 +336,8 @@ export async function requireAccess(area: Area, level: "view" | "edit" = "view")
 
 /** For pages and actions only admins may use (settings, who can sign in): members are sent to their own earnings page. */
 export async function requireAdmin(): Promise<Context> {
-  const ctx = await getContext();
+  // Admin of the account itself: for a label-made band account, its own settings and logins.
+  const ctx = await accountContext();
   if (!ctx.isAdmin) redirect("/me");
   return ctx;
 }

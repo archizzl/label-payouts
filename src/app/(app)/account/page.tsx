@@ -7,7 +7,8 @@ import { db, schema } from "@/db";
 import { saveAccountSettings, testBandcampConnection } from "@/server/account-actions";
 import { WhoCanSignIn } from "@/components/who-can-sign-in";
 import { DefaultMemberForm } from "@/components/band-default-member";
-import { bandMembers } from "@/server/band-member";
+import { bandMemberChoice, bandMembers } from "@/server/band-member";
+import { chooseBandMember } from "@/server/band-member-actions";
 import { SyncFooter } from "@/components/sync-status";
 import { setLabelAccountHolder, setSetupHidden } from "@/server/actions";
 import { bandcampApiOff } from "@/server/bandcamp-api";
@@ -166,14 +167,29 @@ export default async function AccountPage() {
 /** A band account the label made: it's the label's to name and set up, so just who signs in. */
 async function SubAccountSettings({ ctx }: { ctx: Context }) {
   const m = ctx.managedBy!;
-  const members = await bandMembers(m.labelOrgId, m.bandId);
+  const [members, choice] = await Promise.all([bandMembers(m.labelOrgId, m.bandId), bandMemberChoice()]);
   return (
     <>
       <PageHeader title="Settings" subtitle={`${ctx.org.name} · band account`} />
-      <p className="mb-8 text-sm text-muted">
+      {/* <p className="mb-8 text-sm text-muted">
         {m.labelName} made this account for {ctx.org.name}, so you can see <Link href={`/from-label/${m.linkId}`}>what the label has for you</Link>:
         your sales, payouts, statements and receipts. The label keeps the books; ask them if something looks wrong.
-      </p>
+      </p> */}
+      {members.length > 0 && (
+        <Card title="Who’s looking?">
+          <div className="flex flex-wrap gap-2">
+            {members.map((p) => (
+              <form key={p.id} action={chooseBandMember}>
+                <input type="hidden" name="personId" value={p.id} />
+                <input type="hidden" name="back" value="/account" />
+                <SubmitButton variant={choice?.chosen?.id === p.id ? "primary" : "secondary"}>
+                  <span className="normal-case">{p.name}</span>
+                </SubmitButton>
+              </form>
+            ))}
+          </div>
+        </Card>
+      )}
       {members.length > 0 && (
         <Card title="Opens as">
           <DefaultMemberForm members={members} value={m.defaultPersonId} />
