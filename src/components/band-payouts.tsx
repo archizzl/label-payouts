@@ -94,3 +94,50 @@ export async function BandPayouts({
     </>
   );
 }
+
+/**
+ * What each of the band's members has been paid from the label, in total (their share of this band
+ * only): paid out (or kept in the label's account), and waiting to be paid.
+ */
+export async function BandPayoutTotals({ labelOrgId, bandId, allHref }: { labelOrgId: string; bandId: number; allHref?: string }) {
+  const [rows, names] = await Promise.all([
+    db.select().from(schema.payouts).where(eq(schema.payouts.orgId, labelOrgId)),
+    nameMaps(labelOrgId),
+  ]);
+  const totals = new Map<number, { paid: Map<string, number>; waiting: Map<string, number> }>();
+  for (const p of rows) {
+    const cents = p.byBand[String(bandId)] ?? 0;
+    if (!cents) continue;
+    const t = totals.get(p.personId) ?? { paid: new Map(), waiting: new Map() };
+    const m = p.status === "pending" ? t.waiting : t.paid;
+    m.set(p.currency, (m.get(p.currency) ?? 0) + cents);
+    totals.set(p.personId, t);
+  }
+  const people = [...totals].sort((a, b) => (names.person.get(a[0]) ?? "").localeCompare(names.person.get(b[0]) ?? ""));
+  return (
+    <Card title="Payouts" actions={allHref && people.length > 0 ? <Link href={allHref} className="text-sm">all payouts</Link> : undefined}>
+      {people.length === 0 ? (
+        <Empty>No payouts yet.</Empty>
+      ) : (
+        <table className="data">
+          <thead>
+            <tr>
+              <th>Member</th>
+              <th className="num">Paid</th>
+              <th className="num">Waiting to be paid</th>
+            </tr>
+          </thead>
+          <tbody>
+            {people.map(([personId, t]) => (
+              <tr key={personId}>
+                <td>{names.person.get(personId)}</td>
+                <td className="num">{t.paid.size ? <MoneyList totals={t.paid} /> : "—"}</td>
+                <td className="num">{t.waiting.size ? <MoneyList totals={t.waiting} /> : "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </Card>
+  );
+}

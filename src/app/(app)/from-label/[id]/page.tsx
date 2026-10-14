@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { connection } from "next/server";
 import { ExpenseTable, expenseTotals } from "@/components/receipts";
 import { SalesSection } from "@/components/sales-section";
-import { BandPayouts } from "@/components/band-payouts";
+import { BandPayouts, BandPayoutTotals } from "@/components/band-payouts";
 import { Callout, Card, Money, MoneyList, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
 import { computePayoutPeriod, nameMaps } from "@/server/data";
@@ -69,7 +69,12 @@ export default async function FromLabelPage({ params, searchParams }: PageProps<
         title="Sales through the label"
       />
 
-      <BandPayouts labelOrgId={labelOrgId} bandId={bandId} bandName={v.bandName} statementHref={(id) => `/from-label/${linkId}/statement/${id}`} />
+      {v.link.managed ? (
+        // A band account the label made: each member's total here; every payout is under Payouts.
+        <BandPayoutTotals labelOrgId={labelOrgId} bandId={bandId} allHref="/periods" />
+      ) : (
+        <BandPayouts labelOrgId={labelOrgId} bandId={bandId} bandName={v.bandName} statementHref={(id) => `/from-label/${linkId}/statement/${id}`} />
+      )}
 
       {bandProjects.length > 0 && (
         <Card title="Projects">
@@ -108,6 +113,8 @@ export default async function FromLabelPage({ params, searchParams }: PageProps<
         </Card>
       )}
 
+      {/* A band account the label made has its own Receipts tab. */}
+      {!v.link.managed && (
       <Card title="Receipts">
         {approved.length > 0 && (
           <p className="mb-3 text-sm text-muted">
@@ -123,6 +130,7 @@ export default async function FromLabelPage({ params, searchParams }: PageProps<
           mode="readonly"
         />
       </Card>
+      )}
     </>
   );
 }
