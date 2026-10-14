@@ -4,7 +4,7 @@ import { newAccount, testDb } from "../../../test/helpers/db";
 
 // Who's signed in, and in which account, for each call.
 const who = { user: { id: "" }, orgId: "" };
-vi.mock("../context", () => ({ getContext: async () => who }));
+vi.mock("../context", () => ({ getContext: async () => who, accountContext: async () => who }));
 
 let db: Awaited<ReturnType<typeof testDb>>["db"];
 let schema: Awaited<ReturnType<typeof testDb>>["schema"];
