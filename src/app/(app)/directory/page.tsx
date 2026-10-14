@@ -185,6 +185,7 @@ export default async function DirectoryPage() {
                 <span className={`ml-auto text-xs ${current || b.isLabel ? "text-muted" : "text-warn"}`}>
                   {current ? `${current} member${current === 1 ? "" : "s"}` : b.isLabel ? "the label itself" : "no members yet"}
                 </span>
+                {accounts.get(b.id)?.managed && <ViewAsButton kind="band" id={b.id} />}
               </summary>
               <div className="mb-4 ml-8">
                 {members.length > 0 && (
@@ -384,9 +385,6 @@ function BandAccountLine({
               <SubmitButton size="sm">Invite</SubmitButton>
             </ActionForm>
           )}
-          <span className="ml-auto">
-            <ViewAsButton kind="band" id={bandId} />
-          </span>
         </>
       ) : (
         <>
