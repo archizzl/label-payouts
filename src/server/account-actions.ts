@@ -208,13 +208,15 @@ export async function inviteMember(_: FormState, fd: FormData): Promise<FormStat
     return { error: messageOf(e, "Couldn't create the invite.") };
   }
   revalidatePath("/directory");
-  return { ok: `Invited ${email}. Copy their invite link below and send it to them.` };
+  revalidatePath("/account");
+  return { ok: `Invited ${email}.` };
 }
 
 export async function cancelInvite(fd: FormData) {
   await requireAdmin();
   await auth.api.cancelInvitation({ body: { invitationId: str(fd, "id") }, headers: await headers() });
   revalidatePath("/directory");
+  revalidatePath("/account");
 }
 
 /** Change what someone can do here: admin, a plain member, or a member with a member type. */
@@ -297,6 +299,7 @@ export async function removeAccountMember(fd: FormData) {
     .set({ userId: null })
     .where(and(eq(schema.people.orgId, orgId), eq(schema.people.userId, m.userId)));
   revalidatePath("/directory");
+  revalidatePath("/account");
 }
 
 /** Accept an invite as the signed-in user, and link their login to their payee record. */

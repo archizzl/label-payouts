@@ -74,8 +74,9 @@ export async function WhoCanSignIn({ ctx }: { ctx: Context }) {
             <thead>
               <tr>
                 <th>Person</th>
-                <th>Paid as</th>
-                <th>Role</th>
+                {/* A band account's logins are all the band's: no payee or role to show. */}
+                {!managed && <th>Paid as</th>}
+                {!managed && <th>Role</th>}
                 <th />
               </tr>
             </thead>
@@ -90,7 +91,8 @@ export async function WhoCanSignIn({ ctx }: { ctx: Context }) {
                       </div>
                       <div className="text-xs text-muted">{user.email}</div>
                     </td>
-                    <td className="text-sm">{personOf(user.id)?.name ?? <span className="text-muted">not linked</span>}</td>
+                    {!managed && <td className="text-sm">{personOf(user.id)?.name ?? <span className="text-muted">not linked</span>}</td>}
+                    {!managed && (
                     <td>
                       {member.role === "owner" || self ? (
                         <Badge tone={member.role === "member" ? "neutral" : "accent"}>
@@ -100,6 +102,7 @@ export async function WhoCanSignIn({ ctx }: { ctx: Context }) {
                         <RolePicker memberId={member.id} name={user.name} saved={roleValue(member.role, typeOf.get(user.id))} options={roleOptions} />
                       )}
                     </td>
+                    )}
                     <td className="text-right">
                       {member.role !== "owner" && !self && (
                         <div className="flex justify-end gap-2">
@@ -124,10 +127,12 @@ export async function WhoCanSignIn({ ctx }: { ctx: Context }) {
                         {i.email} <Badge tone="warn">invited</Badge>
                       </div>
                     </td>
-                    <td className="text-sm">{who ?? <span className="text-muted">not linked</span>}</td>
-                    <td>
-                      <Badge>{i.role === "member" ? (typeName(inviteTypes.get(i.id)) ?? "member") : (i.role ?? "member")}</Badge>
-                    </td>
+                    {!managed && <td className="text-sm">{who ?? <span className="text-muted">not linked</span>}</td>}
+                    {!managed && (
+                      <td>
+                        <Badge>{i.role === "member" ? (typeName(inviteTypes.get(i.id)) ?? "member") : (i.role ?? "member")}</Badge>
+                      </td>
+                    )}
                     <td className="text-right">
                       <div className="flex justify-end gap-2">
                         <CopyButton text={`${base}/invite/${i.id}`} label="Copy invite link" />
@@ -145,19 +150,25 @@ export async function WhoCanSignIn({ ctx }: { ctx: Context }) {
             </tbody>
           </table>
 
-          {/* A label-made band account: one login, shared by the whole band. */}
-          {!managed && (
           <Disclosure summary="+ Invite someone">
             <ActionForm action={inviteMember} className="grid gap-4 sm:grid-cols-3">
-              <InviteWhoFields people={unlinked.map((p) => ({ id: p.id, name: p.name, email: p.email }))} />
               {managed ? (
-                <input type="hidden" name="role" value="admin" />
+                // A label-made band account: every login is the band's, so just who.
+                <>
+                  <Field label="Their email" className="sm:col-span-2">
+                    <input name="email" type="email" required />
+                  </Field>
+                  <input type="hidden" name="role" value="admin" />
+                </>
               ) : (
-                <Field label="Role">
-                  <select name="role" defaultValue="member">
-                    {roleOptions}
-                  </select>
-                </Field>
+                <>
+                  <InviteWhoFields people={unlinked.map((p) => ({ id: p.id, name: p.name, email: p.email }))} />
+                  <Field label="Role">
+                    <select name="role" defaultValue="member">
+                      {roleOptions}
+                    </select>
+                  </Field>
+                </>
               )}
               <div className="sm:col-span-3">
                 <SubmitButton>Create invite</SubmitButton>
@@ -165,7 +176,6 @@ export async function WhoCanSignIn({ ctx }: { ctx: Context }) {
               </div>
             </ActionForm>
           </Disclosure>
-          )}
         </Card>
   );
 }
