@@ -110,7 +110,6 @@ export function SplitEditor(props: Props) {
             <button
               type="button"
               aria-label={`Remove ${nameOf(r.personId)} from this split`}
-              title="Remove from this split"
               onClick={() => setRows(rows.filter((_, j) => j !== i))}
               className="flex h-7 w-7 shrink-0 items-center justify-center text-lg leading-none text-muted hover:text-bad"
             >
@@ -150,7 +149,6 @@ export function SplitEditor(props: Props) {
             type="button"
             className={buttonClass("ghost", "sm")}
             onClick={splitEvenly}
-            title="Divide 100% equally between everyone listed"
           >
             Split evenly
           </button>

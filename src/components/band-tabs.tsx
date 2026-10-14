@@ -22,7 +22,7 @@ export function BandTabs({ bandId, active, needsSplit, members }: { bandId: numb
         >
           {t.label}
           {t.key === "money" && needsSplit && (
-            <span className="ml-1.5 rounded-full bg-bad-bg px-1.5 text-xs text-bad" title="No split yet: its sales can't be paid">
+            <span className="ml-1.5 rounded-full bg-bad-bg px-1.5 text-xs text-bad" aria-label="No split yet">
               !
             </span>
           )}

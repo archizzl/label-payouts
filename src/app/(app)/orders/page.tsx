@@ -95,7 +95,7 @@ export default async function OrdersPage({ searchParams }: PageProps<"/orders">)
               </Link>
             )}
             <form action={refreshOrders}>
-              <button type="submit" className={buttonClass("ghost")} title="Get the latest from Bandcamp">
+              <button type="submit" className={buttonClass("ghost")}>
                 Refresh
               </button>
             </form>

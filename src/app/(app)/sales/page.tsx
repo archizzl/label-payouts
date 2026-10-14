@@ -285,7 +285,7 @@ function PayoutBadge({ state }: { state: keyof typeof PAYOUT_LABEL }) {
 function PayoutCell({ state, periodId }: { state: "paid" | "pending" | "none"; periodId: number | null }) {
   if (state === "none" || !periodId) return <span className="text-muted">–</span>;
   return (
-    <Link href={`/periods/${periodId}`} className="hover:no-underline" title="Open the payout">
+    <Link href={`/periods/${periodId}`} className="hover:no-underline">
       <PayoutBadge state={state} />
     </Link>
   );

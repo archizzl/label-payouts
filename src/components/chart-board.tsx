@@ -251,7 +251,6 @@ function ChartMenu({
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={`Options for ${chart.spec.title}`}
-        title="Change, move or hide this chart"
         onClick={() => setOpen((o) => !o)}
         className="flex h-7 w-7 items-center justify-center rounded-sm text-muted hover:bg-surface-2 hover:text-text"
       >
@@ -273,7 +272,6 @@ function ChartMenu({
                     type="button"
                     role="menuitemradio"
                     aria-checked={item.format === f}
-                    title={FORMAT_LABEL[f]}
                     onClick={() => act({ format: f })}
                     className={`flex items-center gap-1 rounded-sm border px-2 py-1 text-xs ${
                       item.format === f ? "border-accent text-text" : "border-border text-muted hover:text-text"

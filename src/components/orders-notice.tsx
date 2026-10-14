@@ -32,7 +32,6 @@ export async function OrdersNotice({ ctx }: { ctx: Context }) {
             <button
               type="submit"
               aria-label="Hide this for a week"
-              title="Hide for a week (it comes back if orders are still waiting then)"
               className="-my-0.5 flex h-6 w-6 items-center justify-center rounded-sm text-lg leading-none opacity-70 hover:opacity-100"
             >
               ×

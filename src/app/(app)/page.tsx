@@ -178,7 +178,6 @@ export default async function Dashboard() {
               <button
                 type="submit"
                 aria-label="Hide the getting started checklist"
-                title="Hide (you can bring it back at the bottom of this page)"
                 className="flex h-7 w-7 items-center justify-center rounded-sm text-lg leading-none text-muted hover:bg-surface-2 hover:text-text"
               >
                 ×
@@ -258,7 +257,6 @@ export default async function Dashboard() {
             <button
               type="submit"
               aria-label="Don’t remind me about setup again"
-              title="Don’t remind me again (you can turn the checklist back on in Settings)"
               className="flex h-5 w-5 items-center justify-center rounded-sm text-base leading-none hover:bg-surface-2 hover:text-text"
             >
               ×

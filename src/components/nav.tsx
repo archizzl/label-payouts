@@ -149,7 +149,7 @@ export function Nav({
         <div className="flex flex-wrap items-center gap-3">
           <SyncIndicator active={syncing} />
           <AccountSwitcher account={account} accounts={accounts} />
-          <span className="hidden text-sm text-muted sm:inline" title={user.email}>
+          <span className="hidden text-sm text-muted sm:inline">
             {user.name}
           </span>
           {!viewing && (
@@ -183,7 +183,6 @@ export function Nav({
                   {n > 0 && (
                     <span
                       className="min-w-[1.15rem] rounded-full bg-accent px-1.5 text-center text-[11px] leading-[1.15rem] font-bold text-accent-fg tabular-nums"
-                      title={`${n} ${what}`}
                       aria-label={`${n} ${what}`}
                     >
                       {n > 99 ? "99+" : n}

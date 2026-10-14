@@ -386,10 +386,10 @@ function PersonRow({
           )}
           {payHandlesSummary(p) && <span className="block truncate text-muted">{payHandlesSummary(p)}</span>}
         </span>
-        <span className="text-right tabular-nums" title="Owed: in a finalized payout, not paid yet">
+        <span className="text-right tabular-nums">
           <MoneyList totals={money.owed} />
         </span>
-        <span className="text-right tabular-nums" title="Paid, or kept in the label’s account">
+        <span className="text-right tabular-nums">
           <MoneyList totals={money.paid} />
         </span>
         <span className="text-right text-xs text-link">

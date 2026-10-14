@@ -821,14 +821,12 @@ export function HeldSentBars({
                 <span
                   className={`block h-3 ${src.sent > 0 ? "" : "rounded-r-[4px]"}`}
                   style={{ width: `${(held / max) * 100}%`, minWidth: 2, background: HELD }}
-                  title={`Still held: ${formatCents(held, currency)}`}
                 />
               )}
               {src.sent > 0 && (
                 <span
                   className="block h-3 rounded-r-[4px]"
                   style={{ width: `${(src.sent / max) * 100}%`, minWidth: 2, background: SENT }}
-                  title={`Sent on: ${formatCents(src.sent, currency)}`}
                 />
               )}
             </span>
