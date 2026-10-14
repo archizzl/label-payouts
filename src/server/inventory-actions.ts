@@ -110,7 +110,8 @@ export async function saveInventoryItem(_: InventoryState, fd: FormData): Promis
 
 /** Change an item's count (received, used, sold, recount…), keeping a record of it. */
 export async function adjustInventory(_: InventoryState, fd: FormData): Promise<InventoryState> {
-  const ctx = await requireAccess("inventory", "edit");
+  // A band's own account can recount its band's stock (nothing else in inventory).
+  const ctx = await requireAccess("inventory", "edit", { bandMay: true });
   try {
     const item = await ownItem(ctx, optInt(fd, "id") ?? -1);
     const reason = str(fd, "reason");

@@ -20,9 +20,11 @@ type CatalogOption = { value: string; label: string; bandId: number };
 /** What the label (or band) has on hand: merch and formats it sells, and supplies it uses. */
 export default async function InventoryPage({ searchParams }: PageProps<"/inventory">) {
   await connection();
-  const { orgId, access } = await requireAccess("inventory");
+  const { orgId, access, lens } = await requireAccess("inventory");
   const scope = bandScope(access, "inventory");
   const canEdit = can(access, "inventory", "edit");
+  // A band's own account can change its counts, not the items.
+  const canCount = canEdit || lens;
   const band = Number((await searchParams).band) || null;
 
   const [allItems, bandRows, releaseRows] = await Promise.all([
@@ -124,7 +126,7 @@ export default async function InventoryPage({ searchParams }: PageProps<"/invent
         {products.length === 0 ? (
           <Empty>Nothing yet.</Empty>
         ) : (
-          <ItemTable items={products} bandName={bandName} movesOf={movesOf} canEdit={canEdit} bands={bands} catalog={catalog} ownBandsOnly={!!scope} />
+          <ItemTable items={products} bandName={bandName} movesOf={movesOf} canEdit={canEdit} canCount={canCount} bands={bands} catalog={catalog} ownBandsOnly={!!scope} />
         )}
       </Card>
 
@@ -132,7 +134,7 @@ export default async function InventoryPage({ searchParams }: PageProps<"/invent
         {supplies.length === 0 ? (
           <Empty>Nothing yet.</Empty>
         ) : (
-          <ItemTable items={supplies} bandName={bandName} movesOf={movesOf} canEdit={canEdit} bands={bands} catalog={catalog} ownBandsOnly={!!scope} />
+          <ItemTable items={supplies} bandName={bandName} movesOf={movesOf} canEdit={canEdit} canCount={canCount} bands={bands} catalog={catalog} ownBandsOnly={!!scope} />
         )}
       </Card>
     </>
@@ -155,6 +157,7 @@ function ItemTable({
   bandName,
   movesOf,
   canEdit,
+  canCount,
   bands,
   catalog,
   ownBandsOnly,
@@ -163,6 +166,7 @@ function ItemTable({
   bandName: Map<number, string>;
   movesOf: (id: number) => Move[];
   canEdit: boolean;
+  canCount: boolean;
   bands: Option[];
   catalog: CatalogOption[];
   ownBandsOnly: boolean;
@@ -184,7 +188,7 @@ function ItemTable({
             </div>
             {i.notes && <p className="text-xs text-muted">{i.notes}</p>}
             <div className="flex flex-wrap items-start gap-2 pt-1">
-              {canEdit && (
+              {canCount && (
                 <Disclosure summary="Change count">
                   <AdjustForm item={i} />
                 </Disclosure>

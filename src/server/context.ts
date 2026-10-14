@@ -111,13 +111,16 @@ export const accountContext = cache(async (): Promise<Context> => {
 /** Which member is using a label-made band account's shared login: "<band account id>|<person id>". */
 export const BAND_MEMBER_COOKIE = "lm_band_member";
 
-/** What a band account sees of the label's books: its own band's part, without changing anything. */
+/**
+ * What a band account sees of the label's books: its own band's part. The one thing it changes is
+ * its orders (shipping them); stock counts too, but only through adjustInventory (see requireAccess).
+ */
 const LENS_ACCESS = {
-  permissions: { sales: "view", orders: "view", inventory: "view", payouts: "view", funds: "view", receipts: "view", catalog: "view" },
+  permissions: { sales: "view", orders: "edit", inventory: "view", payouts: "view", funds: "view", receipts: "view", catalog: "view" },
   bandAreas: ["sales", "orders", "inventory", "receipts", "catalog"],
 } as const satisfies { permissions: Access["permissions"]; bandAreas: Area[] };
 
-async function bandLens(ctx: Context): Promise<Context> {
+async function bandLens(ctx: Context, extra: Access["permissions"] = {}): Promise<Context> {
   const m = ctx.managedBy!;
   // Whoever's using it: the member they picked, else the account's default member. Either must
   // still be a current member of the band in the label's books.
@@ -147,7 +150,7 @@ async function bandLens(ctx: Context): Promise<Context> {
     orgId: m.labelOrgId,
     role: "member",
     isAdmin: false,
-    access: { admin: false, permissions: { ...LENS_ACCESS.permissions }, bandAreas: [...LENS_ACCESS.bandAreas], bandIds: [m.bandId] },
+    access: { admin: false, permissions: { ...LENS_ACCESS.permissions, ...extra }, bandAreas: [...LENS_ACCESS.bandAreas], bandIds: [m.bandId] },
     memberType: null,
     person,
     lens: true,
@@ -328,8 +331,16 @@ export async function accessFor(orgId: string, userId: string, isAdmin: boolean,
  * For pages and actions in one section: anyone whose role or member type allows it (viewing, or
  * changing things). Everyone else is sent to their own earnings page.
  */
-export async function requireAccess(area: Area, level: "view" | "edit" = "view"): Promise<Context> {
-  const ctx = await getContext();
+export async function requireAccess(
+  area: Area,
+  level: "view" | "edit" = "view",
+  /** A band account may do this to its own band's part of the label's books (recounting stock, say). */
+  { bandMay = false }: { bandMay?: boolean } = {},
+): Promise<Context> {
+  let ctx = await getContext();
+  // A band login's actions normally get its own small account. Orders, and anything marked bandMay,
+  // act on the label's books instead, narrowed to the band like its pages are.
+  if (ctx.managedBy && !ctx.lens && (area === "orders" || bandMay)) ctx = await bandLens(ctx, bandMay ? { [area]: level } : {});
   if (!can(ctx.access, area, level)) redirect("/me");
   return ctx;
 }
