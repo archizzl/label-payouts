@@ -6,7 +6,6 @@ import { formatCents } from "@/lib/money";
 import { getContext } from "@/server/context";
 import { salesReport } from "@/server/sales-report";
 import { type BoardChart, breakdownChart, seriesChart } from "@/lib/chart-data";
-import type { ChartFormat } from "@/lib/chart-layout";
 import { loadLayout } from "@/server/chart-layouts";
 import { ChartBoard } from "./chart-board";
 import type { Segment } from "./charts";
@@ -94,7 +93,6 @@ export async function SalesSection({
     { key: "held", label: "Held back (not assigned yet)", value: report.unallocated, color: "var(--series-8)" },
     ...(Math.abs(other) > 1 ? [{ key: "other", label: "Other / rounding", value: other, color: "var(--muted)" }] : []),
   ];
-  const hasSources = report.bySource.some((s) => s.key !== "Direct / unknown");
 
   // The charts, customizable per person.
   const charts: BoardChart[] = [
@@ -113,12 +111,6 @@ export async function SalesSection({
         note: report.shipping > 0 ? `Includes ${formatCents(report.shipping, cur)} of shipping, which stays with the label.` : undefined,
       },
     });
-  const defaults: [string, ChartFormat?][] = [
-    ...(report.byMonth.length > 1 ? [["month"] as [string]] : []),
-    ["format"],
-    ...(hasSources ? [["source"] as [string]] : []),
-    ...(hideMoneyWent ? [] : [["money-went"] as [string]]),
-  ];
   const saved = await loadLayout(boardId);
 
   return (
@@ -169,7 +161,7 @@ export async function SalesSection({
             </p>
           )}
 
-          <ChartBoard boardId={boardId} charts={charts} defaults={defaults} saved={saved} plain />
+          <ChartBoard boardId={boardId} charts={charts} saved={saved} plain />
 
           {showItems && report.items.length > 0 && (
             <div>

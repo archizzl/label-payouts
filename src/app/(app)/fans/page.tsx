@@ -7,7 +7,6 @@ import { FanImportForm } from "@/components/fan-import-form";
 import { buttonClass, Card, Empty, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
 import { type BoardChart, breakdownChart, buildTrend, seriesChart } from "@/lib/chart-data";
-import type { ChartFormat } from "@/lib/chart-layout";
 import { formatCents } from "@/lib/money";
 import { loadLayout } from "@/server/chart-layouts";
 import { requireAccess } from "@/server/context";
@@ -61,11 +60,6 @@ export default async function FansPage({ searchParams }: PageProps<"/fans">) {
       showUnits: false,
       trend: buildTrend(stats.countryMonths.map((r) => ({ month: r.month, key: r.country, value: r.n }))),
     }),
-  ];
-  const defaults: [string, ChartFormat?][] = [
-    ...(stats.byMonth.length > 1 ? [["month"] as [string]] : []),
-    ...(isBand ? [] : [["band", "table"] as [string, ChartFormat]]),
-    ["country", "table"],
   ];
   const saved = await loadLayout("fans");
   const ownList = isBand ? "band’s own list" : "label’s own list";
@@ -138,7 +132,7 @@ export default async function FansPage({ searchParams }: PageProps<"/fans">) {
             </Card>
           )}
 
-          <ChartBoard boardId="fans" charts={charts} defaults={defaults} saved={saved} />
+          <ChartBoard boardId="fans" charts={charts} saved={saved} />
 
           <Card title="Everyone on the list">
             <form className="mb-4 flex flex-wrap items-end gap-3" action="/fans">

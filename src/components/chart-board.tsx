@@ -367,13 +367,14 @@ function AddMenu({ charts, layout, onAdd, onReset }: { charts: BoardChart[]; lay
 export function ChartBoard({
   boardId,
   charts,
-  defaults,
+  defaults = [],
   saved,
   plain = false,
 }: {
   boardId: string;
   charts: BoardChart[];
-  defaults: [kind: string, format?: ChartFormat][];
+  /** What everyone sees until they add charts themselves: nothing, unless a board says otherwise. */
+  defaults?: [kind: string, format?: ChartFormat][];
   saved: unknown;
   plain?: boolean;
 }) {

@@ -223,7 +223,7 @@ export default async function Dashboard() {
         );
       })}
 
-      <ChartBoard boardId="dashboard" charts={charts} defaults={isBand ? [["month"], ["owed"]] : [["band"], ["owed"]]} saved={saved} />
+      <ChartBoard boardId="dashboard" charts={charts} saved={saved} />
 
       <div>
         <Card title="Recent payouts" actions={<LinkButton href="/periods" size="sm">All</LinkButton>}>

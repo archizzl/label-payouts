@@ -93,7 +93,7 @@ export default async function PeriodsPage({ searchParams }: PageProps<"/periods"
           No sales imported yet. <Link href="/sales/import">Import a Bandcamp sales report</Link> first, then create a payout for it.
         </Callout>
       )}
-      <ChartBoard boardId="payouts" charts={[owed]} defaults={[["owed"]]} saved={owedLayout} />
+      <ChartBoard boardId="payouts" charts={[owed]} saved={owedLayout} />
 
       <Card title="New payout">
         <nav className="mb-4 flex flex-wrap gap-x-5 gap-y-2 text-sm" aria-label="Who to pay">

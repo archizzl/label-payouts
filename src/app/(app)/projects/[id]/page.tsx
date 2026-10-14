@@ -9,7 +9,6 @@ import { ExpenseForm, ExpenseTable } from "@/components/receipts";
 import { Badge, Callout, Card, Disclosure, Empty, Money, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
 import { type BoardChart, breakdownChart } from "@/lib/chart-data";
-import type { ChartFormat } from "@/lib/chart-layout";
 import { formatCents } from "@/lib/money";
 import { loadLayout } from "@/server/chart-layouts";
 import { requireAdmin } from "@/server/context";
@@ -64,7 +63,6 @@ export default async function ProjectPage({ params }: PageProps<"/projects/[id]"
       { currency: cur, total: n.spent, share: "of spending", showUnits: false },
     ),
   ];
-  const defaults: [string, ChartFormat?][] = [...(n.monthly.length > 1 ? [["spent-made"] as [string]] : []), ["category"]];
   const saved = await loadLayout(`project`);
   const pct = n.spent ? Math.round((n.madeBack / n.spent) * 100) : null;
   const budgetPct = project.budgetCents ? Math.round((n.spent / project.budgetCents) * 100) : null;
@@ -123,7 +121,7 @@ export default async function ProjectPage({ params }: PageProps<"/projects/[id]"
         </Callout>
       )}
 
-      <ChartBoard boardId="project" charts={charts} defaults={defaults} saved={saved} />
+      <ChartBoard boardId="project" charts={charts} saved={saved} />
 
       <div className="grid gap-x-8 md:grid-cols-2">
         <Card title="Where the money made back went">

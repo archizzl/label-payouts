@@ -6,7 +6,6 @@ import { SalesTabs } from "@/components/sales-tabs";
 import { Badge, buttonClass, Card, Empty, Money, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
 import { type BoardChart, breakdownChart, seriesChart } from "@/lib/chart-data";
-import type { ChartFormat } from "@/lib/chart-layout";
 import { formatCents } from "@/lib/money";
 import { loadLayout } from "@/server/chart-layouts";
 import { bandScope, can } from "@/lib/permissions";
@@ -84,14 +83,6 @@ export default async function SalesPage({ searchParams }: PageProps<"/sales">) {
     }),
     breakdownChart("country", "By country", summary.byCountry, { currency: cur, total: net, trend: summary.trends.country }),
     breakdownChart("source", "Where fans came from", summary.bySource, { currency: cur, total: net, trend: summary.trends.source }),
-  ];
-  const defaults: [string, ChartFormat?][] = [
-    ...(summary.byMonth.length > 1 ? [["month"] as [string]] : []),
-    ["item"],
-    ...(!f.band ? [["band"] as [string]] : []),
-    ...(!f.type ? [["type"] as [string]] : []),
-    ...(f.country === undefined ? [["country"] as [string]] : []),
-    ...(f.source === undefined && summary.bySource.some((x) => x.key !== "Direct / unknown") ? [["source"] as [string]] : []),
   ];
   const saved = await loadLayout("sales");
 
@@ -262,7 +253,7 @@ export default async function SalesPage({ searchParams }: PageProps<"/sales">) {
             </p>
           )}
 
-          <ChartBoard boardId="sales" charts={charts} defaults={defaults} saved={saved} />
+          <ChartBoard boardId="sales" charts={charts} saved={saved} />
         </>
       )}
     </>

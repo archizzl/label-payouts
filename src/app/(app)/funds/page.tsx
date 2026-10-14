@@ -4,7 +4,6 @@ import { ChartBoard } from "@/components/chart-board";
 import { LabelFunds } from "@/components/label-funds";
 import { Card, PageHeader } from "@/components/ui";
 import { type BoardChart, breakdownChart, seriesChart } from "@/lib/chart-data";
-import type { ChartFormat } from "@/lib/chart-layout";
 import { formatCents } from "@/lib/money";
 import { loadLayout } from "@/server/chart-layouts";
 import { requireAccess } from "@/server/context";
@@ -71,7 +70,6 @@ export default async function FundsPage() {
   ];
   // "Sources over time" starts out as a line chart.
   charts[3].spec.formats = ["line", ...(charts[3].spec.formats ?? []).filter((f) => f !== "line")];
-  const defaults: [string, ChartFormat?][] = [["sources"], ...(byMonth.length > 1 ? [["month"] as [string]] : []), ...(bands.length ? [["band"] as [string]] : [])];
   const saved = await loadLayout("funds");
 
   return (
@@ -97,7 +95,7 @@ export default async function FundsPage() {
         </p>
       )}
 
-      <ChartBoard boardId="funds" charts={charts} defaults={defaults} saved={saved} />
+      <ChartBoard boardId="funds" charts={charts} saved={saved} />
 
       <LabelFunds showTotals={false} />
 
