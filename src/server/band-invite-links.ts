@@ -62,6 +62,15 @@ export async function unclaimedMembers(bandOrgId: string, labelOrgId: string, ba
   return members.filter((m) => !claimed.some((c) => c.personId === m.id));
 }
 
+/** Whether a band account already has its shared login (a login that isn't one member's own). */
+export async function hasSharedLogin(bandOrgId: string) {
+  const [logins, personal] = await Promise.all([
+    db.select({ userId: schema.member.userId }).from(schema.member).where(eq(schema.member.organizationId, bandOrgId)),
+    db.select({ userId: schema.bandLoginPeople.userId }).from(schema.bandLoginPeople).where(eq(schema.bandLoginPeople.orgId, bandOrgId)),
+  ]);
+  return logins.some((l) => !personal.some((p) => p.userId === l.userId));
+}
+
 /** The member each of a band account's personal logins is, by user id. */
 export async function bandLoginNames(bandOrgId: string): Promise<Map<string, string>> {
   const rows = await db

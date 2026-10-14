@@ -143,7 +143,20 @@ export function ResetPasswordForm({ token }: { token: string }) {
  * own yet, to pick from (or add yourself, or be the band's shared login); null when the link already
  * says who. `auto`: straight after signing up or in, when there's nothing to choose.
  */
-export function JoinBandForm({ id, bandName, members, auto = false }: { id: string; bandName: string; members: { id: number; name: string }[] | null; auto?: boolean }) {
+export function JoinBandForm({
+  id,
+  bandName,
+  members,
+  sharedTaken = false,
+  auto = false,
+}: {
+  id: string;
+  bandName: string;
+  members: { id: number; name: string }[] | null;
+  /** The band already has its shared login: no second one. */
+  sharedTaken?: boolean;
+  auto?: boolean;
+}) {
   const [state, action, pending] = useActionState(joinWithInviteLink, null);
   const [as, setAs] = useState(members?.[0] ? String(members[0].id) : "new");
   const form = useRef<HTMLFormElement>(null);
@@ -173,9 +186,11 @@ export function JoinBandForm({ id, bandName, members, auto = false }: { id: stri
               <input name="name" autoComplete="name" required />
             </Field>
           )}
-          <label className="flex items-center gap-2 text-sm">
-            <input type="radio" name="as" value="band" checked={as === "band"} onChange={() => setAs("band")} /> The whole band (one shared login)
-          </label>
+          {!sharedTaken && (
+            <label className="flex items-center gap-2 text-sm">
+              <input type="radio" name="as" value="band" checked={as === "band"} onChange={() => setAs("band")} /> The whole band (one shared login)
+            </label>
+          )}
         </fieldset>
       )}
       <Result state={state} />

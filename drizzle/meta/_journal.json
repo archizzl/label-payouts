@@ -232,6 +232,13 @@
       "when": 1792008896857,
       "tag": "0032_band_invite_links",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1792018554129,
+      "tag": "0033_one_login_per_member",
+      "breakpoints": true
     }
   ]
 }

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { JoinBandForm } from "@/components/auth-forms";
 import { LinkButton } from "@/components/ui";
-import { unclaimedMembers, usableInviteLink } from "@/server/band-invite-links";
+import { hasSharedLogin, unclaimedMembers, usableInviteLink } from "@/server/band-invite-links";
 import { getSession } from "@/server/context";
 
 export const metadata = { title: "join" };
@@ -38,6 +38,7 @@ export default async function JoinPage({ params, searchParams }: PageProps<"/joi
           id={id}
           bandName={band.name}
           members={found.link.personId ? null : await unclaimedMembers(band.id, found.labelOrgId, found.bandId)}
+          sharedTaken={await hasSharedLogin(band.id)}
           auto={(await searchParams).go === "1"}
         />
       ) : (

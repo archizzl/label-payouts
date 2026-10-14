@@ -7,8 +7,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db, schema } from "@/db";
 import { subAccountFor } from "./band-accounts";
-import { INVITE_LINK_DAYS, stamp, unclaimedMembers, usableInviteLink } from "./band-invite-links";
-import { bandMembers } from "./band-member";
+import { hasSharedLogin, INVITE_LINK_DAYS, stamp, unclaimedMembers, usableInviteLink } from "./band-invite-links";
 import { auth } from "./auth";
 import { getSession, requireAdmin } from "./context";
 
@@ -76,10 +75,14 @@ export async function joinWithInviteLink(_: InviteLinkState, fd: FormData): Prom
   let personId: number | null = null;
   if (choice === "new") {
     if (!newName) return { error: "Enter your name." };
-  } else if (choice !== "band") {
+  } else if (choice === "band") {
+    // One shared login per band.
+    if (await hasSharedLogin(band.id)) return { error: `${band.name} already has its shared login. Choose who you are.` };
+  } else {
     personId = Number(choice) || null;
-    const open = link.personId ? await bandMembers(labelOrgId, bandId) : await unclaimedMembers(band.id, labelOrgId, bandId);
-    if (!personId || !open.some((p) => p.id === personId)) return { error: "Choose who you are." };
+    // Each member has at most one login of their own.
+    const open = await unclaimedMembers(band.id, labelOrgId, bandId);
+    if (!personId || !open.some((p) => p.id === personId)) return { error: "That member already has a login. Choose who you are." };
   }
   // Claim it first, so the same link can't be used twice at once.
   const claimed = await db

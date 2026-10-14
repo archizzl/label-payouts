@@ -934,5 +934,5 @@ export const bandLoginPeople = pgTable(
       .notNull()
       .references(() => people.id, { onDelete: "cascade" }),
   },
-  (t) => [uniqueIndex("band_login_people_org_user").on(t.orgId, t.userId)],
+  (t) => [uniqueIndex("band_login_people_org_user").on(t.orgId, t.userId), uniqueIndex("band_login_people_org_person").on(t.orgId, t.personId)],
 );

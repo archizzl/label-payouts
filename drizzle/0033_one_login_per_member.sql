@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "band_login_people_org_person" ON "band_login_people" USING btree ("org_id","person_id");
