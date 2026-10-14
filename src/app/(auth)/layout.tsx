@@ -1,10 +1,15 @@
 import Link from "next/link";
+import { headers } from "next/headers";
+import { FixSignIn } from "@/components/fix-sign-in";
 import { Mark } from "@/components/nav";
+import { hasDuplicateSession } from "@/lib/auth-cookies";
 
 /** Signing in, signing up, invites: a simple page without the app's navigation. */
-export default function AuthLayout({ children }: LayoutProps<"/">) {
+export default async function AuthLayout({ children }: LayoutProps<"/">) {
+  const staleCookie = hasDuplicateSession((await headers()).get("cookie"));
   return (
     <main className="flex flex-1 flex-col items-center px-4 py-16">
+      {staleCookie && <FixSignIn />}
       <Link href="/" className="mb-8 flex items-center gap-2 text-text hover:no-underline">
         <Mark />
         <span className="text-xl font-bold tracking-tight lowercase">labelmaker</span>

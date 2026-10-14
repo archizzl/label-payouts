@@ -1,4 +1,7 @@
+import { headers } from "next/headers";
 import { after } from "next/server";
+import { FixSignIn } from "@/components/fix-sign-in";
+import { hasDuplicateSession } from "@/lib/auth-cookies";
 import { ReadOnly } from "@/components/client";
 import { Nav } from "@/components/nav";
 import { ViewingAsBar } from "@/components/viewing-as";
@@ -39,8 +42,10 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
       }),
     );
   }
+  const staleCookie = hasDuplicateSession((await headers()).get("cookie"));
   return (
     <>
+      {staleCookie && <FixSignIn />}
       {ctx.viewingAs && <ViewingAsBar viewing={ctx.viewingAs} />}
       <Nav
         user={{ name: ctx.user.name, email: ctx.user.email }}

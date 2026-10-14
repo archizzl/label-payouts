@@ -6,6 +6,7 @@ import { cache } from "react";
 import { db, schema } from "@/db";
 import { type Access, type Area, can, normalizeBandAreas, normalizePermissions } from "@/lib/permissions";
 import { auth } from "./auth";
+import { cookieValues, SESSION_TOKEN } from "@/lib/auth-cookies";
 import { managingLabel } from "./band-accounts";
 
 /*
@@ -58,8 +59,23 @@ export type ViewingAs = {
   back: string;
 };
 
-/** The signed-in session, or null. */
-export const getSession = cache(async () => auth.api.getSession({ headers: await headers() }));
+/**
+ * The signed-in session, or null. If the browser sends two session cookies (a stale copy next to the
+ * current one, see src/lib/auth-cookies.ts), each is tried on its own, so the stale one can't sign
+ * them out.
+ */
+export const getSession = cache(async () => {
+  const h = await headers();
+  const tokens = cookieValues(h.get("cookie"), SESSION_TOKEN);
+  if (tokens.length <= 1) return auth.api.getSession({ headers: h });
+  for (const t of tokens) {
+    const only = new Headers(h);
+    only.set("cookie", `${t.name}=${t.value}`);
+    const session = await auth.api.getSession({ headers: only, query: { disableCookieCache: true } });
+    if (session) return session;
+  }
+  return null;
+});
 
 /** Every label/band account this user belongs to. */
 export async function accountsFor(userId: string): Promise<Account[]> {
