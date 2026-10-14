@@ -78,7 +78,7 @@ npm run deploy
 **When a task is done:**
 1. Type-check, lint and tests pass.
 2. Commit to `main` (one commit per change, with a clear message).
-3. Deploy without asking.
+3. Deploy without asking. For a very small change (a moved button, a spacing tweak), hold it for the next deploy or ask whether it's worth deploying now.
 4. Tell the owner what went out.
 
 Don't push unless asked.
