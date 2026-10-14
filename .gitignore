@@ -46,3 +46,7 @@ data/
 /.wrangler
 .dev.vars*
 .deploy.local
+
+# npm run workers:local (throwaway database, temporary config)
+.workers-local/
+wrangler.local.tmp.jsonc

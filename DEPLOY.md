@@ -3,7 +3,7 @@
 The live site runs on **Cloudflare Workers**. Its database is **Neon** (hosted Postgres), reached through **Cloudflare Hyperdrive**. Steps marked **(you)** need your own logins; everything else is a command to run in this folder.
 
 **Before you start**
-- **Node.js 22 or newer.** `wrangler` needs it. With nvm: `nvm use` (this folder's `.nvmrc` says 22).
+- **Node.js 22 installed** (`nvm install 22`). `wrangler` needs it. `npm run deploy` and `npm run workers:local` switch to it by themselves; for other `npx wrangler …` commands, run `nvm use` first (this folder's `.nvmrc` says 22).
 - **The Workers Paid plan ($5/month).** The app is about 4.4 MB compressed, over the free plan's 3 MB limit.
 
 ## 1. Neon database (you)
@@ -100,4 +100,4 @@ Sign in as the site admin (`reactionfutureinstitute@gmail.com`), then open each 
 - **Changes:** `npm run deploy`. It runs any new database migrations first.
 - **Rolling back:** `npx wrangler rollback` returns to the previous version. Migrations only ever add things, so an older version still works.
 - **Logs:** `npx wrangler tail`, or the Workers dashboard's Logs tab.
-- **Trying the Cloudflare build locally:** `npm run preview`, with a `.dev.vars` file holding test values for the secrets above, plus `BETTER_AUTH_URL=http://localhost:8787`.
+- **Trying the Cloudflare build locally:** `npm run workers:local` (a throwaway database and test secrets, on http://localhost:8799; see CLAUDE.md).

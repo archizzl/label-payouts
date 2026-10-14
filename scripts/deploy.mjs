@@ -5,9 +5,14 @@
  * in .deploy.local (not committed). Not a .env file: the Cloudflare build bakes .env, .env.production,
  * .env.local and .env.production.local into the live app, so the deploy refuses if any of them exist.
  * Your local settings live in .env.development.local, which the build skips. See DEPLOY.md.
+ *
+ * Wrangler needs Node 22; if the shell has an older Node, the build and deploy use nvm's Node 22.
+ * If the upload fails with "fetch failed" (a dropped connection), it's the network: run
+ * `npx opennextjs-cloudflare deploy` (with Node 22) to retry just the upload.
  */
 import { execSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
+import { envWithNode22 } from "./node22.mjs";
 
 for (const f of [".env", ".env.local", ".env.production", ".env.production.local"]) {
   if (existsSync(f)) {
@@ -23,7 +28,7 @@ if (!url) {
   console.error("Set PRODUCTION_DATABASE_URL (Neon's direct connection string) in .deploy.local. See DEPLOY.md.");
   process.exit(1);
 }
-const run = (cmd, env = {}) => execSync(cmd, { stdio: "inherit", env: { ...process.env, ...env } });
+const run = (cmd, env = {}) => execSync(cmd, { stdio: "inherit", env: envWithNode22(env) });
 run("npx tsx scripts/migrate.mts", { DATABASE_URL: url });
 run("npx opennextjs-cloudflare build");
 run("npx opennextjs-cloudflare deploy");
