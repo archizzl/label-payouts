@@ -8,7 +8,7 @@ import type { Context } from "@/server/context";
 import { inviteMemberTypes, listMemberTypes, memberTypeOf } from "@/server/member-types";
 import { InviteWhoFields } from "./invite-fields";
 import { RolePicker } from "./role-picker";
-import { InviteLinkForm, InviteLinkRow } from "./band-invite-links";
+import { InviteLinkForm, InviteLinkRow, MakeSharedLogin } from "./band-invite-links";
 import { bandLoginNames, openInviteLinks } from "@/server/band-invite-links";
 
 const ROLE_LABEL: Record<string, string> = { owner: "owner", admin: "admin", member: "member" };
@@ -58,6 +58,8 @@ export async function WhoCanSignIn({ ctx }: { ctx: Context }) {
   // A band account: its members in the label's books (for invite links), its open links, and which
   // member each personal login is (the rest are the band's shared login).
   const [links, loginNames] = ctx.managedBy ? await Promise.all([openInviteLinks(orgId), bandLoginNames(orgId)]) : [[], new Map<string, string>()];
+  // A band account's shared login: one that isn't any member's own.
+  const sharedExists = members.some(({ user }) => !loginNames.has(user.id));
 
   return (
         <Card title={`Who can sign in to ${ctx.org.name}`}>
@@ -96,6 +98,7 @@ export async function WhoCanSignIn({ ctx }: { ctx: Context }) {
                         {self && <span className="text-xs font-normal text-muted">(you)</span>}
                       </div>
                       <div className="text-xs text-muted">{user.email}</div>
+                      {managed && loginNames.has(user.id) && !sharedExists && <MakeSharedLogin userId={user.id} />}
                     </td>
                     {!managed && <td className="text-sm">{personOf(user.id)?.name ?? <span className="text-muted">not linked</span>}</td>}
                     {!managed && (

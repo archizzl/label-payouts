@@ -68,6 +68,8 @@ export default async function DirectoryPage() {
   if (ctx.org.kind === "band" && bands.length === 0) redirect("/");
   const people = scope ? everyone.filter((p) => memberships.some((m) => m.personId === p.id && scope.includes(m.band.id))) : everyone;
   const inNoBand = scope ? [] : people.filter((p) => !memberships.some((m) => m.personId === p.id));
+  // Limited to some bands: only duplicates that are all their people.
+  const shownDuplicates = scope ? duplicates.filter((g) => g.every((d) => people.some((p) => p.id === d.id))) : duplicates;
 
   const sumBy = (rows: typeof payoutRows, personId: number) => {
     const m: Totals = new Map();
@@ -115,14 +117,14 @@ export default async function DirectoryPage() {
         title="Directory"
       />
 
-      {!scope && duplicates.length > 0 && (
+      {shownDuplicates.length > 0 && (
         <Card title="Possible duplicates">
           {/* <p className="mb-3 text-sm text-muted">
             These look like the same person entered more than once. Merging combines their bands, splits and payouts so they’re paid once.
             (People with the same email are merged automatically when you save.)
           </p> */}
           <ul className="space-y-4">
-            {duplicates.map((group) => (
+            {shownDuplicates.map((group) => (
               <li key={group.map((p) => p.id).join("-")} className="space-y-1.5 border-l-2 border-accent pl-3">
                 {group.map((keep) => (
                   <form key={keep.id} action={mergePeopleAction} className="flex flex-wrap items-center gap-3 text-sm">
@@ -434,7 +436,7 @@ function PersonRow({
       <div className="mb-3 space-y-4 border border-border bg-surface-2 p-4">
         <PersonFields person={p} />
         <PersonBands person={p} bandsOf={bandsOf} bands={bands} />
-        {!limited && everyone.length > 1 && (
+        {everyone.length > 1 && (
           <form action={mergePeopleAction} className="flex flex-wrap items-end gap-2 border-t border-border pt-4">
             <input type="hidden" name="fromId" value={p.id} />
             <Field label={`Merge ${p.name} into…`} hint="Their bands, splits and payouts move to that person, then this record is removed.">

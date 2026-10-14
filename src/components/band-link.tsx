@@ -7,7 +7,7 @@ import { cancelBandAccountInvite, unlink } from "@/server/link-actions";
 import type { bandLinksFor } from "@/server/links";
 import { possessive } from "@/lib/plural";
 import { ViewAsButton } from "./viewing-as";
-import { InviteLinkForm, InviteLinkRow } from "./band-invite-links";
+import { InviteLinkForm, InviteLinkRow, MakeSharedLogin } from "./band-invite-links";
 import { bandLoginNames, openInviteLinks } from "@/server/band-invite-links";
 
 type LinkRow = Awaited<ReturnType<typeof bandLinksFor>> extends Map<number, infer R> ? R : never;
@@ -93,6 +93,7 @@ export async function BandAccountSection({
                 <span>{loginNames.get(user.id) ?? band.name}</span>
                 <span className="text-muted">{user.email}</span>
                 <Badge tone="good">signs in</Badge>
+                {loginNames.has(user.id) && !logins.some((l) => !loginNames.has(l.user.id)) && <MakeSharedLogin userId={user.id} bandId={band.id} />}
               </li>
             ))}
             {links.map((l) => (

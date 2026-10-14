@@ -43,6 +43,7 @@ function itemsFor(
       { href: "/funds", label: "funds" },
       { href: "/receipts", label: "receipts" },
       { href: "/catalog", label: "catalog" },
+      { href: "/directory", label: "directory" },
       ...(isAdmin ? [{ href: "/account", label: "settings" }] : []),
     ];
   }
@@ -68,12 +69,12 @@ function itemsFor(
 }
 
 /** Pick which of your accounts (labels and bands) you're working in. */
-function AccountSwitcher({ account, accounts }: { account: Account; accounts: Account[] }) {
+function AccountSwitcher({ account, accounts, bare = false }: { account: Account; accounts: Account[]; bare?: boolean }) {
   const form = useRef<HTMLFormElement>(null);
   if (accounts.length < 2) {
     return (
       <span className="text-sm text-muted">
-        {account.name} <span className="text-xs">({account.kind})</span>
+        {account.name} {!bare && <span className="text-xs">({account.kind})</span>}
       </span>
     );
   }
@@ -166,8 +167,13 @@ export function Nav({
         </Link>
         <div className="flex flex-wrap items-center gap-3">
           <SyncIndicator active={syncing} />
-          <AccountSwitcher account={account} accounts={accounts} />
-          <span className="hidden text-sm text-muted sm:inline">{member?.name ?? user.name}</span>
+          {/* A band's own account is just the band (or, on a member's own login, the band and them). */}
+          <AccountSwitcher account={account} accounts={accounts} bare={!!managed} />
+          {managed ? (
+            member && <span className="hidden text-sm text-muted sm:inline">{member.name}</span>
+          ) : (
+            <span className="hidden text-sm text-muted sm:inline">{user.name}</span>
+          )}
           {!viewing && (
             <form action={signOut}>
               <button type="submit" className="text-sm text-link hover:underline">

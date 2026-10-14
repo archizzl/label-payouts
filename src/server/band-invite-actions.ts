@@ -1,7 +1,7 @@
 "use server";
 
 import { randomUUID } from "node:crypto";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, ne } from "drizzle-orm";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -11,7 +11,7 @@ import { hasSharedLogin, INVITE_LINK_DAYS, stamp, unclaimedMembers, usableInvite
 import { auth } from "./auth";
 import { getSession, requireAdmin } from "./context";
 
-export type InviteLinkState = { ok?: string; error?: string } | null;
+export type InviteLinkState = { ok?: string; error?: string; url?: string } | null;
 
 /**
  * The band account an invite link is for, checked: the band account itself (its own Settings), or a
@@ -39,14 +39,15 @@ export async function createInviteLink(_: InviteLinkState, fd: FormData): Promis
   } catch (e) {
     return { error: (e as Error).message };
   }
+  const id = randomUUID();
   await db.insert(schema.bandInviteLinks).values({
-    id: randomUUID(),
+    id,
     orgId: a.bandOrgId,
     createdByUserId: a.userId,
     expiresAt: stamp(new Date(Date.now() + INVITE_LINK_DAYS * 86_400_000)),
   });
   refresh(a.bandId);
-  return { ok: "Invite link made. Copy it and send it to them." };
+  return { ok: "Invite link made.", url: `${process.env.BETTER_AUTH_URL ?? ""}/join/${id}` };
 }
 
 export async function cancelInviteLink(fd: FormData) {
@@ -121,4 +122,31 @@ export async function joinWithInviteLink(_: InviteLinkState, fd: FormData): Prom
   await auth.api.setActiveOrganization({ body: { organizationId: band.id }, headers: await headers() });
   revalidatePath("/", "layout");
   redirect("/");
+}
+
+/**
+ * Turn one of a band account's member logins into the band's shared login (it stops being that
+ * member's). Only when the band has no shared login yet. A login that belongs to nothing else takes
+ * the band's name.
+ */
+export async function makeSharedLogin(fd: FormData) {
+  const a = await bandAccountFor(fd);
+  const userId = String(fd.get("userId") ?? "");
+  const [login] = await db
+    .select({ id: schema.member.id })
+    .from(schema.member)
+    .where(and(eq(schema.member.organizationId, a.bandOrgId), eq(schema.member.userId, userId)));
+  if (!login) throw new Error("That login isn’t one of the band’s.");
+  if (await hasSharedLogin(a.bandOrgId)) throw new Error("The band already has its shared login.");
+  await db.delete(schema.bandLoginPeople).where(and(eq(schema.bandLoginPeople.orgId, a.bandOrgId), eq(schema.bandLoginPeople.userId, userId)));
+  const elsewhere = await db
+    .select({ id: schema.member.id })
+    .from(schema.member)
+    .where(and(eq(schema.member.userId, userId), ne(schema.member.organizationId, a.bandOrgId)));
+  if (!elsewhere.length) {
+    const [band] = await db.select({ name: schema.organization.name }).from(schema.organization).where(eq(schema.organization.id, a.bandOrgId));
+    if (band) await db.update(schema.user).set({ name: band.name }).where(eq(schema.user.id, userId));
+  }
+  refresh(a.bandId);
+  revalidatePath("/", "layout");
 }

@@ -158,6 +158,8 @@ export async function saveBand(fd: FormData) {
   const id = optInt(fd, "id");
   if (id) access.band(id);
   else access.labelWide();
+  // A band's own account edits its people, not the band (its name and how sales are matched to it).
+  if (access.lens) throw new Error("The label looks after the band’s details.");
   const values = {
     name: str(fd, "name"),
     aliases: list(fd, "aliases"),
@@ -234,10 +236,12 @@ export async function savePerson(fd: FormData) {
 /** Merge one person into another (from the Directory). */
 export async function mergePeopleAction(fd: FormData) {
   const access = await scoped("roster");
-  access.labelWide();
   const { orgId } = access;
   const intoId = int(fd, "intoId");
-  for (const from of fd.getAll("fromId")) await mergePeople(orgId, intoId, Number(from));
+  const fromIds = fd.getAll("fromId").map(Number);
+  // Limited to some bands: both people must be in them.
+  for (const id of [intoId, ...fromIds]) await access.person(id);
+  for (const from of fromIds) await mergePeople(orgId, intoId, from);
   await syncAllPeriodStatuses(orgId);
   done();
 }

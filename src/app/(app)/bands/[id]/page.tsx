@@ -1,6 +1,6 @@
 import { and, asc, eq } from "drizzle-orm";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { connection } from "next/server";
 import { BandFields } from "@/components/band-fields";
 import { SaveWhenChanged, SubmitButton } from "@/components/client";
@@ -47,6 +47,8 @@ export async function generateMetadata({ params }: PageProps<"/bands/[id]">) {
 export default async function BandPage({ params, searchParams }: PageProps<"/bands/[id]">) {
   await connection();
   const ctx = await requireAccess("roster");
+  // A band's own account has its people in the Directory; the band page is the label's.
+  if (ctx.lens) redirect("/directory");
   const { orgId } = ctx;
   const id = Number((await params).id);
   const sp = await searchParams;
