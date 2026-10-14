@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import Link from "next/link";
 import { connection } from "next/server";
-import { ActionForm, SubmitButton } from "@/components/client";
+import { ActionForm, SaveWhenChanged, SubmitButton } from "@/components/client";
 import { Badge, Callout, Card, Disclosure, Empty, Field, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
 import { isLow, MOVE_REASONS } from "@/lib/inventory";
@@ -349,7 +349,13 @@ function ItemForm({
         <input name="notes" defaultValue={item?.notes ?? ""} maxLength={1000} />
       </Field>
       <div className="sm:col-span-3">
-        <SubmitButton>{item ? "Save" : "Add item"}</SubmitButton>
+        {item ? (
+          <SaveWhenChanged>
+            <SubmitButton>Save</SubmitButton>
+          </SaveWhenChanged>
+        ) : (
+          <SubmitButton>Add item</SubmitButton>
+        )}
       </div>
     </ActionForm>
   );

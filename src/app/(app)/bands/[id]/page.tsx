@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { BandFields } from "@/components/band-fields";
-import { SubmitButton } from "@/components/client";
+import { SaveWhenChanged, SubmitButton } from "@/components/client";
 import { SalesSection } from "@/components/sales-section";
 import { DeductionForm, DeductionList } from "@/components/deductions";
 import { BandTabs } from "@/components/band-tabs";
@@ -520,7 +520,9 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
                           <input type="checkbox" name="active" defaultChecked={m.active} /> Current member
                         </label>
                         <div className="flex justify-end">
-                          <SubmitButton size="sm">Save</SubmitButton>
+                          <SaveWhenChanged>
+                            <SubmitButton size="sm">Save</SubmitButton>
+                          </SaveWhenChanged>
                         </div>
                       </form>
                       <form action={removeMember} className="mt-4 border-t border-border pt-3">

@@ -1,6 +1,6 @@
 import { asc, eq } from "drizzle-orm";
 import Link from "next/link";
-import { ActionForm, SubmitButton } from "@/components/client";
+import { ActionForm, SaveWhenChanged, SubmitButton } from "@/components/client";
 import { Card, Disclosure, Empty, Field } from "@/components/ui";
 import { db, schema } from "@/db";
 import { AREAS, type Area, normalizeBandAreas, normalizePermissions } from "@/lib/permissions";
@@ -133,7 +133,13 @@ function MemberTypeForm({
         “Only their own bands” means the bands they play in. Everyone also sees their own earnings. Settings, who can sign in and label-wide
         changes (new bands, merging people) stay with admins.
       </p> */}
-      <SubmitButton>{id ? "Save" : "Add member type"}</SubmitButton>
+      {id ? (
+        <SaveWhenChanged>
+          <SubmitButton>Save</SubmitButton>
+        </SaveWhenChanged>
+      ) : (
+        <SubmitButton>Add member type</SubmitButton>
+      )}
     </ActionForm>
   );
 }

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { connection } from "next/server";
 import { redirect } from "next/navigation";
 import { BandFields } from "@/components/band-fields";
-import { ActionForm, CopyButton, OpenLinkedSection, SubmitButton } from "@/components/client";
+import { ActionForm, CopyButton, OpenLinkedSection, SaveWhenChanged, SubmitButton } from "@/components/client";
 import { SyncFooter } from "@/components/sync-status";
 import { Badge, Card, Disclosure, Empty, Field, MoneyList, PageHeader, RolesList } from "@/components/ui";
 import { ViewAsButton } from "@/components/viewing-as";
@@ -552,7 +552,13 @@ function PersonFields({ person }: { person?: Person }) {
         <input name="notes" defaultValue={person?.notes ?? ""} />
       </Field>
       <div className="sm:col-span-2">
-        <SubmitButton>{person ? "Save" : "Add person"}</SubmitButton>
+        {person ? (
+          <SaveWhenChanged>
+            <SubmitButton>Save</SubmitButton>
+          </SaveWhenChanged>
+        ) : (
+          <SubmitButton>Add person</SubmitButton>
+        )}
       </div>
     </form>
   );

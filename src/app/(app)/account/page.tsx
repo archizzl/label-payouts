@@ -1,7 +1,7 @@
 import { and, asc, eq } from "drizzle-orm";
 import Link from "next/link";
 import { connection } from "next/server";
-import { ActionForm, SubmitButton } from "@/components/client";
+import { ActionForm, SaveWhenChanged, SubmitButton } from "@/components/client";
 import { Callout, Card, Field, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
 import { saveAccountSettings, testBandcampConnection } from "@/server/account-actions";
@@ -69,7 +69,9 @@ export default async function AccountPage() {
             />
           </Field>
           <div className="sm:col-span-2">
-            <SubmitButton>Save</SubmitButton>
+            <SaveWhenChanged>
+              <SubmitButton>Save</SubmitButton>
+            </SaveWhenChanged>
           </div>
         </ActionForm>
         {settings?.bandcampClientId && settings.bandcampClientSecret && (
@@ -109,7 +111,9 @@ export default async function AccountPage() {
                   </option>
                 ))}
               </select>
-              <SubmitButton variant="secondary">Save</SubmitButton>
+              <SaveWhenChanged>
+                <SubmitButton variant="secondary">Save</SubmitButton>
+              </SaveWhenChanged>
             </form>
             {/* <p className="mt-2 text-xs text-muted">Choosing someone also marks their unpaid payouts so far as kept.</p> */}
           </Card>

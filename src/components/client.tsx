@@ -197,3 +197,58 @@ export function OpenLinkedSection() {
   }, []);
   return null;
 }
+
+/** Whether any field in a form differs from what's saved (each field's default). */
+function formChanged(form: HTMLFormElement) {
+  for (const el of Array.from(form.elements)) {
+    if (el instanceof HTMLInputElement) {
+      if (["hidden", "submit", "button", "reset"].includes(el.type)) continue;
+      if (el.type === "checkbox" || el.type === "radio") {
+        if (el.checked !== el.defaultChecked) return true;
+      } else if (el.type === "file") {
+        if (el.files?.length) return true;
+      } else if (el.value !== el.defaultValue) return true;
+    } else if (el instanceof HTMLTextAreaElement) {
+      if (el.value !== el.defaultValue) return true;
+    } else if (el instanceof HTMLSelectElement) {
+      if (Array.from(el.options).some((o) => o.selected !== o.defaultSelected)) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * For a form that edits something already saved: its Save button (the children), with Undo, shows
+ * only once a field differs from what's saved. After saving, the saved values catch up and it hides.
+ */
+export function SaveWhenChanged({ children }: { children: ReactNode }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const [changed, setChanged] = useState(false);
+  useEffect(() => {
+    const form = ref.current?.closest("form");
+    if (!form) return;
+    const check = () => setChanged(formChanged(form));
+    const later = () => setTimeout(check);
+    form.addEventListener("input", check);
+    form.addEventListener("change", check);
+    form.addEventListener("reset", later);
+    // Saved values change when the page refreshes after a save.
+    const watch = new MutationObserver(check);
+    watch.observe(form, { subtree: true, attributes: true, attributeFilter: ["value", "checked", "selected"] });
+    check();
+    return () => {
+      form.removeEventListener("input", check);
+      form.removeEventListener("change", check);
+      form.removeEventListener("reset", later);
+      watch.disconnect();
+    };
+  }, []);
+  return (
+    <span ref={ref} className={changed ? "inline-flex items-center gap-2" : "hidden"}>
+      {children}
+      <button type="button" className={buttonClass("ghost", "sm")} onClick={() => ref.current?.closest("form")?.reset()}>
+        Undo
+      </button>
+    </span>
+  );
+}

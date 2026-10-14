@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ActionForm, SubmitButton } from "@/components/client";
+import { ActionForm, SaveWhenChanged, SubmitButton } from "@/components/client";
 import { Badge, Disclosure, Empty, Field, Money } from "@/components/ui";
 import type { schema } from "@/db";
 import { centsToDecimal } from "@/lib/money";
@@ -180,7 +180,13 @@ export function ExpenseForm({
       </label>
       <FilesField />
       <div className="sm:col-span-3">
-        <SubmitButton>{e ? "Save" : "Add expense"}</SubmitButton>
+        {e ? (
+          <SaveWhenChanged>
+            <SubmitButton>Save</SubmitButton>
+          </SaveWhenChanged>
+        ) : (
+          <SubmitButton>Add expense</SubmitButton>
+        )}
       </div>
     </ActionForm>
   );

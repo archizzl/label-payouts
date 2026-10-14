@@ -1,7 +1,7 @@
 import { asc, eq } from "drizzle-orm";
 import Link from "next/link";
 import { connection } from "next/server";
-import { ActionForm, Fading, SubmitButton } from "@/components/client";
+import { ActionForm, Fading, SaveWhenChanged, SubmitButton } from "@/components/client";
 import { Badge, buttonClass, Callout, Card, Disclosure, Empty, Field, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
 import { type MerchOrder, PICKUP_MESSAGE, pickList, readyToShip } from "@/lib/merch-orders";
@@ -517,9 +517,11 @@ function PickupList({ pickups, bandName, canEdit }: { pickups: PickupRow[]; band
                 <form action={savePickupNote} className="flex flex-wrap items-center gap-2">
                   <input type="hidden" name="id" value={p.id} />
                   <input name="note" defaultValue={p.note ?? ""} placeholder="Note: when, where, who’s collecting" className="!w-72 !py-1 !text-sm" maxLength={500} />
-                  <SubmitButton variant="ghost" size="sm">
-                    Save note
-                  </SubmitButton>
+                  <SaveWhenChanged>
+                    <SubmitButton variant="ghost" size="sm">
+                      Save note
+                    </SubmitButton>
+                  </SaveWhenChanged>
                 </form>
               ) : (
                 p.note && <p className="text-sm text-muted">{p.note}</p>

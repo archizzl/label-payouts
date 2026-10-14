@@ -2,7 +2,7 @@ import { and, asc, eq } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
-import { ActionForm, SubmitButton } from "@/components/client";
+import { ActionForm, SaveWhenChanged, SubmitButton } from "@/components/client";
 import { ItemCosts } from "@/components/item-cost";
 import { SalesSection } from "@/components/sales-section";
 import { costsFor } from "@/components/physical-formats";
@@ -296,7 +296,9 @@ export default async function ReleasePage({ params, searchParams }: PageProps<"/
                             <input type="checkbox" name="labelKeeps" defaultChecked={t.labelKeeps} /> Donated: the label keeps this track’s share
                           </label>
                           <div className="flex items-end gap-2">
-                            <SubmitButton size="sm">save track</SubmitButton>
+                            <SaveWhenChanged>
+                              <SubmitButton size="sm">save track</SubmitButton>
+                            </SaveWhenChanged>
                           </div>
                         </form>
                         <form action={deleteTrack} className="mt-3">
@@ -448,7 +450,9 @@ export default async function ReleasePage({ params, searchParams }: PageProps<"/
             </Field>
           )}
           <div className="self-end">
-            <SubmitButton>Save</SubmitButton>
+            <SaveWhenChanged>
+              <SubmitButton>Save</SubmitButton>
+            </SaveWhenChanged>
           </div>
         </form>
         <form action={deleteRelease} className="mt-8 border-t border-border pt-4">

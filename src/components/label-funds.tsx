@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ActionForm, SubmitButton } from "@/components/client";
+import { ActionForm, SaveWhenChanged, SubmitButton } from "@/components/client";
 import { Card, Disclosure, Empty, Field, Money, MoneyList } from "@/components/ui";
 import { can } from "@/lib/permissions";
 import { db, schema } from "@/db";
@@ -96,7 +96,13 @@ async function TransferForm({ transfer, bandId, sources }: { transfer?: Transfer
       </datalist>
       <PayPerson people={payees} defaultPersonId={transfer?.personId ?? null} />
       <div className="sm:col-span-3">
-        <SubmitButton>{transfer ? "Save" : "Record it"}</SubmitButton>
+        {transfer ? (
+          <SaveWhenChanged>
+            <SubmitButton>Save</SubmitButton>
+          </SaveWhenChanged>
+        ) : (
+          <SubmitButton>Record it</SubmitButton>
+        )}
       </div>
     </ActionForm>
   );

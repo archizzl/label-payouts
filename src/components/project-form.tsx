@@ -1,4 +1,4 @@
-import { ActionForm, SubmitButton } from "@/components/client";
+import { ActionForm, SaveWhenChanged, SubmitButton } from "@/components/client";
 import { Field } from "@/components/ui";
 import type { schema } from "@/db";
 import { centsToDecimal } from "@/lib/money";
@@ -89,7 +89,13 @@ export function ProjectForm({
         <input name="notes" defaultValue={p?.notes ?? ""} placeholder="Recorded at …, mixed by …" />
       </Field>
       <div className="sm:col-span-3">
-        <SubmitButton>{p ? "Save" : "Create project"}</SubmitButton>
+        {p ? (
+          <SaveWhenChanged>
+            <SubmitButton>Save</SubmitButton>
+          </SaveWhenChanged>
+        ) : (
+          <SubmitButton>Create project</SubmitButton>
+        )}
       </div>
     </ActionForm>
   );

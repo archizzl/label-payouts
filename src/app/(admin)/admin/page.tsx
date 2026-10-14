@@ -1,7 +1,7 @@
 import { desc, eq, sql } from "drizzle-orm";
 import { headers } from "next/headers";
 import { connection } from "next/server";
-import { ActionForm, CopyButton, SubmitButton } from "@/components/client";
+import { ActionForm, CopyButton, SaveWhenChanged, SubmitButton } from "@/components/client";
 import { ResetLinkButton } from "@/components/reset-link-button";
 import { Badge, Callout, Card, Empty, Field, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
@@ -188,7 +188,9 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
                       ))}
                     </div>
                   </fieldset>
-                  <SubmitButton size="sm">Save</SubmitButton>
+                  <SaveWhenChanged>
+                    <SubmitButton size="sm">Save</SubmitButton>
+                  </SaveWhenChanged>
                 </ActionForm>
               </li>
             );

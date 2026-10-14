@@ -1,4 +1,4 @@
-import { ActionForm, SubmitButton } from "@/components/client";
+import { ActionForm, SaveWhenChanged, SubmitButton } from "@/components/client";
 import { Card, Field } from "@/components/ui";
 import { saveMyDetails } from "@/server/band-member-actions";
 
@@ -28,7 +28,9 @@ export function MyDetails({ person, roles }: { person: Person; roles: string[] }
           <input name="cashtag" defaultValue={person.cashtag ?? ""} placeholder="$yourname" />
         </Field>
         <div className="sm:col-span-2">
-          <SubmitButton>Save</SubmitButton>
+          <SaveWhenChanged>
+            <SubmitButton>Save</SubmitButton>
+          </SaveWhenChanged>
         </div>
       </ActionForm>
     </Card>
