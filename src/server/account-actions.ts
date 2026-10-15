@@ -470,3 +470,15 @@ export async function deleteAccount(_: FormState, fd: FormData): Promise<FormSta
   revalidatePath("/", "layout");
   redirect(next ? "/" : "/welcome");
 }
+
+/** Your login's name (shown at the top right, in every account). */
+export async function saveLoginName(_: FormState, fd: FormData): Promise<FormState> {
+  const session = await getSession();
+  if (!session) redirect("/login");
+  const name = str(fd, "name").slice(0, 120);
+  if (!name) return { error: "Enter a name." };
+  // Through Better Auth, so the cached session cookie has the new name too.
+  await auth.api.updateUser({ body: { name }, headers: await headers() });
+  revalidatePath("/", "layout");
+  return { ok: "Saved." };
+}

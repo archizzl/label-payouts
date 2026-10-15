@@ -112,6 +112,11 @@ export async function joinWithInviteLink(_: InviteLinkState, fd: FormData): Prom
       return { error: "That member already has a login. Choose who you are." };
     }
   }
+  // A login still going by the band's name (from signing up through the link) takes the member's.
+  if (personId && session.user.name === band.name) {
+    const [p] = await db.select({ name: schema.people.name }).from(schema.people).where(eq(schema.people.id, personId));
+    if (p) await auth.api.updateUser({ body: { name: p.name }, headers: await headers() });
+  }
   // Straight into the band's account (through Better Auth, so the cached session cookie follows).
   await auth.api.setActiveOrganization({ body: { organizationId: band.id }, headers: await headers() });
   revalidatePath("/", "layout");

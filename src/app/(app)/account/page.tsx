@@ -9,6 +9,7 @@ import { WhoCanSignIn } from "@/components/who-can-sign-in";
 import { MemberTypesCard } from "@/components/member-types";
 import { LeaveAccount } from "@/components/leave-account";
 import { DeleteLogin } from "@/components/delete-login";
+import { LoginName } from "@/components/login-name";
 import { DeleteAccount } from "@/components/delete-account";
 import { SyncFooter } from "@/components/sync-status";
 import { setLabelAccountHolder, setSetupHidden } from "@/server/actions";
@@ -29,6 +30,7 @@ export default async function AccountPage() {
     return (
       <>
         <PageHeader title="Settings" subtitle={own.org.name} />
+        <LoginName name={own.user.name} email={own.user.email} />
         {own.accounts.length > 1 && <LeaveAccount name={own.org.name} orgId={own.orgId} />}
         <DeleteLogin email={own.user.email} />
       </>
@@ -182,6 +184,7 @@ export default async function AccountPage() {
         </div>
       )}
 
+      <LoginName name={ctx.user.name} email={ctx.user.email} />
       {own.accounts.length > 1 && <LeaveAccount name={ctx.org.name} orgId={ctx.orgId} />}
       <DeleteAccount name={ctx.org.name} orgId={ctx.orgId} label={kind === "label"} />
       <DeleteLogin email={ctx.user.email} />
@@ -200,6 +203,7 @@ async function SubAccountSettings({ ctx }: { ctx: Context }) {
         your sales, payouts, statements and receipts. The label keeps the books; ask them if something looks wrong.
       </p> */}
       {ctx.isAdmin && <WhoCanSignIn ctx={ctx} />}
+      <LoginName name={ctx.user.name} email={ctx.user.email} />
       {ctx.accounts.length > 1 && <LeaveAccount name={ctx.org.name} orgId={ctx.orgId} />}
       <DeleteLogin email={ctx.user.email} />
     </>

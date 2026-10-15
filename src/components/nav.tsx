@@ -97,9 +97,6 @@ function AccountSwitcher({ account, accounts, bare = false }: { account: Account
   );
 }
 
-/** A band account's login that's one member's own: who. */
-type NavMember = { name: string } | null;
-
 export function Nav({
   user,
   account,
@@ -116,7 +113,6 @@ export function Nav({
   viewing = false,
   bandHref = null,
   hideOrders = false,
-  member = null,
 }: {
   user: { name: string; email: string };
   account: Account;
@@ -144,8 +140,6 @@ export function Nav({
   bandHref?: string | null;
   /** No Bandcamp API access or pickups yet: the Orders tab would only say how to connect. */
   hideOrders?: boolean;
-  /** A label-made band account: its members, and which one is using its shared login. */
-  member?: NavMember;
 }) {
   const path = usePathname();
   // "New sales" counts from your last look at Sales: once you've opened it, stop showing the number
@@ -167,13 +161,9 @@ export function Nav({
         </Link>
         <div className="flex flex-wrap items-center gap-3">
           <SyncIndicator active={syncing} />
-          {/* A band's own account is just the band (or, on a member's own login, the band and them). */}
+          {/* A band's own account is just the band, then the login's name (unless that's the band's too). */}
           <AccountSwitcher account={account} accounts={accounts} bare={!!managed} />
-          {managed ? (
-            member && <span className="hidden text-sm text-muted sm:inline">{member.name}</span>
-          ) : (
-            <span className="hidden text-sm text-muted sm:inline">{user.name}</span>
-          )}
+          {(!managed || user.name !== account.name) && <span className="hidden text-sm text-muted sm:inline">{user.name}</span>}
           {!viewing && (
             <form action={signOut}>
               <button type="submit" className="text-sm text-link hover:underline">
