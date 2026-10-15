@@ -21,6 +21,7 @@ import { allBands, BLOCKED_MESSAGE, createBandFor, fetchPage, findBandFor, findE
 import { API_SYNC_PREFIX, bandcampCredentials, salesReport } from "./bandcamp-api";
 import { emailFingerprint } from "./secrets";
 import { loadCatalog, reRouteAll } from "./data";
+import { alreadyInLabelBooks } from "./own-books";
 
 /*
  * Bringing things in from Bandcamp: sales (through the API), and artists, releases and merch (from
@@ -114,14 +115,18 @@ export async function saveSales(orgId: string, filename: string, parsed: ParseRe
 /**
  * Pull the account's raw sales report straight from the Bandcamp API and import what's new. The
  * whole history is fetched each time (late refunds included); anything already imported, whether
- * by an earlier sync or a CSV upload, is skipped. Throws if Bandcamp can't be reached.
+ * by an earlier sync or a CSV upload, is skipped, and so, in a band's own books, is anything the
+ * label's books already have. Throws if Bandcamp can't be reached.
  */
 export async function runSalesSync(orgId: string, from = "2000-01-01") {
   const creds = await bandcampCredentials(orgId);
   if (!creds) throw new Error("This account has no Bandcamp API access set up. Add it under Settings.");
   const report = await salesReport(orgId, creds, new Date(`${from}T00:00:00Z`), new Date(Date.now() + 86_400_000));
-  const parsed = parseBandcampApiReport(report.rows);
-  if (parsed.missingColumns.length) throw new Error(`Bandcamp's report was missing ${parsed.missingColumns.join(", ")}.`);
+  const all = parseBandcampApiReport(report.rows);
+  if (all.missingColumns.length) throw new Error(`Bandcamp's report was missing ${all.missingColumns.join(", ")}.`);
+  // A band's own books leave out sales the label's books already have, so they aren't paid twice.
+  const inLabel = await alreadyInLabelBooks(orgId, all.sales.map((s) => s.dedupeKey));
+  const parsed = { ...all, sales: all.sales.filter((s) => !inLabel.found.has(s.dedupeKey)) };
   const names = report.accounts.map((a) => a.name).join(", ");
   const dates = parsed.sales.map((s) => s.date).sort();
   const range = dates.length ? ` · ${dates[0]} – ${dates[dates.length - 1]}` : "";
@@ -133,7 +138,7 @@ export async function runSalesSync(orgId: string, from = "2000-01-01") {
     .where(and(eq(imports.orgId, orgId), eq(imports.addedCount, 0), ne(imports.id, importId)));
   const staleIds = empty.filter((i) => i.filename.startsWith(API_SYNC_PREFIX)).map((i) => i.id);
   if (staleIds.length) await db.delete(imports).where(inArray(imports.id, staleIds));
-  return { importId, added, duplicates, names };
+  return { importId, added, duplicates, names, inLabelBooks: { count: all.sales.length - parsed.sales.length, labelName: inLabel.labelName } };
 }
 
 // ---------- grab bands from a Bandcamp label page ----------

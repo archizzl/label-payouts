@@ -185,7 +185,7 @@ describe("a label-made band account's own books", () => {
       { id: 3, name: "Glass Harbor" },
     ]);
     expect(await own.bothBooksWarning(bandOrgId)).toBe(
-      "Label’s Bandcamp API access also reaches Glass Harbor, so its sales would come into both books and be paid out twice.",
+      "Label’s Bandcamp API access also reaches Glass Harbor, so its sales could come into both books and be paid out twice.",
     );
     // Only for a band account's own books.
     expect(await own.bothBooksWarning(labelOrgId)).toBeNull();
@@ -210,8 +210,53 @@ describe("a label-made band account's own books", () => {
     const actions = await import("../account-actions");
     signedIn = { orgId: bandOrgId, managedBy: { labelOrgId, labelName: "Label", ownBooks: true } };
     expect(await actions.testBandcampConnection()).toEqual({
-      error: "Connected to Glass Harbor. Label’s Bandcamp API access also reaches Glass Harbor, so its sales would come into both books and be paid out twice.",
+      error: "Connected to Glass Harbor. Label’s Bandcamp API access also reaches Glass Harbor, so its sales could come into both books and be paid out twice.",
     });
+    vi.unstubAllGlobals();
+  });
+
+  it("its Bandcamp sales sync leaves out sales the label's books already have", async () => {
+    const { labelOrgId, bandOrgId } = await setup();
+    await own.setOwnBooks(bandOrgId, true);
+    const secrets = await import("../secrets");
+    const creds = { bandcampClientSecret: secrets.encryptSecret("s") };
+    await db.update(schema.accountSettings).set({ bandcampClientId: `band-${bandOrgId}`, ...creds }).where(eq(schema.accountSettings.orgId, bandOrgId));
+    await db
+      .insert(schema.accountSettings)
+      .values({ orgId: labelOrgId, bandcampClientId: `label-${labelOrgId}`, ...creds })
+      .onConflictDoUpdate({ target: schema.accountSettings.orgId, set: { bandcampClientId: `label-${labelOrgId}`, ...creds } });
+    const sale = (id: number, name: string) => ({
+      bandcamp_transaction_item_id: id,
+      bandcamp_transaction_id: 4000 + id,
+      date: "13 May 2026 23:28:01 GMT",
+      item_type: "album",
+      item_name: name,
+      artist: "Glass Harbor",
+      currency: "USD",
+      net_amount: 7.5,
+      package: "digital download",
+      item_url: `https://glassharbor.bandcamp.com/album/${id}`,
+    });
+    let report = [sale(1, "Through the label")];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url.includes("oauth_token")) return new Response(JSON.stringify({ access_token: "A", refresh_token: "R", expires_in: 3600 }));
+        if (url.includes("my_bands")) return new Response(JSON.stringify({ bands: [{ band_id: 3, name: "Glass Harbor", subdomain: "glassharbor" }] }));
+        return new Response(JSON.stringify({ report }));
+      }),
+    );
+    const sync = await import("../sync");
+    expect((await sync.runSalesSync(labelOrgId)).added).toBe(1);
+
+    report = [sale(1, "Through the label"), sale(2, "Only its own")];
+    const result = await sync.runSalesSync(bandOrgId);
+    expect(result.added).toBe(1);
+    expect(result.inLabelBooks).toEqual({ count: 1, labelName: "Label" });
+    const mine = await db.select({ itemName: schema.sales.itemName }).from(schema.sales).where(eq(schema.sales.orgId, bandOrgId));
+    expect(mine).toEqual([{ itemName: "Only its own" }]);
+    // The label's own sync leaves nothing out.
+    expect((await sync.runSalesSync(labelOrgId)).inLabelBooks.count).toBe(0);
     vi.unstubAllGlobals();
   });
 });

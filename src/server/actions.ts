@@ -11,7 +11,7 @@ import { parseCents } from "@/lib/money";
 import { isSalePart, salePartLabel } from "@/lib/sale-parts";
 import { cleanCashtag, cleanVenmoHandle } from "@/lib/paypal-export";
 import { bandScope, can } from "@/lib/permissions";
-import { plural } from "@/lib/plural";
+import { plural, possessive } from "@/lib/plural";
 import { summarize } from "@/lib/splits";
 import { deleteSubAccount, ensureBandAccounts, renameSubAccount } from "./band-accounts";
 import { fetchPage, upsertRelease } from "./bandcamp";
@@ -685,7 +685,9 @@ export async function syncBandcampSales(_: ActionState, fd: FormData): Promise<A
   }
   done();
   if (result.added > 0) redirect(`/sales/import?imported=${result.importId}`);
-  return { ok: `Up to date: all ${result.duplicates} sales from ${result.names} were already imported.` };
+  const { count, labelName } = result.inLabelBooks;
+  const left = count && labelName ? ` ${plural(count, "sale")} already in ${possessive(labelName)} books ${count === 1 ? "was" : "were"} left out.` : "";
+  return { ok: `Up to date: all ${result.duplicates} sales from ${result.names} were already imported.${left}` };
 }
 
 /**

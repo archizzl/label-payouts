@@ -12,7 +12,7 @@ import { managingLabel, subAccountFor } from "./band-accounts";
  * person's name and how they're paid are the same in both (people.labelPersonId links the two).
  */
 
-const { accountSettings, bandLoginPeople, bandMemberships, bands, people } = schema;
+const { accountSettings, bandLoginPeople, bandMemberships, bands, people, sales } = schema;
 
 /** The details that are the same in both books. */
 const SHARED = ["name", "email", "paypalMe", "venmo", "cashtag"] as const;
@@ -127,7 +127,8 @@ export async function shareDetails(personId: number, details: Partial<Shared>) {
 
 /**
  * A warning when the band's own Bandcamp API access reaches a Bandcamp band the label's also reaches:
- * that band's sales would come into both books and be paid out twice. Goes by what each API access
+ * that band's sales could come into both books and be paid out twice. (The own books' sync leaves
+ * out sales the label's books already have, but not ones it brings in before the label's sync does.) Goes by what each API access
  * last reported (Test connection and the hourly sync note it). Null when there's no overlap.
  */
 export async function bothBooksWarning(bandOrgId: string): Promise<string | null> {
@@ -142,5 +143,24 @@ export async function bothBooksWarning(bandOrgId: string): Promise<string | null
   const names = [...new Set(own.filter((b) => labelIds.has(b.id)).map((b) => b.name))];
   if (!names.length) return null;
   const list = names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
-  return `${possessive(managed.labelName)} Bandcamp API access also reaches ${list}, so ${names.length === 1 ? "its" : "their"} sales would come into both books and be paid out twice.`;
+  return `${possessive(managed.labelName)} Bandcamp API access also reaches ${list}, so ${names.length === 1 ? "its" : "their"} sales could come into both books and be paid out twice.`;
+}
+
+/**
+ * Of these sales (by dedupe key, which is made from the Bandcamp transaction), the ones already in
+ * the label's books, for a band account's own books to leave out: otherwise they'd be paid twice.
+ * Empty for any other account.
+ */
+export async function alreadyInLabelBooks(bandOrgId: string, dedupeKeys: string[]) {
+  const found = new Set<string>();
+  const managed = await managingLabel(bandOrgId);
+  if (!managed) return { found, labelName: null };
+  for (let i = 0; i < dedupeKeys.length; i += 500) {
+    const rows = await db
+      .select({ k: sales.dedupeKey })
+      .from(sales)
+      .where(and(eq(sales.orgId, managed.labelOrgId), inArray(sales.dedupeKey, dedupeKeys.slice(i, i + 500))));
+    for (const r of rows) found.add(r.k);
+  }
+  return { found, labelName: managed.labelName };
 }
