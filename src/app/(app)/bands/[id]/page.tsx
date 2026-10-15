@@ -29,6 +29,7 @@ import { getContext, requireAccess } from "@/server/context";
 import { projectsEnabled } from "@/server/features";
 import { accountExpenses, expenseFileList } from "@/server/expenses";
 import { accountProjects, projectNumbers } from "@/server/projects";
+import { loginEmails } from "@/server/people";
 import { bandAssociatedPeople, bandMembers, computeAllTime, labelHost, nameMaps, ruleFilter, rulesWhere } from "@/server/data";
 
 /** The tab's title: the band's name. */
@@ -63,7 +64,7 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
   if (rosterScope && !rosterScope.includes(id)) notFound();
 
   const showProjects = await projectsEnabled();
-  const [members, allPeople, releases, allReleases, orgDeductions, names, defaultRules, labelRules, bandPeople, periodRows, { summary }, bandExpenses, expenseFiles, allProjects, projectTotals] =
+  const [members, allPeople, releases, allReleases, orgDeductions, names, defaultRules, labelRules, bandPeople, periodRows, { summary }, bandExpenses, expenseFiles, allProjects, projectTotals, loginOf] =
     await Promise.all([
       bandMembers(orgId, id),
       db.select().from(schema.people).where(eq(schema.people.orgId, orgId)).orderBy(asc(schema.people.name)),
@@ -84,6 +85,7 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
       expenseFileList(orgId),
       showProjects ? accountProjects(orgId) : [],
       showProjects ? projectNumbers(orgId) : new Map<number, never>(),
+      loginEmails(orgId),
     ]);
   const bandProjects = allProjects.filter((p) => p.bandId === id);
   const personOptions: PersonOption[] = [
@@ -469,16 +471,17 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
             ) : (
               // Rows expand full-width to edit, rather than squeezing a form into a table cell.
               <div className="mb-4 text-sm">
-                <div className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1.3fr)_minmax(0,1.5fr)_auto] gap-3 border-b border-border px-2.5 py-1.5 text-xs text-muted lowercase">
+                <div className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1.1fr)_minmax(0,1.5fr)_minmax(0,1.3fr)_auto] gap-3 border-b border-border px-2.5 py-1.5 text-xs text-muted lowercase">
                   <span>person</span>
                   <span>roles</span>
                   <span>paypal</span>
+                  <span>login</span>
                   <span />
                 </div>
                 {members.map((m) => (
                   <details key={m.membershipId} className="group border-b border-border">
                     <summary
-                      className={`grid grid-cols-[minmax(0,1.2fr)_minmax(0,1.3fr)_minmax(0,1.5fr)_auto] items-center gap-3 px-2.5 py-2 hover:bg-surface-2 ${m.active ? "" : "opacity-50"}`}
+                      className={`grid grid-cols-[minmax(0,1.2fr)_minmax(0,1.1fr)_minmax(0,1.5fr)_minmax(0,1.3fr)_auto] items-center gap-3 px-2.5 py-2 hover:bg-surface-2 ${m.active ? "" : "opacity-50"}`}
                     >
                       <span className="font-medium">
                         {m.person.name}
@@ -492,6 +495,7 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
                           <span className="text-warn">no payment details — click to add</span>
                         )}
                       </span>
+                      <span className="truncate text-xs">{loginOf(m.person.id, id)}</span>
                       <span className="text-xs text-link">
                         <span className="group-open:hidden">edit</span>
                         <span className="hidden group-open:inline">close</span>

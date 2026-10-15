@@ -1,6 +1,6 @@
 import { asc, eq } from "drizzle-orm";
 import { SubmitButton } from "@/components/client";
-import { Card, Empty } from "@/components/ui";
+import { Card } from "@/components/ui";
 import { db, schema } from "@/db";
 import { subAccountFor } from "@/server/band-accounts";
 import { unlink } from "@/server/link-actions";
@@ -69,7 +69,8 @@ export async function BandAccountSection({
     bandLoginNames(sub.org.id),
   ]);
   const loginPersons = await bandLoginPersons(sub.org.id);
-  const nothingYet = logins.length === 0;
+  // Members' own logins show beside them, under Members; here, just the band's shared one.
+  const shared = logins.filter(({ user }) => !loginNames.has(user.id));
 
   return (
     <div id="band-account" className="scroll-mt-4">
@@ -78,11 +79,9 @@ export async function BandAccountSection({
           One login for the whole band. Once signed in, they pick which member they are to see that member’s earnings, and can switch
           to anyone else in the band. They see the band’s sales, payouts, statements and receipts from the label, and can’t change anything.
         </p> */}
-        {nothingYet ? (
-          <Empty>No login yet.</Empty>
-        ) : (
+        {shared.length > 0 && (
           <ul className="mb-4 space-y-2 text-sm">
-            {logins.map(({ user }) => (
+            {shared.map(({ user }) => (
               <li key={user.id} className="group flex flex-wrap items-center gap-2">
                 <span>{loginNames.get(user.id) ?? band.name}</span>
                 <span className="text-muted">{user.email}</span>

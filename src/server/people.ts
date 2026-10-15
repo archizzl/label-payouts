@@ -200,3 +200,27 @@ export async function myPeople(userId: string): Promise<Person[]> {
   for (const p of [...direct, ...viaBand.map((r) => r.person)]) byId.set(p.id, p);
   return [...byId.values()];
 }
+
+/**
+ * The login each of a label's people signs in with: in a band's own account (made by the label),
+ * by band and person; otherwise their login linked to the label's books, by person.
+ */
+export async function loginEmails(orgId: string) {
+  const [viaBand, direct] = await Promise.all([
+    db
+      .select({ bandId: schema.accountLinks.labelBandId, personId: schema.bandLoginPeople.personId, email: schema.user.email })
+      .from(schema.bandLoginPeople)
+      .innerJoin(schema.accountLinks, eq(schema.accountLinks.bandOrgId, schema.bandLoginPeople.orgId))
+      .innerJoin(schema.user, eq(schema.user.id, schema.bandLoginPeople.userId))
+      .where(and(eq(schema.accountLinks.labelOrgId, orgId), eq(schema.accountLinks.managed, true))),
+    db
+      .select({ personId: people.id, email: schema.user.email })
+      .from(people)
+      .innerJoin(schema.user, eq(schema.user.id, people.userId))
+      .where(eq(people.orgId, orgId)),
+  ]);
+  const byBand = new Map(viaBand.map((r) => [`${r.bandId}:${r.personId}`, r.email]));
+  const byPerson = new Map(direct.map((r) => [r.personId, r.email]));
+  /** Their login in this band (or, outside a band, in the label). */
+  return (personId: number, bandId: number | null) => (bandId != null ? byBand.get(`${bandId}:${personId}`) : undefined) ?? byPerson.get(personId) ?? null;
+}

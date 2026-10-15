@@ -16,7 +16,7 @@ import { type Context, requireAccess } from "@/server/context";
 import { labelHost } from "@/server/data";
 import { type BandAccountSummary, bandAccountSummaries, ensureBandAccounts } from "@/server/band-accounts";
 import { MemberTypesCard } from "@/components/member-types";
-import { possibleDuplicates } from "@/server/people";
+import { loginEmails, possibleDuplicates } from "@/server/people";
 
 export const metadata = { title: "directory" };
 
@@ -26,7 +26,7 @@ type Membership = { id: number; personId: number; roles: string[]; active: boole
 type Totals = Map<string, number>;
 
 /** The person rows' columns (and the header above them). */
-const COLUMNS = "grid grid-cols-[minmax(0,1.2fr)_minmax(0,1.4fr)_minmax(0,1.4fr)_5.5rem_5.5rem_3rem] gap-3";
+const COLUMNS = "grid grid-cols-[minmax(0,1.2fr)_minmax(0,1.1fr)_minmax(0,1.4fr)_minmax(0,1.3fr)_5.5rem_5.5rem_3rem] gap-3";
 
 /**
  * Everyone on the books: each band with its people underneath, then people who aren't in a band
@@ -42,7 +42,7 @@ export default async function DirectoryPage() {
   // Bands' own accounts (label admins): bands added since (or from before sub-accounts) get theirs.
   const showAccounts = ctx.isAdmin && ctx.org.kind === "label";
   if (showAccounts) await ensureBandAccounts(orgId);
-  const [allBands, everyone, memberships, payoutRows, duplicates, outsideRows, accounts] = await Promise.all([
+  const [allBands, everyone, memberships, payoutRows, duplicates, outsideRows, accounts, loginOf] = await Promise.all([
     db.select().from(schema.bands).where(eq(schema.bands.orgId, orgId)).orderBy(asc(schema.bands.name)),
     db.select().from(schema.people).where(eq(schema.people.orgId, orgId)).orderBy(asc(schema.people.name)),
     db
@@ -60,6 +60,7 @@ export default async function DirectoryPage() {
     possibleDuplicates(orgId),
     db.select().from(schema.outsideArtists).where(eq(schema.outsideArtists.orgId, orgId)),
     showAccounts ? bandAccountSummaries(orgId) : new Map<number, BandAccountSummary>(),
+    loginEmails(orgId),
   ]);
   const bands = scope ? allBands.filter((b) => scope.includes(b.id)) : allBands;
   // A band account is one band: its directory is that band and its people.
@@ -106,6 +107,7 @@ export default async function DirectoryPage() {
       membership={membership}
       bandsOf={memberships.filter((m) => m.personId === p.id)}
       contactFor={contactFor(p.id)}
+      login={loginOf(p.id, membership?.band.id ?? null)}
       money={money.get(p.id)!}
       everyone={people}
       bands={bands}
@@ -273,6 +275,7 @@ function ColumnHeads() {
       <span>person</span>
       <span>roles</span>
       <span>how they’re paid</span>
+      <span>login</span>
       <span className="text-right">owed</span>
       <span className="text-right">paid / kept</span>
       <span />
@@ -355,6 +358,7 @@ function PersonRow({
   membership,
   bandsOf,
   contactFor,
+  login,
   money,
   everyone,
   bands,
@@ -367,6 +371,8 @@ function PersonRow({
   membership: Membership | null;
   bandsOf: Membership[];
   contactFor: string[];
+  /** The email they sign in with (none: no login yet). */
+  login: string | null;
   money: { owed: Totals; paid: Totals };
   everyone: Person[];
   /** The bands they can be added to (the ones on this page). */
@@ -403,6 +409,7 @@ function PersonRow({
         )}
         {payHandlesSummary(p) && <span className="block truncate text-muted">{payHandlesSummary(p)}</span>}
       </span>
+      <span className="truncate text-xs">{login}</span>
       <span className="text-right tabular-nums">
         <MoneyList totals={money.owed} />
       </span>
