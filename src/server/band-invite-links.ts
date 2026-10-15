@@ -81,13 +81,21 @@ export async function unclaimedMembers(bandOrgId: string, labelOrgId: string, ba
   return members.filter((m) => !claimed.some((c) => c.personId === m.id));
 }
 
-/** A label's people who don't have a login yet (for its own invite link). */
+/** A label's people who don't have a login yet, there or in one of its bands' accounts (for its own invite link). */
 export async function unclaimedPeople(labelOrgId: string) {
-  return db
-    .select({ id: schema.people.id, name: schema.people.name })
-    .from(schema.people)
-    .where(and(eq(schema.people.orgId, labelOrgId), isNull(schema.people.userId)))
-    .orderBy(asc(schema.people.name));
+  const [open, viaBand] = await Promise.all([
+    db
+      .select({ id: schema.people.id, name: schema.people.name })
+      .from(schema.people)
+      .where(and(eq(schema.people.orgId, labelOrgId), isNull(schema.people.userId)))
+      .orderBy(asc(schema.people.name)),
+    db
+      .select({ personId: schema.bandLoginPeople.personId })
+      .from(schema.bandLoginPeople)
+      .innerJoin(schema.accountLinks, eq(schema.accountLinks.bandOrgId, schema.bandLoginPeople.orgId))
+      .where(eq(schema.accountLinks.labelOrgId, labelOrgId)),
+  ]);
+  return open.filter((p) => !viaBand.some((b) => b.personId === p.id));
 }
 
 /** Whether a band account already has its shared login (a login that isn't one member's own). */
