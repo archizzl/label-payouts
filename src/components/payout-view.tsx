@@ -454,7 +454,7 @@ export async function PayoutView({
         {holderLine && (
           <p className="mt-3 text-xs text-muted">
             {possessive(holderLine.name)} <Money cents={holderLine.amountCents} currency={holderLine.currency} /> stays in the{" "}
-            <Link href="/account#label-bank-account" className="underline">
+            <Link href="/settings#label-bank-account" className="underline">
               label’s bank account
             </Link>
             .

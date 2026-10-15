@@ -11,7 +11,8 @@ import { accountContext, accountsFor, getSession, requireAdmin, VIEW_AS_COOKIE }
 import { AREAS, type Area, normalizeBandAreas, normalizePermissions } from "@/lib/permissions";
 import { assignMemberType, memberTypeForInvite, parseRoleChoice, setInviteMemberType, setManagedBands } from "./member-types";
 import { preapproved } from "./applications";
-import { normalizeEmail } from "./people";
+import { myPeople, normalizeEmail } from "./people";
+import { cleanCashtag, cleanVenmoHandle } from "@/lib/paypal-export";
 import { isSiteAdminEmail } from "./site-admin";
 import { bandcampCredentials, forgetBandcampSignIn, myBands } from "./bandcamp-api";
 import { encryptSecret } from "./secrets";
@@ -169,7 +170,7 @@ export async function testBandcampConnection(): Promise<FormState> {
   if (!creds) return { error: "Add the client ID and secret first." };
   try {
     const bands = await myBands(orgId, creds);
-    revalidatePath("/account");
+    revalidatePath("/settings");
     if (!bands.length) return { error: "Connected, but this API access doesn't reach any Bandcamp accounts." };
     const names = bands.map((b) => (b.member_bands?.length ? `${b.name} (with ${b.member_bands.length} artists)` : b.name)).join(", ");
     return { ok: `Connected. This API access reaches ${names}.` };
@@ -211,7 +212,7 @@ export async function inviteMember(_: FormState, fd: FormData): Promise<FormStat
     return { error: messageOf(e, "Couldn't create the invite.") };
   }
   revalidatePath("/directory");
-  revalidatePath("/account");
+  revalidatePath("/settings");
   return { ok: `Invited ${email}.` };
 }
 
@@ -219,7 +220,7 @@ export async function cancelInvite(fd: FormData) {
   await requireAdmin();
   await auth.api.cancelInvitation({ body: { invitationId: str(fd, "id") }, headers: await headers() });
   revalidatePath("/directory");
-  revalidatePath("/account");
+  revalidatePath("/settings");
 }
 
 /** Change what someone can do here: admin, a plain member, or a member with a member type. */
@@ -302,7 +303,7 @@ export async function removeAccountMember(fd: FormData) {
     .set({ userId: null })
     .where(and(eq(schema.people.orgId, orgId), eq(schema.people.userId, m.userId)));
   revalidatePath("/directory");
-  revalidatePath("/account");
+  revalidatePath("/settings");
 }
 
 /** Accept an invite as the signed-in user, and link their login to their payee record. */
@@ -366,33 +367,42 @@ export async function linkMyself(fd: FormData) {
 }
 
 /**
- * Leave the account you're working in: your login stops being one of its logins, and nothing in
- * its books changes (your payee record stays, just no longer linked to your login). A label's
+ * Leave one of your accounts (from Account): your login stops being one of its logins, and nothing
+ * in its books changes (your payee record stays, just no longer linked to your login). A label's
  * only admin can't leave it with nobody to run it; a band account the label made can always be
- * left, since the label manages it. Then on to another of your accounts.
+ * left, since the label manages it. Leaving the account you're in moves you on to another.
  */
 export async function leaveAccount(_: FormState, fd: FormData): Promise<FormState> {
-  const ctx = await accountContext();
-  const { orgId, user } = ctx;
-  // The account the button was for: not some other one switched to in another tab.
-  if (str(fd, "orgId") !== orgId) return { error: "You’ve switched accounts since. Reload this page and try again." };
-  if (!ctx.managedBy && ctx.isAdmin) {
+  const session = await getSession();
+  if (!session) redirect("/login");
+  const { user } = session;
+  const orgId = str(fd, "orgId");
+  const account = (await accountsFor(user.id)).find((a) => a.id === orgId);
+  if (!account) return { error: "You’re not in that account any more. Reload this page." };
+  const [link] = await db
+    .select({ id: schema.accountLinks.id })
+    .from(schema.accountLinks)
+    .where(and(eq(schema.accountLinks.bandOrgId, orgId), eq(schema.accountLinks.managed, true), eq(schema.accountLinks.status, "active")));
+  if (!link && account.role !== "member") {
     const others = await db
       .select({ role: schema.member.role })
       .from(schema.member)
       .where(and(eq(schema.member.organizationId, orgId), ne(schema.member.userId, user.id)));
     if (!others.some((m) => m.role === "owner" || m.role === "admin")) {
-      return { error: "You’re the only admin here. Make someone else an admin first." };
+      return { error: `You’re the only admin of ${account.name}. Make someone else an admin there first.` };
     }
   }
   await db.delete(schema.member).where(and(eq(schema.member.organizationId, orgId), eq(schema.member.userId, user.id)));
   await db.delete(schema.bandLoginPeople).where(and(eq(schema.bandLoginPeople.orgId, orgId), eq(schema.bandLoginPeople.userId, user.id)));
   await db.update(schema.people).set({ userId: null }).where(and(eq(schema.people.orgId, orgId), eq(schema.people.userId, user.id)));
-  (await cookies()).delete(VIEW_AS_COOKIE);
   const [next] = await accountsFor(user.id);
-  if (next) await auth.api.setActiveOrganization({ body: { organizationId: next.id }, headers: await headers() });
+  if (!next) redirect("/welcome");
+  if (session.session.activeOrganizationId === orgId) {
+    (await cookies()).delete(VIEW_AS_COOKIE);
+    await auth.api.setActiveOrganization({ body: { organizationId: next.id }, headers: await headers() });
+  }
   revalidatePath("/", "layout");
-  redirect(next ? "/" : "/welcome");
+  return { ok: `You’ve left ${account.name}.` };
 }
 
 /**
@@ -471,14 +481,45 @@ export async function deleteAccount(_: FormState, fd: FormData): Promise<FormSta
   redirect(next ? "/" : "/welcome");
 }
 
-/** Your login's name (shown at the top right, in every account). */
-export async function saveLoginName(_: FormState, fd: FormData): Promise<FormState> {
+/**
+ * Your details, everywhere at once: your login's name (top right) and, on every payee record that's
+ * yours (see myPeople), the same name and how you're paid.
+ */
+export async function saveMyDetails(_: FormState, fd: FormData): Promise<FormState> {
   const session = await getSession();
   if (!session) redirect("/login");
   const name = str(fd, "name").slice(0, 120);
-  if (!name) return { error: "Enter a name." };
+  if (!name) return { error: "Enter your name." };
   // Through Better Auth, so the cached session cookie has the new name too.
   await auth.api.updateUser({ body: { name }, headers: await headers() });
+  const mine = await myPeople(session.user.id);
+  if (mine.length && fd.has("email")) {
+    const opt = (k: string) => str(fd, k).slice(0, 200) || null;
+    await db
+      .update(schema.people)
+      .set({
+        name,
+        email: opt("email"),
+        paypalMe: opt("paypalMe"),
+        venmo: cleanVenmoHandle(str(fd, "venmo")) || null,
+        cashtag: cleanCashtag(str(fd, "cashtag")) || null,
+      })
+      .where(inArray(schema.people.id, mine.map((p) => p.id)));
+  }
   revalidatePath("/", "layout");
   return { ok: "Saved." };
+}
+
+/** A new password for your login (your other sign-ins stay signed in). */
+export async function changeMyPassword(_: FormState, fd: FormData): Promise<FormState> {
+  const session = await getSession();
+  if (!session) redirect("/login");
+  const newPassword = String(fd.get("newPassword") ?? "");
+  if (newPassword.length < 8) return { error: "Use a password of at least 8 characters." };
+  try {
+    await auth.api.changePassword({ body: { currentPassword: String(fd.get("currentPassword") ?? ""), newPassword }, headers: await headers() });
+  } catch {
+    return { error: "Your current password isn’t right." };
+  }
+  return { ok: "Password changed." };
 }

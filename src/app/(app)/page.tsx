@@ -89,7 +89,7 @@ export default async function Dashboard() {
     {
       done: !!settingsRow?.bandcampUrl || releaseCount > 0,
       label: isBand ? "Add your Bandcamp address, so your releases and merch come in by themselves" : "Add your Bandcamp address, so your bands, releases and merch come in by themselves",
-      href: "/account",
+      href: "/settings",
       hint: "",
     },
     ...(isBand ? [] : [{ done: bands.length > 0, label: "Add your bands", href: "/directory", hint: "Or let them come in from Bandcamp." }]),

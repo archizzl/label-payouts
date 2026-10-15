@@ -176,7 +176,7 @@ export default async function ImportPage({ searchParams }: PageProps<"/sales/imp
           <p className="text-sm text-muted">
             {isAdmin ? (
               <>
-                To pull sales automatically, add your Bandcamp API access (client ID and secret) under <Link href="/account">Settings</Link>.
+                To pull sales automatically, add your Bandcamp API access (client ID and secret) under <Link href="/settings">Settings</Link>.
               </>
             ) : (
               "To pull sales automatically, an admin needs to add Bandcamp API access in Settings. Until then, upload the sales report here."

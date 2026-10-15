@@ -182,3 +182,21 @@ export async function findExistingPerson(orgId: string, name: string, email: str
   const n = normalizeName(name);
   return all.find((p) => normalizeName(p.name) === n && (!e || !normalizeEmail(p.email))) ?? null;
 }
+
+/**
+ * Every payee record that's this login's own, in any account: linked directly (a label's member, a
+ * band that runs its own account), or through a band account a label made (its own login there).
+ */
+export async function myPeople(userId: string): Promise<Person[]> {
+  const [direct, viaBand] = await Promise.all([
+    db.select().from(people).where(eq(people.userId, userId)),
+    db
+      .select({ person: people })
+      .from(schema.bandLoginPeople)
+      .innerJoin(people, eq(people.id, schema.bandLoginPeople.personId))
+      .where(eq(schema.bandLoginPeople.userId, userId)),
+  ]);
+  const byId = new Map<number, Person>();
+  for (const p of [...direct, ...viaBand.map((r) => r.person)]) byId.set(p.id, p);
+  return [...byId.values()];
+}

@@ -27,7 +27,7 @@ async function bandAccountFor(fd: FormData) {
 }
 
 function refresh(bandId: number) {
-  revalidatePath("/account");
+  revalidatePath("/settings");
   revalidatePath("/directory");
   revalidatePath(`/bands/${bandId}`);
 }

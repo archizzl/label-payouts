@@ -38,7 +38,7 @@ export async function SyncStatus({ orgId, onSettings = false }: { orgId: string;
       <p className="text-sm text-muted">
         {canSetUp ? (
           <>
-            Add your Bandcamp address (and API access, for sales) under <Link href="/account">Settings</Link> to keep artists, releases
+            Add your Bandcamp address (and API access, for sales) under <Link href="/settings">Settings</Link> to keep artists, releases
             and sales in sync automatically.
           </>
         ) : (

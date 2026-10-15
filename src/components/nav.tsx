@@ -44,7 +44,9 @@ function itemsFor(
       { href: "/receipts", label: "receipts" },
       { href: "/catalog", label: "catalog" },
       { href: "/directory", label: "directory" },
-      { href: "/account", label: "settings" },
+      // The band's own login runs it (who signs in); everyone has their own account.
+      ...(isAdmin ? [{ href: "/settings", label: "settings" }] : []),
+      { href: "/account", label: "account" },
     ];
   }
   const all: (Item & { area?: Area })[] = [
@@ -63,9 +65,16 @@ function itemsFor(
     { href: "/catalog", label: "catalog", area: "catalog" },
     ...(account.kind === "band" ? [] : [{ href: "/rules", label: "rules", area: "rules" as const }]),
   ];
-  if (isAdmin) return [...all, ...(projects ? [{ href: "/projects", label: "projects" }] : []), ...labels, { href: "/account", label: "settings" }];
+  if (isAdmin)
+    return [
+      ...all,
+      ...(projects ? [{ href: "/projects", label: "projects" }] : []),
+      ...labels,
+      { href: "/settings", label: "settings" },
+      { href: "/account", label: "account" },
+    ];
   // Members: their own earnings, plus whatever their member type lets them see.
-  return [{ href: "/me", label: "my earnings" }, ...all.filter((i) => i.area && areas.includes(i.area)), { href: "/account", label: "settings" }];
+  return [{ href: "/me", label: "my earnings" }, ...all.filter((i) => i.area && areas.includes(i.area)), { href: "/account", label: "account" }];
 }
 
 /** Pick which of your accounts (labels and bands) you're working in. */
