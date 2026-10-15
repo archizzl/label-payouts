@@ -1,6 +1,6 @@
 import { asc, eq } from "drizzle-orm";
 import { SubmitButton } from "@/components/client";
-import { Badge, Card, Empty } from "@/components/ui";
+import { Card, Empty } from "@/components/ui";
 import { db, schema } from "@/db";
 import { subAccountFor } from "@/server/band-accounts";
 import { unlink } from "@/server/link-actions";
@@ -30,10 +30,10 @@ export async function BandAccountSection({
 }) {
   const viewMembers = members.length > 0 && (
     <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
-      <span className="text-muted">See what each member sees in {row ? "the label" : "your account"}:</span>
+      {/* <span className="text-muted">See what each member sees in {row ? "the label" : "your account"}:</span>
       {members.map((m) => (
         <ViewAsButton key={m.id} kind="person" id={m.id} name={m.name} prefix="" />
-      ))}
+      ))} */}
     </div>
   );
 
@@ -96,7 +96,6 @@ export async function BandAccountSection({
                     bandId={band.id}
                   />
                 </span>
-                <Badge tone="good">signs in</Badge>
                 <span className="ml-auto">
                   <LoginEditToggle />
                 </span>

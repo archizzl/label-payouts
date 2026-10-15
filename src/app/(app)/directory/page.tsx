@@ -17,7 +17,6 @@ import { labelHost } from "@/server/data";
 import { type BandAccountSummary, bandAccountSummaries, ensureBandAccounts } from "@/server/band-accounts";
 import { MemberTypesCard } from "@/components/member-types";
 import { possibleDuplicates } from "@/server/people";
-import { StandingInviteLink } from "@/components/band-invite-links";
 
 export const metadata = { title: "directory" };
 
@@ -338,17 +337,7 @@ function BandAccountLine({
   return (
     <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
       {a.managed ? (
-        <>
-          {a.logins > 0 && (
-            <>
-              <span>
-                {a.logins} sign{a.logins === 1 ? "s" : ""} in
-              </span>
-              <Link href={manage}>manage</Link>
-            </>
-          )}
-          <StandingInviteLink bandOrgId={a.orgId} bandId={bandId} />
-        </>
+        <Link href={manage}>manage sign-ins</Link>
       ) : (
         <>
           <span>Linked to their own account, “{a.name}”.</span>
