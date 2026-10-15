@@ -208,7 +208,8 @@ export async function savePerson(fd: FormData) {
     email: optStr(fd, "email"),
     paypalMe: optStr(fd, "paypalMe"),
     ...payHandles(fd),
-    notes: optStr(fd, "notes"),
+    // A band's own account doesn't see (or change) the label's notes about people.
+    ...(access.lens ? {} : { notes: optStr(fd, "notes") }),
   };
   if (!values.name) throw new Error("Name is required");
   if (id) await db.update(people).set(values).where(and(eq(people.orgId, orgId), eq(people.id, id)));

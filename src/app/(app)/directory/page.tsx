@@ -1,4 +1,4 @@
-import { and, asc, eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import Link from "next/link";
 import { connection } from "next/server";
 import { redirect } from "next/navigation";
@@ -8,12 +8,10 @@ import { SyncFooter } from "@/components/sync-status";
 import { Badge, Card, Disclosure, Empty, Field, MoneyList, PageHeader, RolesList } from "@/components/ui";
 import { ViewAsButton } from "@/components/viewing-as";
 import { WhoCanSignIn } from "@/components/who-can-sign-in";
-import { MyDetails } from "@/components/my-details";
-import { bandMemberChoice } from "@/server/band-member";
 import { db, schema } from "@/db";
 import { payHandlesSummary } from "@/lib/paypal-export";
 import { bandScope } from "@/lib/permissions";
-import { addMember, deletePerson, mergePeopleAction, removeMember, savePerson } from "@/server/actions";
+import { addMember, deletePerson, mergePeopleAction, removeMember, savePerson, updateMembership } from "@/server/actions";
 import { type Context, requireAccess } from "@/server/context";
 import { labelHost } from "@/server/data";
 import { type BandAccountSummary, bandAccountSummaries, ensureBandAccounts } from "@/server/band-accounts";
@@ -40,17 +38,6 @@ export default async function DirectoryPage() {
   await connection();
   const ctx = await requireAccess("roster");
   const { orgId } = ctx;
-  // A band member's own login: their own details first.
-  const choice = ctx.lens ? await bandMemberChoice() : null;
-  const mine =
-    choice?.fixed && choice.chosen && ctx.managedBy
-      ? await db
-          .select({ person: schema.people, roles: schema.bandMemberships.roles })
-          .from(schema.people)
-          .innerJoin(schema.bandMemberships, and(eq(schema.bandMemberships.personId, schema.people.id), eq(schema.bandMemberships.bandId, ctx.managedBy.bandId)))
-          .where(and(eq(schema.people.orgId, orgId), eq(schema.people.id, choice.chosen.id)))
-          .then((r) => r[0] ?? null)
-      : null;
   // A band manager: just their bands and the people in them, and nothing label-wide.
   const scope = bandScope(ctx.access, "roster");
   // Bands' own accounts (label admins): bands added since (or from before sub-accounts) get theirs.
@@ -133,7 +120,6 @@ export default async function DirectoryPage() {
       <PageHeader
         title="Directory"
       />
-      {mine && <MyDetails person={mine.person} roles={mine.roles} />}
 
       {shownDuplicates.length > 0 && (
         <Card title="Possible duplicates">
@@ -302,7 +288,7 @@ function AddToBand({ bandId, bandName, people }: { bandId: number; bandName: str
       <Disclosure
         summary={
           <>
-            + Add someone to <span className="normal-case">{bandName}</span>
+            Add someone manually
           </>
         }
       >
@@ -353,7 +339,6 @@ function BandAccountLine({
     <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
       {a.managed ? (
         <>
-          <span>Band account:</span>
           {a.logins > 0 && (
             <>
               <span>
@@ -442,8 +427,8 @@ function PersonRow({
         </span>
       </summary>
       <div className="mb-3 space-y-4 border border-border bg-surface-2 p-4">
-        <PersonFields person={p} />
-        <PersonBands person={p} bandsOf={bandsOf} bands={bands} />
+        <PersonFields person={p} labelNotes={!ctx.lens} />
+        <PersonBands person={p} bandsOf={bandsOf} bands={bands} limited={limited} />
         {everyone.length > 1 && (
           <form action={mergePeopleAction} className="flex flex-wrap items-end gap-2 border-t border-border pt-4">
             <input type="hidden" name="fromId" value={p.id} />
@@ -487,7 +472,7 @@ function PersonRow({
 }
 
 /** In a person's panel: the bands they're in (each with remove), and adding them to another. */
-function PersonBands({ person: p, bandsOf: all, bands }: { person: Person; bandsOf: Membership[]; bands: Band[] }) {
+function PersonBands({ person: p, bandsOf: all, bands, limited }: { person: Person; bandsOf: Membership[]; bands: Band[]; limited: boolean }) {
   // A band manager only sees (and changes) their own bands.
   const bandsOf = all.filter((m) => bands.some((b) => b.id === m.band.id));
   const notIn = bands.filter((b) => !bandsOf.some((m) => m.band.id === b.id && m.active));
@@ -499,10 +484,22 @@ function PersonBands({ person: p, bandsOf: all, bands }: { person: Person; bands
         <ul className="space-y-1">
           {bandsOf.map((m) => (
             <li key={m.id} className="flex flex-wrap items-center gap-3">
-              <Link href={`/bands/${m.band.id}?tab=people`} className={m.active ? "" : "opacity-60"}>
-                {m.band.name}
-              </Link>
+              {limited ? (
+                <span className={m.active ? "" : "opacity-60"}>{m.band.name}</span>
+              ) : (
+                <Link href={`/bands/${m.band.id}?tab=people`} className={m.active ? "" : "opacity-60"}>
+                  {m.band.name}
+                </Link>
+              )}
               {!m.active && <span className="text-xs text-muted">former member</span>}
+              <form action={updateMembership} className="flex items-center gap-2">
+                <input type="hidden" name="membershipId" value={m.id} />
+                {m.active && <input type="hidden" name="active" value="on" />}
+                <input name="roles" defaultValue={m.roles.join(", ")} placeholder="Roles (comma-separated)" aria-label={`Roles in ${m.band.name}`} className="!w-56 !py-0.5 text-sm" />
+                <SaveWhenChanged>
+                  <SubmitButton size="sm">Save</SubmitButton>
+                </SaveWhenChanged>
+              </form>
               <form action={removeMember} className="ml-auto">
                 <input type="hidden" name="membershipId" value={m.id} />
                 <SubmitButton
@@ -539,7 +536,7 @@ function PersonBands({ person: p, bandsOf: all, bands }: { person: Person; bands
   );
 }
 
-function PersonFields({ person }: { person?: Person }) {
+function PersonFields({ person, labelNotes = true }: { person?: Person; labelNotes?: boolean }) {
   return (
     <form action={savePerson} className="grid gap-4 sm:grid-cols-2">
       {person && <input type="hidden" name="id" value={person.id} />}
@@ -558,9 +555,12 @@ function PersonFields({ person }: { person?: Person }) {
       <Field label="Cash App $cashtag">
         <input name="cashtag" defaultValue={person?.cashtag ?? ""} placeholder="$yourname" />
       </Field>
-      <Field label="Notes">
-        <input name="notes" defaultValue={person?.notes ?? ""} />
-      </Field>
+      {/* The label's own notes about someone: not for a band's own account. */}
+      {labelNotes && (
+        <Field label="Notes">
+          <input name="notes" defaultValue={person?.notes ?? ""} />
+        </Field>
+      )}
       <div className="sm:col-span-2">
         {person ? (
           <SaveWhenChanged>

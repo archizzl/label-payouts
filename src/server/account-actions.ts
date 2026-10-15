@@ -1,13 +1,13 @@
 "use server";
 
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, ne } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { db, schema } from "@/db";
 import { slugify } from "@/lib/slug";
 import { auth } from "./auth";
-import { accountsFor, getSession, requireAdmin, VIEW_AS_COOKIE } from "./context";
+import { accountContext, accountsFor, getSession, requireAdmin, VIEW_AS_COOKIE } from "./context";
 import { AREAS, type Area, normalizeBandAreas, normalizePermissions } from "@/lib/permissions";
 import { assignMemberType, memberTypeForInvite, parseRoleChoice, setInviteMemberType, setManagedBands } from "./member-types";
 import { preapproved } from "./applications";
@@ -360,4 +360,34 @@ export async function linkMyself(fd: FormData) {
       .where(and(eq(schema.people.orgId, ctx.orgId), eq(schema.people.id, personId), isNull(schema.people.userId)));
   }
   revalidatePath("/", "layout");
+}
+
+/**
+ * Leave the account you're working in: your login stops being one of its logins, and nothing in
+ * its books changes (your payee record stays, just no longer linked to your login). A label's
+ * only admin can't leave it with nobody to run it; a band account the label made can always be
+ * left, since the label manages it. Then on to another of your accounts.
+ */
+export async function leaveAccount(_: FormState, fd: FormData): Promise<FormState> {
+  const ctx = await accountContext();
+  const { orgId, user } = ctx;
+  // The account the button was for: not some other one switched to in another tab.
+  if (str(fd, "orgId") !== orgId) return { error: "You’ve switched accounts since. Reload this page and try again." };
+  if (!ctx.managedBy && ctx.isAdmin) {
+    const others = await db
+      .select({ role: schema.member.role })
+      .from(schema.member)
+      .where(and(eq(schema.member.organizationId, orgId), ne(schema.member.userId, user.id)));
+    if (!others.some((m) => m.role === "owner" || m.role === "admin")) {
+      return { error: "You’re the only admin here. Make someone else an admin first." };
+    }
+  }
+  await db.delete(schema.member).where(and(eq(schema.member.organizationId, orgId), eq(schema.member.userId, user.id)));
+  await db.delete(schema.bandLoginPeople).where(and(eq(schema.bandLoginPeople.orgId, orgId), eq(schema.bandLoginPeople.userId, user.id)));
+  await db.update(schema.people).set({ userId: null }).where(and(eq(schema.people.orgId, orgId), eq(schema.people.userId, user.id)));
+  (await cookies()).delete(VIEW_AS_COOKIE);
+  const [next] = await accountsFor(user.id);
+  if (next) await auth.api.setActiveOrganization({ body: { organizationId: next.id }, headers: await headers() });
+  revalidatePath("/", "layout");
+  redirect(next ? "/" : "/welcome");
 }

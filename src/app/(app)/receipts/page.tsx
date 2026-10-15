@@ -1,7 +1,8 @@
 import { asc, eq } from "drizzle-orm";
 import Link from "next/link";
 import { connection } from "next/server";
-import { ExpenseForm, ExpenseTable, expenseTotals } from "@/components/receipts";
+import { ExpenseForm, ExpenseTable, expenseTotals, SubmitReceiptForm } from "@/components/receipts";
+import { bandMembers } from "@/server/band-member";
 import { Card, Disclosure, MoneyList, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
 import { ClearFilesPart } from "@/components/receipt-cleanup";
@@ -17,7 +18,7 @@ export const metadata = { title: "receipts" };
 /** Every expense and its receipts: what's waiting for approval first, then everything else. */
 export default async function ReceiptsPage({ searchParams }: PageProps<"/receipts">) {
   await connection();
-  const { orgId, access, person, user, lens } = await requireAccess("receipts");
+  const { orgId, access, person, user, lens, managedBy } = await requireAccess("receipts");
   const canChange = can(access, "receipts", "edit");
   // Limited to their own bands: only those bands' receipts (not label-wide ones).
   const scope = bandScope(access, "receipts");
@@ -49,8 +50,8 @@ export default async function ReceiptsPage({ searchParams }: PageProps<"/receipt
   const form = (e?: (typeof all)[number]) => (
     <ExpenseForm expense={e} bands={bandsShown} releases={releases} people={people} bandId={bandFilter} projects={projects} />
   );
-  // Seeing receipts without changing them: no forms, approve or pay-back buttons.
-  const tableMode = canChange ? ({ mode: "admin", edit: form } as const) : ({ mode: "readonly" } as const);
+  // Seeing receipts without changing them: no forms, approve or pay-back buttons (just withdrawing your own pending one).
+  const tableMode = canChange ? ({ mode: "admin", edit: form } as const) : ({ mode: "member", userId: user.id } as const);
 
   return (
     <>
@@ -86,10 +87,23 @@ export default async function ReceiptsPage({ searchParams }: PageProps<"/receipt
       )}
 
       <Card title="Expenses">
-        {canChange && (
+        {canChange ? (
           <div className="mb-4">
             <Disclosure summary="+ Add an expense">{form()}</Disclosure>
           </div>
+        ) : (
+          // Band members (and a band's own login) send in receipts for the label to approve.
+          (person || lens) && (
+            <div className="mb-4">
+              <Disclosure summary="+ Submit a receipt">
+                <SubmitReceiptForm
+                  bands={bandsShown}
+                  projects={projects.filter((p) => p.status !== "done" && bandsShown.some((b) => b.id === p.bandId))}
+                  payers={!person && managedBy ? await bandMembers(orgId, managedBy.bandId) : undefined}
+                />
+              </Disclosure>
+            </div>
+          )
         )}
         <ExpenseTable rows={rest} files={files} personName={personName} bandName={bandName} projectName={projectName} {...tableMode} payees={payees} />
       </Card>

@@ -16,9 +16,9 @@ export async function StandingInviteLink({ bandOrgId, createdBy = null, bandId }
       <CopyButton text={`${base()}/join/${id}`} label="Copy invite link" />
       <form action={resetInviteLink}>
         {bandId !== undefined && <input type="hidden" name="bandId" value={bandId} />}
-        <SubmitButton variant="ghost" size="sm" confirm="Reset the invite link? The old one stops working; anyone who already joined stays.">
+        {/* <SubmitButton variant="ghost" size="sm" confirm="Reset the invite link? The old one stops working; anyone who already joined stays.">
           Reset link
-        </SubmitButton>
+        </SubmitButton> */}
       </form>
     </span>
   );

@@ -6,10 +6,11 @@ import { Callout, Card, Field, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
 import { saveAccountSettings, testBandcampConnection } from "@/server/account-actions";
 import { WhoCanSignIn } from "@/components/who-can-sign-in";
+import { LeaveAccount } from "@/components/leave-account";
 import { SyncFooter } from "@/components/sync-status";
 import { setLabelAccountHolder, setSetupHidden } from "@/server/actions";
 import { bandcampApiOff } from "@/server/bandcamp-api";
-import { type Context, requireAdmin } from "@/server/context";
+import { accountContext, type Context, requireAdmin } from "@/server/context";
 import { unlink } from "@/server/link-actions";
 import { labelsForBandAccount } from "@/server/links";
 
@@ -18,9 +19,19 @@ export const metadata = { title: "settings" };
 /** Account settings: the account, Bandcamp, who holds the label's bank account, and (band accounts) the labels it's linked to. People, logins, member types and bands' accounts are in the Directory. */
 export default async function AccountPage() {
   await connection();
+  // Everyone can leave an account; the rest of Settings is for its admins.
+  const own = await accountContext();
+  if (own.managedBy) return <SubAccountSettings ctx={own} />;
+  if (!own.isAdmin) {
+    return (
+      <>
+        <PageHeader title="Settings" subtitle={own.org.name} />
+        <LeaveAccount name={own.org.name} orgId={own.orgId} />
+      </>
+    );
+  }
   const ctx = await requireAdmin();
   const { orgId } = ctx;
-  if (ctx.managedBy) return <SubAccountSettings ctx={ctx} />;
   const [[settings], labels, people] = await Promise.all([
     db.select().from(schema.accountSettings).where(eq(schema.accountSettings.orgId, orgId)),
     ctx.org.kind === "band" ? labelsForBandAccount(orgId) : Promise.resolve([]),
@@ -160,6 +171,7 @@ export default async function AccountPage() {
       )}
 
 
+      <LeaveAccount name={ctx.org.name} orgId={ctx.orgId} />
       <SyncFooter orgId={ctx.orgId} onSettings />
     </>
   );
@@ -174,7 +186,8 @@ async function SubAccountSettings({ ctx }: { ctx: Context }) {
         {m.labelName} made this account for {ctx.org.name}, so you can see <Link href={`/from-label/${m.linkId}`}>what the label has for you</Link>:
         your sales, payouts, statements and receipts. The label keeps the books; ask them if something looks wrong.
       </p> */}
-      <WhoCanSignIn ctx={ctx} />
+      {ctx.isAdmin && <WhoCanSignIn ctx={ctx} />}
+      <LeaveAccount name={ctx.org.name} orgId={ctx.orgId} />
     </>
   );
 }

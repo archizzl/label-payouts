@@ -44,7 +44,7 @@ function itemsFor(
       { href: "/receipts", label: "receipts" },
       { href: "/catalog", label: "catalog" },
       { href: "/directory", label: "directory" },
-      ...(isAdmin ? [{ href: "/account", label: "settings" }] : []),
+      { href: "/account", label: "settings" },
     ];
   }
   const all: (Item & { area?: Area })[] = [
@@ -65,7 +65,7 @@ function itemsFor(
   ];
   if (isAdmin) return [...all, ...(projects ? [{ href: "/projects", label: "projects" }] : []), ...labels, { href: "/account", label: "settings" }];
   // Members: their own earnings, plus whatever their member type lets them see.
-  return [{ href: "/me", label: "my earnings" }, ...all.filter((i) => i.area && areas.includes(i.area))];
+  return [{ href: "/me", label: "my earnings" }, ...all.filter((i) => i.area && areas.includes(i.area)), { href: "/account", label: "settings" }];
 }
 
 /** Pick which of your accounts (labels and bands) you're working in. */

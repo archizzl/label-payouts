@@ -193,9 +193,32 @@ export function ExpenseForm({
 }
 
 /** Member: submit a receipt for something you paid for. */
-export function SubmitReceiptForm({ bands, projects = [] }: { bands: Band[]; projects?: ProjectOption[] }) {
+export function SubmitReceiptForm({
+  bands,
+  projects = [],
+  payers,
+}: {
+  bands: Band[];
+  projects?: ProjectOption[];
+  /** A band's shared login: which of its members paid. */
+  payers?: { id: number; name: string }[];
+}) {
   return (
     <ActionForm action={submitReceipt} className="grid gap-4 sm:grid-cols-3">
+      {payers && (
+        <Field label="Who paid">
+          <select name="paidByPersonId" required defaultValue="">
+            <option value="" disabled>
+              Choose
+            </option>
+            {payers.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        </Field>
+      )}
       <Field label="What for" className="sm:col-span-2">
         <input name="description" required placeholder="Gas for the Philly show" />
       </Field>

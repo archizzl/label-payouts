@@ -153,7 +153,21 @@ export async function saveExpense(_: ExpenseState, fd: FormData): Promise<Expens
 /** Member: submit a receipt for something you paid for. An admin approves it before it counts. */
 export async function submitReceipt(_: ExpenseState, fd: FormData): Promise<ExpenseState> {
   const ctx = await getContext();
-  const { orgId, person } = ctx;
+  const { orgId } = ctx;
+  // Who paid: whoever's signed in; on a band's shared login, the member they pick (in that band).
+  let person = ctx.person;
+  if (!person && ctx.lens && ctx.managedBy) {
+    const payer = optInt(fd, "paidByPersonId");
+    const [row] = payer
+      ? await db
+          .select({ person: schema.people })
+          .from(bandMemberships)
+          .innerJoin(schema.people, eq(schema.people.id, bandMemberships.personId))
+          .where(and(eq(bandMemberships.orgId, orgId), eq(bandMemberships.bandId, ctx.managedBy.bandId), eq(bandMemberships.personId, payer)))
+      : [];
+    if (!row) return { error: "Choose who paid." };
+    person = row.person;
+  }
   if (!person) return { error: "Your login isn’t linked to anyone who gets paid here yet." };
   try {
     const date = isoDate(str(fd, "date"));
