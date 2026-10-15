@@ -40,21 +40,18 @@ export default async function FromLabelPage({ params, searchParams }: PageProps<
 
   return (
     <>
-      <PageHeader title={`${v.bandName} on ${v.labelName}`} />
+      <PageHeader title={v.bandName} />
       {/* <Callout tone="neutral">
         This is what {v.labelName} records for {v.bandName}. Only the label can change it; ask them if something looks wrong.
       </Callout> */}
 
       {mine && (
-        <Card title={members ? `${mine.person.name}’s earnings from ${v.labelName}` : `Your earnings from ${v.labelName}`}>
+        <Card title={members ? `${mine.person.name}’s earnings` : "Your earnings"}>
           <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
             <Stat label="Waiting to be paid" totals={mine.owed} emphasis />
             <Stat label="Received so far" totals={mine.received} />
             <Stat label="Earned since the last payout" totals={mine.upcoming} />
           </div>
-          <p className="text-xs text-muted">
-            Across every band {mine.person.name} is in on {v.labelName}.
-          </p>
         </Card>
       )}
 
@@ -139,7 +136,7 @@ export default async function FromLabelPage({ params, searchParams }: PageProps<
  * The signed-in person's own earnings in the label's books: the label's payee in this band with
  * their email. Null if there isn't one (or for a label admin viewing as the band).
  */
-/** A member's earnings from the label: the one picked (by id), or whoever has the login's email. */
+/** A member's earnings from the label for this band: the one picked (by id), or whoever has the login's email. */
 async function myEarnings(labelOrgId: string, bandId: number, who: { id: number } | { email: string }) {
   if ("email" in who ? !who.email : !who.id) return null;
   const email = "email" in who ? who.email.trim().toLowerCase() : null;
@@ -158,13 +155,16 @@ async function myEarnings(labelOrgId: string, bandId: number, who: { id: number 
       .select()
       .from(schema.payouts)
       .where(and(eq(schema.payouts.orgId, labelOrgId), eq(schema.payouts.personId, person.id))),
-    computePayoutPeriod(labelOrgId, { id: 0, bandId: null, startDate: "0000-01-01", endDate: "9999-12-31" }),
+    computePayoutPeriod(labelOrgId, { id: 0, bandId, startDate: "0000-01-01", endDate: "9999-12-31" }),
   ]);
+  // Just this band's part of each payout (someone in several bands is paid for all of them at once).
   const owed = new Map<string, number>();
   const received = new Map<string, number>();
   for (const p of payoutRows) {
+    const part = p.byBand[String(bandId)] ?? 0;
+    if (!part) continue;
     const m = p.status === "pending" ? owed : received;
-    m.set(p.currency, (m.get(p.currency) ?? 0) + p.amountCents);
+    m.set(p.currency, (m.get(p.currency) ?? 0) + part);
   }
   const upcoming = new Map<string, number>();
   for (const cur of unpaid.summary.currencies) {
