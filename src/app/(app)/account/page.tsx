@@ -84,7 +84,7 @@ export default async function AccountPage() {
         </ul>
       </Card>
 
-      <DeleteLogin email={user.email} />
+      <DeleteLogin email={user.email} accounts={accounts.length} />
     </>
   );
 }
