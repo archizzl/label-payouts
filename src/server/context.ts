@@ -45,6 +45,8 @@ export type Context = {
    * orgId is the label's, the access is read-only, and person is whichever member is using it.
    */
   lens: boolean;
+  /** In a band account: a member's own login (not the band's shared one), who changes only their own details. */
+  ownLogin?: boolean;
 };
 
 export type ViewingAs = {
@@ -176,6 +178,7 @@ async function bandLens(ctx: Context, extra: Access["permissions"] = {}): Promis
     memberType: null,
     person,
     lens: true,
+    ownLogin: personId != null,
   };
 }
 

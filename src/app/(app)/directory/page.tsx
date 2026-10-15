@@ -376,40 +376,55 @@ function PersonRow({
 }) {
   const roles = membership?.roles ?? null;
   const active = membership?.active ?? true;
+  // A band member's own login changes only their own details.
+  const editable = !ctx.ownLogin || p.id === ctx.person?.id;
+  const cells = (
+    <>
+      <span className="font-medium">
+        {p.name}
+        {!active && <span className="ml-2 text-xs font-normal text-muted">(former member)</span>}
+        {p.holdsLabelAccount && (
+          <span className="mt-0.5 block">
+            <Badge tone="accent">label account</Badge>
+          </span>
+        )}
+      </span>
+      <span className="text-xs">
+        {roles && roles.length > 0 && <RolesList roles={roles} />}
+        {contactFor.length > 0 && <span className="block text-muted">contact for {contactFor.join(", ")}</span>}
+      </span>
+      <span className="truncate text-xs">
+        {p.email ? (
+          <span className="block truncate">{p.email}</span>
+        ) : p.holdsLabelAccount ? (
+          <span className="block text-muted">not needed</span>
+        ) : payHandlesSummary(p) ? null : (
+          <span className="block text-warn">no payment details</span>
+        )}
+        {payHandlesSummary(p) && <span className="block truncate text-muted">{payHandlesSummary(p)}</span>}
+      </span>
+      <span className="text-right tabular-nums">
+        <MoneyList totals={money.owed} />
+      </span>
+      <span className="text-right tabular-nums">
+        <MoneyList totals={money.paid} />
+      </span>
+    </>
+  );
+  if (!editable) {
+    return (
+      <div id={id} className={`${COLUMNS} scroll-mt-4 items-start border-b border-border px-2.5 py-2 ${active ? "" : "opacity-50"}`}>
+        {cells}
+        <span />
+      </div>
+    );
+  }
   return (
     <details id={id} className="group scroll-mt-4 border-b border-border">
       <summary
         className={`${COLUMNS} items-start px-2.5 py-2 hover:bg-surface-2 ${active ? "" : "opacity-50"}`}
       >
-        <span className="font-medium">
-          {p.name}
-          {!active && <span className="ml-2 text-xs font-normal text-muted">(former member)</span>}
-          {p.holdsLabelAccount && (
-            <span className="mt-0.5 block">
-              <Badge tone="accent">label account</Badge>
-            </span>
-          )}
-        </span>
-        <span className="text-xs">
-          {roles && roles.length > 0 && <RolesList roles={roles} />}
-          {contactFor.length > 0 && <span className="block text-muted">contact for {contactFor.join(", ")}</span>}
-        </span>
-        <span className="truncate text-xs">
-          {p.email ? (
-            <span className="block truncate">{p.email}</span>
-          ) : p.holdsLabelAccount ? (
-            <span className="block text-muted">not needed</span>
-          ) : payHandlesSummary(p) ? null : (
-            <span className="block text-warn">no payment details</span>
-          )}
-          {payHandlesSummary(p) && <span className="block truncate text-muted">{payHandlesSummary(p)}</span>}
-        </span>
-        <span className="text-right tabular-nums">
-          <MoneyList totals={money.owed} />
-        </span>
-        <span className="text-right tabular-nums">
-          <MoneyList totals={money.paid} />
-        </span>
+        {cells}
         <span className="text-right text-xs text-link">
           <span className="group-open:hidden">edit</span>
           <span className="hidden group-open:inline">close</span>
@@ -417,8 +432,13 @@ function PersonRow({
       </summary>
       <div className="mb-3 space-y-4 border border-border bg-surface-2 p-4">
         <PersonFields person={p} labelNotes={!ctx.lens} />
-        <PersonBands person={p} bandsOf={bandsOf} bands={bands} limited={limited} />
-        {everyone.length > 1 && (
+        {/* A band's own account: just their roles in it (it's the only band there). */}
+        {ctx.lens ? (
+          membership && <BandRoles person={p} membership={membership} canRemove={!ctx.ownLogin} />
+        ) : (
+          <PersonBands person={p} bandsOf={bandsOf} bands={bands} limited={limited} />
+        )}
+        {everyone.length > 1 && !ctx.ownLogin && (
           <form action={mergePeopleAction} className="flex flex-wrap items-end gap-2 border-t border-border pt-4">
             <input type="hidden" name="fromId" value={p.id} />
             <Field label={`Merge ${p.name} into…`} hint="Their bands, splits and payouts move to that person, then this record is removed.">
@@ -518,6 +538,34 @@ function PersonBands({ person: p, bandsOf: all, bands, limited }: { person: Pers
           </select>
           <SubmitButton size="sm" variant="secondary">
             add
+          </SubmitButton>
+        </form>
+      )}
+    </div>
+  );
+}
+
+/** In a band's own account: someone's roles in the band, and (the band's login) taking them out of it. */
+function BandRoles({ person: p, membership: m, canRemove }: { person: Person; membership: Membership; canRemove: boolean }) {
+  return (
+    <div className="flex flex-wrap items-center gap-3 border-t border-border pt-4 text-sm">
+      <form action={updateMembership} className="flex items-center gap-2">
+        <input type="hidden" name="membershipId" value={m.id} />
+        {m.active && <input type="hidden" name="active" value="on" />}
+        <input name="roles" defaultValue={m.roles.join(", ")} placeholder="Roles (comma-separated)" aria-label="Roles" className="!w-56 !py-0.5 text-sm" />
+        <SaveWhenChanged>
+          <SubmitButton size="sm">Save</SubmitButton>
+        </SaveWhenChanged>
+      </form>
+      {canRemove && m.active && (
+        <form action={removeMember} className="ml-auto">
+          <input type="hidden" name="membershipId" value={m.id} />
+          <SubmitButton
+            variant="ghost"
+            size="sm"
+            confirm={`Take ${p.name} out of ${m.band.name}? They stay in the books with their payout history.`}
+          >
+            remove
           </SubmitButton>
         </form>
       )}
