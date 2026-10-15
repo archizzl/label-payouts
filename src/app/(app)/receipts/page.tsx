@@ -10,6 +10,7 @@ import { db, schema } from "@/db";
 import { ClearFilesPart } from "@/components/receipt-cleanup";
 import { bandScope, can, inBandScope } from "@/lib/permissions";
 import { requireAccess } from "@/server/context";
+import { BooksSwitch } from "@/components/books-switch";
 import { projectsEnabled } from "@/server/features";
 import { clearableFiles } from "@/server/receipt-cleanup";
 import { accountExpenses, expenseFileList, owedReimbursement } from "@/server/expenses";
@@ -20,7 +21,8 @@ export const metadata = { title: "receipts" };
 /** Every expense and its receipts: what's waiting for approval first, then everything else. */
 export default async function ReceiptsPage({ searchParams }: PageProps<"/receipts">) {
   await connection();
-  const { orgId, access, person, user, lens, managedBy } = await requireAccess("receipts");
+  const ctx = await requireAccess("receipts");
+  const { orgId, access, person, user, lens, managedBy } = ctx;
   const canChange = can(access, "receipts", "edit");
   // Limited to their own bands: only those bands' receipts (not label-wide ones).
   const scope = bandScope(access, "receipts");
@@ -68,6 +70,7 @@ export default async function ReceiptsPage({ searchParams }: PageProps<"/receipt
           )
         }
       />
+      <BooksSwitch ctx={ctx} back="/receipts" />
       <nav className="mb-6 flex flex-wrap gap-2 text-sm">
         <Link href="/receipts" className={`rounded-full px-3 py-1 ${!bandFilter && !mineOnly ? "bg-text text-bg" : "bg-surface-2 text-muted"}`}>
           everything
@@ -109,7 +112,7 @@ export default async function ReceiptsPage({ searchParams }: PageProps<"/receipt
                 <SubmitReceiptForm
                   bands={bandsShown}
                   projects={projects.filter((p) => p.status !== "done" && bandsShown.some((b) => b.id === p.bandId))}
-                  payers={!person && managedBy ? await bandMembers(orgId, managedBy.bandId) : undefined}
+                  payers={!person && lens && managedBy ? await bandMembers(orgId, managedBy.bandId) : undefined}
                 />
               </Disclosure>
             </div>

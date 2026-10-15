@@ -72,7 +72,7 @@ export async function subAccountFor(labelOrgId: string, bandId: number) {
   return row ?? null;
 }
 
-/** If this band account is a label's sub-account: the link, and the label's name. */
+/** If this band account is a label's sub-account: the link, the label's name, and whether it keeps its own books too. */
 export async function managingLabel(bandOrgId: string) {
   const [row] = await db
     .select({
@@ -80,11 +80,13 @@ export async function managingLabel(bandOrgId: string) {
       labelOrgId: accountLinks.labelOrgId,
       bandId: accountLinks.labelBandId,
       labelName: organization.name,
+      ownBooks: schema.accountSettings.ownBooks,
     })
     .from(accountLinks)
     .innerJoin(organization, eq(organization.id, accountLinks.labelOrgId))
+    .leftJoin(schema.accountSettings, eq(schema.accountSettings.orgId, accountLinks.bandOrgId))
     .where(and(eq(accountLinks.bandOrgId, bandOrgId), eq(accountLinks.managed, true), eq(accountLinks.status, "active")));
-  return row ?? null;
+  return row ? { ...row, ownBooks: !!row.ownBooks } : null;
 }
 
 /** A band was renamed in the label's books: its sub-account follows. */
@@ -92,6 +94,8 @@ export async function renameSubAccount(labelOrgId: string, bandId: number, name:
   const row = await subAccountFor(labelOrgId, bandId);
   if (!row || row.org.name === name) return;
   await db.update(organization).set({ name }).where(eq(organization.id, row.org.id));
+  // Its band in its own books, if it keeps them, has the same name.
+  await db.update(bands).set({ name }).where(and(eq(bands.orgId, row.org.id), eq(bands.isLabel, false)));
   // The band's shared login goes by the band's name: it follows (members' own logins keep theirs).
   const [logins, personal] = await Promise.all([
     db.select({ userId: member.userId }).from(member).where(eq(member.organizationId, row.org.id)),

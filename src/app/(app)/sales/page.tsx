@@ -10,6 +10,7 @@ import { formatCents } from "@/lib/money";
 import { loadLayout } from "@/server/chart-layouts";
 import { bandScope, can } from "@/lib/permissions";
 import { requireAccess } from "@/server/context";
+import { BooksSwitch } from "@/components/books-switch";
 import { markSeen } from "@/server/nav-badges";
 import {
   browseSales,
@@ -98,6 +99,7 @@ export default async function SalesPage({ searchParams }: PageProps<"/sales">) {
           )
         }
       />
+      <BooksSwitch ctx={ctx} back="/sales" />
       <SalesTabs active="browse" unrouted={unrouted} canImport={can(access, "sales", "edit")} />
 
       <Card title={main ? `${page.count.toLocaleString("en-US")} sale${page.count === 1 ? "" : "s"}` : "Sales"}>

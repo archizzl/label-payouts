@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { bigint, boolean, customType, index, integer, jsonb, pgTable, text, uniqueIndex } from "drizzle-orm/pg-core";
+import { type AnyPgColumn, bigint, boolean, customType, index, integer, jsonb, pgTable, text, uniqueIndex } from "drizzle-orm/pg-core";
 import { invitation, organization, user } from "./auth-schema";
 
 export * from "./auth-schema";
@@ -66,6 +66,11 @@ export const accountSettings = pgTable("account_settings", {
   setupHiddenForGood: boolean("setup_hidden_for_good").notNull().default(false),
   /** The label said it keeps nothing from sales (no cut), so setup and payouts stop asking. */
   labelKeepsNothing: boolean("label_keeps_nothing").notNull().default(false),
+  /**
+   * A band account the label made also keeps its own books (sales that don't go through the label):
+   * they live under this account's own orgId. Off hides them and stops their sync; nothing is deleted.
+   */
+  ownBooks: boolean("own_books").notNull().default(false),
 });
 
 export const bands = pgTable(
@@ -120,9 +125,14 @@ export const people = pgTable(
     notes: text("notes"),
     /** Owns the label's bank account: their share is kept there rather than paid out. One person at most. */
     holdsLabelAccount: boolean("holds_label_account").notNull().default(false),
+    /**
+     * In a label-made band account's own books: the same person in the label's books. Their name and
+     * how they're paid are kept the same in both (src/server/own-books.ts).
+     */
+    labelPersonId: integer("label_person_id").references((): AnyPgColumn => people.id, { onDelete: "set null" }),
     createdAt: text("created_at").notNull().default(now),
   },
-  (t) => [index("people_org").on(t.orgId), index("people_user").on(t.userId)],
+  (t) => [index("people_org").on(t.orgId), index("people_user").on(t.userId), index("people_label_person").on(t.labelPersonId)],
 );
 
 /**

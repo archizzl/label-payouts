@@ -36,8 +36,11 @@ export type Context = {
   person: typeof schema.people.$inferSelect | null;
   /** Every account they belong to, for the account switcher. */
   accounts: Account[];
-  /** A band account the label made for one of its bands (a sub-account): the label, and the link to its books. */
-  managedBy: { linkId: number; labelOrgId: string; labelName: string; bandId: number } | null;
+  /**
+   * A band account the label made for one of its bands (a sub-account): the label, the link to its
+   * books, and whether the band keeps its own books here too.
+   */
+  managedBy: { linkId: number; labelOrgId: string; labelName: string; bandId: number; ownBooks: boolean } | null;
   /** A label admin looking at the app as one of its bands or people would see it: read-only. */
   viewingAs: ViewingAs | null;
   /**
@@ -47,6 +50,11 @@ export type Context = {
   lens: boolean;
   /** In a band account: a member's own login (not the band's shared one), who changes only their own details. */
   ownLogin?: boolean;
+  /**
+   * In a label-made band account: which books it's looking at, the label's for the band (the lens)
+   * or its own (orgId is the band account's own). Unset in every other account.
+   */
+  books?: "label" | "own";
 };
 
 export type ViewingAs = {
@@ -105,12 +113,44 @@ export async function accountsFor(userId: string): Promise<Account[]> {
  * A label-made band account sees the label's books narrowed to its band (bandLens), in pages and
  * in actions alike (an action re-draws the page it came from). The lens only lets it change its
  * orders, and stock counts through requireAccess's bandMay; its own settings and logins go through
- * accountContext / requireAdmin.
+ * accountContext / requireAdmin. If it keeps its own books too and switched to them (BOOKS_COOKIE),
+ * it's its own account instead, like a band that runs its own (ownBooksContext).
  */
 export const getContext = cache(async (): Promise<Context> => {
   const ctx = await accountContext();
-  return ctx.managedBy ? bandLens(ctx) : ctx;
+  if (!ctx.managedBy) return ctx;
+  if (ctx.managedBy.ownBooks && (await cookies()).get(BOOKS_COOKIE)?.value === ownBooksValue(ctx.orgId)) return ownBooksContext(ctx);
+  return bandLens(ctx);
 });
+
+/** The cookie that says a label-made band account is looking at its own books: "<band account id>|own". */
+export const BOOKS_COOKIE = "lm_books";
+
+export function ownBooksValue(bandOrgId: string) {
+  return `${bandOrgId}|own`;
+}
+
+/** What a member's own login may do in the band's own books: look, and send in receipts. */
+const OWN_MEMBER_ACCESS = { sales: "view", payouts: "view", receipts: "view" } as const satisfies Access["permissions"];
+
+/**
+ * A label-made band account in its own books: its own orgId, as a band that runs its own account.
+ * The band's shared login runs them; a member's own login only looks (and sends in receipts), as
+ * their payee record there (kept in step with the label's, src/server/own-books.ts).
+ */
+async function ownBooksContext(ctx: Context): Promise<Context> {
+  if (ctx.isAdmin) return { ...ctx, books: "own", ownLogin: false };
+  const { fixed } = await bandLoginPerson(ctx);
+  return {
+    ...ctx,
+    role: "member",
+    isAdmin: false,
+    access: { admin: false, permissions: { ...OWN_MEMBER_ACCESS }, bandAreas: [], bandIds: [] },
+    memberType: null,
+    books: "own",
+    ownLogin: fixed,
+  };
+}
 
 /**
  * The account they're in, as itself: for a label-made band account, just that small account (its
@@ -179,6 +219,7 @@ async function bandLens(ctx: Context, extra: Access["permissions"] = {}): Promis
     person,
     lens: true,
     ownLogin: personId != null,
+    books: "label",
   };
 }
 
@@ -257,10 +298,11 @@ async function viewAsContext(real: Context): Promise<Context | null> {
 
   if (target.kind === "band") {
     const [row] = await db
-      .select({ link: schema.accountLinks, org: schema.organization, band: schema.bands })
+      .select({ link: schema.accountLinks, org: schema.organization, band: schema.bands, ownBooks: schema.accountSettings.ownBooks })
       .from(schema.accountLinks)
       .innerJoin(schema.organization, eq(schema.organization.id, schema.accountLinks.bandOrgId))
       .innerJoin(schema.bands, eq(schema.bands.id, schema.accountLinks.labelBandId))
+      .leftJoin(schema.accountSettings, eq(schema.accountSettings.orgId, schema.accountLinks.bandOrgId))
       .where(
         and(
           eq(schema.accountLinks.labelOrgId, label.id),
@@ -282,7 +324,7 @@ async function viewAsContext(real: Context): Promise<Context | null> {
       memberType: null,
       person: null,
       accounts: [org],
-      managedBy: { linkId: row.link.id, labelOrgId: label.id, labelName: label.name, bandId: row.band.id },
+      managedBy: { linkId: row.link.id, labelOrgId: label.id, labelName: label.name, bandId: row.band.id, ownBooks: !!row.ownBooks },
       viewingAs: viewing("band", row.band.name, `/bands/${row.band.id}`),
       lens: false,
     };

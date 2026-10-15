@@ -19,12 +19,12 @@ import { isSiteAdminEmail } from "@/server/site-admin";
 export default async function AppLayout({ children }: LayoutProps<"/">) {
   const ctx = await getContext();
   const [labels, sync, badges, projects, band, orders] = await Promise.all([
-    // A band account's admins see each label it's linked to.
-    ctx.isAdmin && ctx.org.kind === "band" ? labelsForBandAccount(ctx.orgId) : [],
+    // A band account's admins see each label it's linked to (one the label made has the books switch instead).
+    ctx.isAdmin && ctx.org.kind === "band" && !ctx.managedBy ? labelsForBandAccount(ctx.orgId) : [],
     syncStatus(ctx.orgId),
     ctx.viewingAs ? {} : navBadges(ctx),
     projectsEnabled(),
-    ctx.org.kind === "band" && !ctx.managedBy ? ownBand(ctx.orgId) : null,
+    ctx.org.kind === "band" && !ctx.lens ? ownBand(ctx.orgId) : null,
     ordersInUse(ctx.orgId),
   ]);
 
@@ -47,7 +47,8 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
       {ctx.viewingAs && <ViewingAsBar viewing={ctx.viewingAs} />}
       <Nav
         user={{ name: ctx.user.name, email: ctx.user.email }}
-        managed={ctx.managedBy ? `/from-label/${ctx.managedBy.linkId}` : null}
+        managed={ctx.lens ? `/from-label/${ctx.managedBy!.linkId}` : null}
+        ownBooks={ctx.books === "own"}
         bandHref={band ? `/bands/${band.id}` : null}
         hideOrders={!orders.inUse}
         viewing={!!ctx.viewingAs}

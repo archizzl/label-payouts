@@ -4,7 +4,8 @@ import { cache } from "react";
 import { db, schema } from "@/db";
 import { artistsFromApi, merchFromApi, releasesFromSales } from "./api-catalog";
 import { type BandcampAccountBand, bandcampCredentials, myBands } from "./bandcamp-api";
-import { ensureBandAccounts } from "./band-accounts";
+import { ensureBandAccounts, managingLabel } from "./band-accounts";
+import { syncOwnPeople } from "./own-books";
 import { reRouteAll } from "./data";
 import { loadOpenOrders } from "./merch-orders";
 import { addArtists, importReleases, lookupLabelArtists, lookupLabelReleases, refreshBandPhotos, type ReleaseImportRow, runSalesSync } from "./sync";
@@ -153,6 +154,9 @@ export async function syncAccount(orgId: string, { force = false } = {}): Promis
   if (!settings || (!settings.bandcampUrl && !creds)) {
     return { ran: false, summary: "Nothing to sync: add your Bandcamp address or API access under Settings.", errors: [] };
   }
+  // A band account the label made syncs only for its own books, while they're on.
+  const managed = await managingLabel(orgId);
+  if (managed && !managed.ownBooks) return { ran: false, summary: "Own books are off.", errors: [] };
   if (!(await claimSync(orgId, force))) return { ran: false, summary: "Already synced recently.", errors: [] };
 
   const [org] = await db.select().from(schema.organization).where(eq(schema.organization.id, orgId));
@@ -204,6 +208,8 @@ export async function syncAccount(orgId: string, { force = false } = {}): Promis
 
   // New artists get their band accounts.
   if (org?.kind === "label") await step("Band accounts", () => ensureBandAccounts(orgId).then(() => undefined));
+  // A band's own books: its members, as the label has them now.
+  if (managed) await step("Members", () => syncOwnPeople(orgId));
   const summary = found.length ? `Brought in ${found.join(", ")}.` : "Up to date.";
   await db
     .update(accountSettings)
@@ -220,6 +226,8 @@ export async function syncAccount(orgId: string, { force = false } = {}): Promis
 export async function syncCatalog(orgId: string): Promise<{ summary: string; errors: string[] }> {
   const [settings] = await db.select().from(accountSettings).where(eq(accountSettings.orgId, orgId));
   if (!settings?.bandcampUrl) return { summary: "No Bandcamp address.", errors: [] };
+  const managed = await managingLabel(orgId);
+  if (managed && !managed.ownBooks) return { summary: "Own books are off.", errors: [] };
   const [org] = await db.select().from(schema.organization).where(eq(schema.organization.id, orgId));
   const found: string[] = [];
   const errors: string[] = [];

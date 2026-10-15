@@ -1,5 +1,8 @@
 import { and, eq } from "drizzle-orm";
+import { redirect } from "next/navigation";
 import { connection } from "next/server";
+import { BooksSwitch } from "@/components/books-switch";
+import { getContext } from "@/server/context";
 import { ExpenseTable, expenseTotals } from "@/components/receipts";
 import { SalesSection } from "@/components/sales-section";
 import { BandPayouts, BandPayoutTotals } from "@/components/band-payouts";
@@ -23,6 +26,9 @@ export default async function FromLabelPage({ params, searchParams }: PageProps<
   const linkId = Number((await params).id);
   const v = await requireLinkedView(linkId);
   const { labelOrgId, bandId } = v;
+  // Looking at its own books: their dashboard instead.
+  const ctx = v.link.managed ? await getContext() : null;
+  if (ctx?.books === "own") redirect("/");
   const showProjects = await projectsEnabled();
   const [names, expenses, files, labelProjects, projectTotals] = await Promise.all([
     nameMaps(labelOrgId),
@@ -41,6 +47,7 @@ export default async function FromLabelPage({ params, searchParams }: PageProps<
   return (
     <>
       <PageHeader title={v.bandName} />
+      {ctx && <BooksSwitch ctx={ctx} back={{ label: `/from-label/${linkId}`, own: "/" }} />}
       {/* <Callout tone="neutral">
         This is what {v.labelName} records for {v.bandName}. Only the label can change it; ask them if something looks wrong.
       </Callout> */}

@@ -1,6 +1,7 @@
 import "server-only";
 import { and, eq, inArray } from "drizzle-orm";
 import { db, schema } from "@/db";
+import { counterpartIds } from "./own-books";
 
 const { people, bandMemberships, splitShares, deductions, payouts, outsideArtists } = schema;
 
@@ -104,6 +105,9 @@ export async function mergePeople(orgId: string, intoId: number, fromId: number)
       else await tx.update(schema.bandLoginPeople).set({ personId: intoId }).where(eq(schema.bandLoginPeople.id, l.id));
     }
 
+    // A band's own books' record of them follows to the one that's kept.
+    await tx.update(people).set({ labelPersonId: intoId }).where(eq(people.labelPersonId, fromId));
+
     await tx.delete(people).where(eq(people.id, fromId));
   });
 }
@@ -185,7 +189,8 @@ export async function findExistingPerson(orgId: string, name: string, email: str
 
 /**
  * Every payee record that's this login's own, in any account: linked directly (a label's member, a
- * band that runs its own account), or through a band account a label made (its own login there).
+ * band that runs its own account), or through a band account a label made (its own login there),
+ * and the same people in a band account's own books (src/server/own-books.ts).
  */
 export async function myPeople(userId: string): Promise<Person[]> {
   const [direct, viaBand] = await Promise.all([
@@ -198,6 +203,8 @@ export async function myPeople(userId: string): Promise<Person[]> {
   ]);
   const byId = new Map<number, Person>();
   for (const p of [...direct, ...viaBand.map((r) => r.person)]) byId.set(p.id, p);
+  const others = (await counterpartIds([...byId.keys()])).filter((id) => !byId.has(id));
+  if (others.length) for (const p of await db.select().from(people).where(inArray(people.id, others))) byId.set(p.id, p);
   return [...byId.values()];
 }
 

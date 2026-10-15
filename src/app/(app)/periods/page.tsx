@@ -12,6 +12,7 @@ import { STATUS_LABEL, STATUS_TONE } from "@/lib/status";
 import { previewPayout } from "@/server/actions";
 import { bandcampCredentials } from "@/server/bandcamp-api";
 import { requireAccess } from "@/server/context";
+import { BooksSwitch } from "@/components/books-switch";
 import { BandPayouts } from "@/components/band-payouts";
 
 export const metadata = { title: "payouts" };
@@ -25,6 +26,7 @@ export default async function PeriodsPage({ searchParams }: PageProps<"/periods"
     return (
       <>
         <PageHeader title="Payouts" />
+        <BooksSwitch ctx={ctx} back="/periods" />
         <BandPayouts labelOrgId={ctx.orgId} bandId={m.bandId} bandName={ctx.org.name} statementHref={(id) => `/from-label/${m.linkId}/statement/${id}`} />
       </>
     );
@@ -88,6 +90,7 @@ export default async function PeriodsPage({ searchParams }: PageProps<"/periods"
   return (
     <>
       <PageHeader title="Payouts" />
+      <BooksSwitch ctx={ctx} back="/periods" />
       {!salesRange?.first && (
         <Callout tone="neutral">
           No sales imported yet. <Link href="/sales/import">Import a Bandcamp sales report</Link> first, then create a payout for it.

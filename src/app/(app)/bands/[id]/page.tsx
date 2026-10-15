@@ -54,6 +54,10 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
   const id = Number((await params).id);
   const sp = await searchParams;
   const tab = (["overview", "money", "people", "catalog", "settings"] as const).find((t) => t === sp.tab) ?? "overview";
+  // A band account the label made, in its own books: the band and its members come from the label's
+  // books, so they're changed there (the band on Settings, its members in the Directory).
+  const ownBooks = ctx.books === "own";
+  if (ownBooks && tab === "settings") redirect("/settings");
   const [band] = await db
     .select()
     .from(schema.bands)
@@ -255,7 +259,7 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
         }
       />
 
-      <BandTabs bandId={id} active={tab} needsSplit={needsSplit} members={members.filter((m) => m.active).length} />
+      <BandTabs bandId={id} active={tab} needsSplit={needsSplit} members={members.filter((m) => m.active).length} noSettings={ownBooks} />
 
       {band.isLabel && (
         <Callout tone="neutral">
@@ -500,11 +504,12 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
                         )}
                       </span>
                       <span className="truncate text-xs">{loginOf(m.person.id, id)}</span>
-                      <span className="text-xs text-link">
+                      <span className={`text-xs text-link ${ownBooks ? "invisible" : ""}`}>
                         <span className="group-open:hidden">edit</span>
                         <span className="hidden group-open:inline">close</span>
                       </span>
                     </summary>
+                    {!ownBooks && (
                     <div className="mb-3 border border-border bg-surface-2 p-4">
                       <form action={updateMembership} className="grid gap-4 sm:grid-cols-2">
                         <input type="hidden" name="membershipId" value={m.membershipId} />
@@ -542,6 +547,7 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
                         </SubmitButton>
                       </form>
                     </div>
+                    )}
                   </details>
                 ))}
               </div>

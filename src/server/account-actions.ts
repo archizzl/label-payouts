@@ -7,7 +7,8 @@ import { redirect } from "next/navigation";
 import { db, schema } from "@/db";
 import { slugify } from "@/lib/slug";
 import { auth } from "./auth";
-import { accountContext, accountsFor, getSession, requireAdmin, VIEW_AS_COOKIE } from "./context";
+import { accountContext, accountsFor, BOOKS_COOKIE, getSession, ownBooksValue, realContext, requireAdmin, VIEW_AS_COOKIE } from "./context";
+import { setOwnBooks, syncOwnPeople } from "./own-books";
 import { AREAS, type Area, normalizeBandAreas, normalizePermissions } from "@/lib/permissions";
 import { assignMemberType, memberTypeForInvite, parseRoleChoice, setInviteMemberType, setManagedBands } from "./member-types";
 import { applyMyDetails, normalizeEmail } from "./people";
@@ -134,10 +135,28 @@ export async function switchAccount(fd: FormData) {
 }
 
 export async function saveAccountSettings(_: FormState, fd: FormData): Promise<FormState> {
-  const { orgId } = await requireAdmin();
-  const name = str(fd, "name");
+  const { orgId, managedBy } = await requireAdmin();
+  // A band account the label made: its name is the label's to change, and Bandcamp is only for its own books.
+  if (managedBy && !managedBy.ownBooks) return { error: "Turn on own books first." };
+  const name = managedBy ? "" : str(fd, "name");
   if (name) await db.update(schema.organization).set({ name }).where(eq(schema.organization.id, orgId));
   const clientId = str(fd, "bandcampClientId") || null;
+  // Bandcamp allows one sign-in per API client: two accounts sharing one would keep signing each other out.
+  if (clientId) {
+    const [other] = await db
+      .select({ orgId: schema.accountSettings.orgId })
+      .from(schema.accountSettings)
+      .where(and(eq(schema.accountSettings.bandcampClientId, clientId), ne(schema.accountSettings.orgId, orgId)))
+      .limit(1);
+    if (other) {
+      return {
+        error:
+          other.orgId === managedBy?.labelOrgId
+            ? `That’s ${managedBy.labelName}’s Bandcamp API access. Your own books need the band’s own client ID from Bandcamp.`
+            : "That Bandcamp API access is already used by another account.",
+      };
+    }
+  }
   const secret = str(fd, "bandcampClientSecret");
   // New API access means the saved Bandcamp sign-in belongs to the old one: forget it.
   const [before] = await db.select().from(schema.accountSettings).where(eq(schema.accountSettings.orgId, orgId));
@@ -513,4 +532,39 @@ export async function changeMyPassword(_: FormState, fd: FormData): Promise<Form
     return { error: "Your current password isn’t right." };
   }
   return { ok: "Password changed." };
+}
+
+// ---------- a label-made band account's own books ----------
+
+/** Settings: a band account the label made turns its own books on or off (off hides them; nothing is deleted). */
+export async function setOwnBooksAction(fd: FormData) {
+  const ctx = await requireAdmin();
+  if (!ctx.managedBy) throw new Error("Only a band account a label made can turn on its own books.");
+  const on = fd.get("on") === "1";
+  await setOwnBooks(ctx.orgId, on);
+  const jar = await cookies();
+  if (on) jar.set(BOOKS_COOKIE, ownBooksValue(ctx.orgId), BOOKS_COOKIE_OPTIONS);
+  else jar.delete(BOOKS_COOKIE);
+  revalidatePath("/", "layout");
+}
+
+const BOOKS_COOKIE_OPTIONS = { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 400 * 24 * 60 * 60 } as const;
+
+/**
+ * The switch at the top of Sales, Payouts, Receipts and the dashboard: the label's books for the band,
+ * or the band's own. The cookie only counts for the account it names, with own books on (getContext),
+ * so it also works for a label admin viewing as the band.
+ */
+export async function switchBooks(fd: FormData) {
+  const orgId = str(fd, "orgId");
+  const own = fd.get("books") === "own";
+  const jar = await cookies();
+  if (own && orgId) {
+    jar.set(BOOKS_COOKIE, ownBooksValue(orgId), BOOKS_COOKIE_OPTIONS);
+    // Whoever joined the band in the label's books since: in its own books too.
+    const real = await realContext();
+    if (real.orgId === orgId && real.managedBy?.ownBooks) await syncOwnPeople(orgId);
+  } else jar.delete(BOOKS_COOKIE);
+  revalidatePath("/", "layout");
+  redirect(safeNext(str(fd, own ? "back_own" : "back_label")));
 }

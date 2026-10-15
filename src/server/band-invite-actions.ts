@@ -9,6 +9,7 @@ import { db, schema } from "@/db";
 import { subAccountFor } from "./band-accounts";
 import { hasSharedLogin, resetStandingLink, stamp, unclaimedMembers, unclaimedPeople, usableInviteLink } from "./band-invite-links";
 import { applyMyDetails } from "./people";
+import { syncOwnPeople } from "./own-books";
 import { ownBand } from "./data";
 import { auth } from "./auth";
 import { cleanCashtag, cleanVenmoHandle } from "@/lib/paypal-export";
@@ -140,6 +141,8 @@ export async function joinWithInviteLink(_: InviteLinkState, fd: FormData): Prom
       return { error: "That member already has a login. Choose who you are." };
     }
   }
+  // A band that keeps its own books too: they're in those as well, linked to this login.
+  if (!found.forLabel) await syncOwnPeople(org.id);
   if (personId) {
     // Everywhere they're someone, the one they just joined as included.
     await applyMyDetails(userId, details);

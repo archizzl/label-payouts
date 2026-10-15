@@ -24,6 +24,7 @@ import { computePayoutPeriod, reRouteAll, strandedSales } from "./data";
 import { type PayoutScope, payoutName } from "./period-view";
 import { markSeen } from "./nav-badges";
 import { autoMergeByEmail, findExistingPerson, mergePeople } from "./people";
+import { shareDetails, syncOwnPeopleForBand } from "./own-books";
 
 /*
  * Every action here changes an account's books, so every one starts with requireAccess(section,
@@ -114,6 +115,8 @@ async function scoped(area: "roster" | "catalog") {
   const outside = () => new Error("That isn’t one of your bands.");
   // A band member's own login changes nobody here: their own details are on Account.
   if (area === "roster" && ctx.ownLogin) throw new Error("Change your own details on your Account page.");
+  // A band's own books take its band and members from the label's books (src/server/own-books.ts).
+  if (area === "roster" && ctx.books === "own") throw new Error("The band and its members are changed in the label’s books.");
   const band = (bandId: number | null | undefined) => {
     if (scope && !(bandId != null && scope.includes(bandId))) throw outside();
   };
@@ -222,8 +225,11 @@ export async function savePerson(fd: FormData) {
     ...(access.lens ? {} : { notes: optStr(fd, "notes") }),
   };
   if (!values.name) throw new Error("Name is required");
-  if (id) await db.update(people).set(values).where(and(eq(people.orgId, orgId), eq(people.id, id)));
-  else {
+  if (id) {
+    await db.update(people).set(values).where(and(eq(people.orgId, orgId), eq(people.id, id)));
+    // The same person in a band account's own books (or the label's): the same details there.
+    await shareDetails(id, values);
+  } else {
     // Adding someone who's already here (same email, or same name without a conflicting email)
     // fills in their details instead of creating a duplicate.
     const existing = await findExistingPerson(orgId, values.name, values.email);
@@ -327,6 +333,7 @@ export async function addMember(fd: FormData) {
     .insert(bandMemberships)
     .values({ orgId, bandId, personId, roles: list(fd, "roles") })
     .onConflictDoUpdate({ target: [bandMemberships.bandId, bandMemberships.personId], set: { active: true } });
+  await syncOwnPeopleForBand(orgId, bandId);
   done();
 }
 
@@ -342,12 +349,15 @@ export async function updateMembership(fd: FormData) {
     .returning();
   if (m && fd.has("name")) {
     const name = str(fd, "name");
+    const details = { ...(name ? { name } : {}), email: optStr(fd, "email"), paypalMe: optStr(fd, "paypalMe"), ...payHandles(fd) };
     await db
       .update(people)
-      .set({ ...(name ? { name } : {}), email: optStr(fd, "email"), paypalMe: optStr(fd, "paypalMe"), ...payHandles(fd) })
+      .set(details)
       .where(and(eq(people.orgId, orgId), eq(people.id, m.personId)));
+    await shareDetails(m.personId, details);
     await autoMergeByEmail(orgId);
   }
+  if (m) await syncOwnPeopleForBand(orgId, m.bandId);
   done();
 }
 
@@ -355,7 +365,11 @@ export async function removeMember(fd: FormData) {
   const access = await scoped("roster");
   const { orgId } = access;
   await access.membership(int(fd, "membershipId"));
-  await db.delete(bandMemberships).where(and(eq(bandMemberships.orgId, orgId), eq(bandMemberships.id, int(fd, "membershipId"))));
+  const [gone] = await db
+    .delete(bandMemberships)
+    .where(and(eq(bandMemberships.orgId, orgId), eq(bandMemberships.id, int(fd, "membershipId"))))
+    .returning({ bandId: bandMemberships.bandId });
+  if (gone) await syncOwnPeopleForBand(orgId, gone.bandId);
   done();
 }
 
@@ -695,10 +709,12 @@ export async function setLabelKeepsNothing(fd: FormData) {
 }
 
 /** "Sync with Bandcamp now": artists, releases, merch and sales, right away (not waiting for the hour). */
-export async function syncWithBandcamp(): Promise<ActionState> {
-  // A band's own account can sync too: it syncs the label's account (reading Bandcamp only).
+export async function syncWithBandcamp(_?: ActionState, fd?: FormData): Promise<ActionState> {
+  // A band's own account can sync too: it syncs the label's account (reading Bandcamp only), or,
+  // from its Settings, its own books.
   const viewed = await getContext();
-  const { orgId } = viewed.lens ? viewed : await requireAdmin();
+  const own = fd?.get("books") === "own";
+  const { orgId } = viewed.lens && !own ? viewed : await requireAdmin();
   // On the live site, artists and releases come from the catalog sync on a Mac: ask it to run now.
   await requestCatalogSync(orgId);
   const result = await syncAccount(orgId, { force: true });

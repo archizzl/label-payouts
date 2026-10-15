@@ -8,6 +8,7 @@ import { db, schema } from "@/db";
 import { linkMyself } from "@/server/account-actions";
 import { redirect } from "next/navigation";
 import { getContext } from "@/server/context";
+import { BooksSwitch } from "@/components/books-switch";
 import { projectsEnabled } from "@/server/features";
 import { computePayoutPeriod, nameMaps } from "@/server/data";
 import { expenseFileList } from "@/server/expenses";
@@ -103,6 +104,7 @@ export default async function MyEarningsPage({ searchParams }: PageProps<"/me">)
   return (
     <>
       <PageHeader title="My earnings" subtitle={`${person.name} · ${ctx.org.name}`} />
+      {ctx.managedBy && <BooksSwitch ctx={ctx} back={{ label: `/from-label/${ctx.managedBy.linkId}`, own: "/me" }} />}
 
       <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Stat label="Waiting to be paid" totals={owed} emphasis />

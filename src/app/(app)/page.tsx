@@ -17,15 +17,16 @@ import { outsideArtistRows } from "@/components/outside-artists";
 import { SyncFooter } from "@/components/sync-status";
 import { setSetupHidden } from "@/server/actions";
 import { getContext, requireAccess } from "@/server/context";
+import { BooksSwitch } from "@/components/books-switch";
 import { computeAllTime } from "@/server/data";
 
 export const metadata = { title: "dashboard" };
 
 export default async function Dashboard() {
   await connection();
-  // A band's account from its label: its home is the label's books for it.
+  // A band's account from its label: its home is the label's books for it (unless it's looking at its own).
   const own = await getContext();
-  if (own.managedBy) redirect(`/from-label/${own.managedBy.linkId}`);
+  if (own.lens) redirect(`/from-label/${own.managedBy!.linkId}`);
   const ctx = await requireAccess("dashboard");
   const { orgId, isAdmin } = ctx;
   const [bands, memberships, defaults, saleRows, periods, outside, { summary }, people, releaseRows, fundExpenses] = await Promise.all([
@@ -150,6 +151,8 @@ export default async function Dashboard() {
           </>
         }
       />
+
+      {ctx.managedBy && <BooksSwitch ctx={ctx} back={{ label: `/from-label/${ctx.managedBy.linkId}`, own: "/" }} />}
 
       <Suspense fallback={null}>
         <OrdersNotice ctx={ctx} />

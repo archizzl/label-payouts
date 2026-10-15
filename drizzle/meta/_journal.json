@@ -246,6 +246,13 @@
       "when": 1792076111160,
       "tag": "0034_member_logins_are_members",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1792096846860,
+      "tag": "0035_own_books",
+      "breakpoints": true
     }
   ]
 }

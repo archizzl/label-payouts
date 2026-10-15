@@ -31,6 +31,7 @@ function itemsFor(
   managed: string | null,
   bandHref: string | null,
   hideOrders: boolean,
+  ownBooks: boolean,
 ): Item[] {
   // A label's sub-account for one of its bands: the label's books, just for the band, and its settings.
   if (managed) {
@@ -60,7 +61,8 @@ function itemsFor(
     // A band account has one band: straight to it. Its money rules are there too, so no Rules tab.
     // A band account's own band, then everyone (bands and people) in the directory.
     ...(account.kind === "band" && bandHref ? [{ href: bandHref, label: "band", area: "roster" as const }] : []),
-    { href: "/directory", label: "directory", area: "roster" },
+    // A band account the label made, in its own books: its people are the label's band's, so they're in the Directory there.
+    ...(ownBooks ? [] : [{ href: "/directory", label: "directory", area: "roster" as const }]),
     // { href: "/fans", label: "fans", area: "fans" },
     { href: "/catalog", label: "catalog", area: "catalog" },
     ...(account.kind === "band" ? [] : [{ href: "/rules", label: "rules", area: "rules" as const }]),
@@ -122,6 +124,7 @@ export function Nav({
   viewing = false,
   bandHref = null,
   hideOrders = false,
+  ownBooks = false,
 }: {
   user: { name: string; email: string };
   account: Account;
@@ -147,6 +150,8 @@ export function Nav({
   viewing?: boolean;
   /** A band account's own band page. */
   bandHref?: string | null;
+  /** A band account the label made, looking at its own books. */
+  ownBooks?: boolean;
   /** No Bandcamp API access or pickups yet: the Orders tab would only say how to connect. */
   hideOrders?: boolean;
 }) {
@@ -160,7 +165,7 @@ export function Nav({
     if (key === "sales" && seenSales) return 0;
     return badges[key] ?? 0;
   };
-  const items = [...itemsFor(account, isAdmin, areas, labels, projects, managed, bandHref, hideOrders), ...(siteAdmin && showAdminLink && !viewing ? [{ href: "/admin", label: "admin" }] : [])];
+  const items = [...itemsFor(account, isAdmin, areas, labels, projects, managed, bandHref, hideOrders, ownBooks), ...(siteAdmin && showAdminLink && !viewing ? [{ href: "/admin", label: "admin" }] : [])];
   return (
     <header className="no-print border-b border-border bg-surface">
       <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 pt-4 pb-3 md:px-8">

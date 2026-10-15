@@ -49,8 +49,10 @@ export async function SyncStatus({ orgId, onSettings = false }: { orgId: string;
   }
   const requestedAt = await catalogSyncRequestedAt(orgId);
   // Sync now is for admins and bands' own accounts (members with a member type see the status only).
-  const { isAdmin: admin, lens } = await getContext();
+  const { isAdmin: admin, lens, managedBy, orgId: viewedOrgId } = await getContext();
   const isAdmin = admin || lens;
+  // A band account the label made, on its Settings while looking at the label's books: its own books' sync.
+  const ownBooks = !!managedBy && orgId !== viewedOrgId;
   // What the hourly sync covers here. On the live site Bandcamp's pages can't be read, so artists'
   // details and releases come from the catalog sync on a Mac instead (the second line).
   const apiOn = !!s.hasApi && !bandcampApiOff();
@@ -64,6 +66,7 @@ export async function SyncStatus({ orgId, onSettings = false }: { orgId: string;
   const sentence = (summary: string | null) => (summary ? summary.charAt(0).toLowerCase() + summary.slice(1) : "");
   return (
     <ActionForm action={syncWithBandcamp} className="flex flex-wrap items-end justify-between gap-x-3 gap-y-2 text-sm">
+      {ownBooks && <input type="hidden" name="books" value="own" />}
       <div className="space-y-1 text-muted">
         <p>
           {s.running ? (
