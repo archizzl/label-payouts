@@ -8,6 +8,7 @@ import { saveAccountSettings, testBandcampConnection } from "@/server/account-ac
 import { WhoCanSignIn } from "@/components/who-can-sign-in";
 import { LeaveAccount } from "@/components/leave-account";
 import { DeleteLogin } from "@/components/delete-login";
+import { DeleteAccount } from "@/components/delete-account";
 import { SyncFooter } from "@/components/sync-status";
 import { setLabelAccountHolder, setSetupHidden } from "@/server/actions";
 import { bandcampApiOff } from "@/server/bandcamp-api";
@@ -174,6 +175,7 @@ export default async function AccountPage() {
 
 
       <LeaveAccount name={ctx.org.name} orgId={ctx.orgId} />
+      <DeleteAccount name={ctx.org.name} orgId={ctx.orgId} label={kind === "label"} />
       <DeleteLogin email={ctx.user.email} />
       <SyncFooter orgId={ctx.orgId} onSettings />
     </>

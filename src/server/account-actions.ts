@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq, isNull, ne } from "drizzle-orm";
+import { and, eq, inArray, isNull, ne } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
@@ -15,6 +15,7 @@ import { normalizeEmail } from "./people";
 import { isSiteAdminEmail } from "./site-admin";
 import { bandcampCredentials, forgetBandcampSignIn, myBands } from "./bandcamp-api";
 import { encryptSecret } from "./secrets";
+import { discardStoredFiles } from "./receipt-store";
 
 /*
  * Logins and accounts: signing up and in, creating a label or band account, switching between
@@ -429,4 +430,41 @@ export async function deleteMyLogin(_: FormState, fd: FormData): Promise<FormSta
   await auth.api.signOut({ headers: await headers() });
   await db.delete(schema.user).where(eq(schema.user.id, user.id));
   redirect("/login");
+}
+
+/**
+ * Delete the account you run (a label, or a band that runs its own account) and everything in it:
+ * its books, its people, its receipts and their files, and the band accounts it made for its bands.
+ * Labels or bands linked to it just lose the link. Logins aren't deleted, only taken out of it. An
+ * admin types the account's name to confirm.
+ */
+export async function deleteAccount(_: FormState, fd: FormData): Promise<FormState> {
+  const ctx = await accountContext();
+  const { orgId, user } = ctx;
+  if (str(fd, "orgId") !== orgId) return { error: "You’ve switched accounts since. Reload this page and try again." };
+  if (ctx.managedBy || !ctx.isAdmin) return { error: "Only an admin of this account can delete it." };
+  if (str(fd, "name").toLowerCase() !== ctx.org.name.trim().toLowerCase()) return { error: `Type ${ctx.org.name} exactly to confirm.` };
+  // The band accounts it made go with it (they only show its books).
+  const made = (
+    await db
+      .select({ orgId: schema.accountLinks.bandOrgId })
+      .from(schema.accountLinks)
+      .where(and(eq(schema.accountLinks.labelOrgId, orgId), eq(schema.accountLinks.managed, true)))
+  )
+    .map((r) => r.orgId)
+    .filter((id): id is string => !!id);
+  const orgIds = [orgId, ...made];
+  const files = await db
+    .select({ storageKey: schema.expenseFiles.storageKey })
+    .from(schema.expenseFiles)
+    .innerJoin(schema.expenses, eq(schema.expenses.id, schema.expenseFiles.expenseId))
+    .where(inArray(schema.expenses.orgId, orgIds));
+  // Everything in an account goes with it (every table's account reference cascades).
+  await db.delete(schema.organization).where(inArray(schema.organization.id, orgIds));
+  await discardStoredFiles(files);
+  (await cookies()).delete(VIEW_AS_COOKIE);
+  const [next] = await accountsFor(user.id);
+  if (next) await auth.api.setActiveOrganization({ body: { organizationId: next.id }, headers: await headers() });
+  revalidatePath("/", "layout");
+  redirect(next ? "/" : "/welcome");
 }
