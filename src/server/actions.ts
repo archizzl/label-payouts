@@ -112,11 +112,9 @@ async function scoped(area: "roster" | "catalog") {
   const { orgId } = ctx;
   const scope = bandScope(ctx.access, area);
   const outside = () => new Error("That isn’t one of your bands.");
-  // A band member's own login: just their own details, nobody else's (and nothing band-wide).
-  const ownOnly = area === "roster" && !!ctx.ownLogin;
-  const notYours = () => new Error("You can only change your own details.");
+  // A band member's own login changes nobody here: their own details are on Account.
+  if (area === "roster" && ctx.ownLogin) throw new Error("Change your own details on your Account page.");
   const band = (bandId: number | null | undefined) => {
-    if (ownOnly) throw notYours();
     if (scope && !(bandId != null && scope.includes(bandId))) throw outside();
   };
   return {
@@ -141,20 +139,12 @@ async function scoped(area: "roster" | "catalog") {
       band(t?.releaseBand);
     },
     membership: async (membershipId: number) => {
-      if (!scope && !ownOnly) return;
-      const [m] = await db
-        .select({ bandId: bandMemberships.bandId, personId: bandMemberships.personId })
-        .from(bandMemberships)
-        .where(and(eq(bandMemberships.orgId, orgId), eq(bandMemberships.id, membershipId)));
-      if (ownOnly) {
-        if (!m || m.personId !== ctx.person?.id || !scope?.includes(m.bandId)) throw notYours();
-        return;
-      }
+      if (!scope) return;
+      const [m] = await db.select({ bandId: bandMemberships.bandId }).from(bandMemberships).where(and(eq(bandMemberships.orgId, orgId), eq(bandMemberships.id, membershipId)));
       band(m?.bandId);
     },
     /** A person who plays in (or played in) one of their bands. */
     person: async (personId: number | null | undefined) => {
-      if (ownOnly && personId !== ctx.person?.id) throw notYours();
       if (!scope || personId == null) return;
       const rows = await db.select({ bandId: bandMemberships.bandId }).from(bandMemberships).where(and(eq(bandMemberships.orgId, orgId), eq(bandMemberships.personId, personId)));
       if (!rows.some((r) => scope.includes(r.bandId))) throw outside();

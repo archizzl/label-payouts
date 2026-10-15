@@ -376,8 +376,8 @@ function PersonRow({
 }) {
   const roles = membership?.roles ?? null;
   const active = membership?.active ?? true;
-  // A band member's own login changes only their own details.
-  const editable = !ctx.ownLogin || p.id === ctx.person?.id;
+  // A band member's own login looks, but changes their own details on Account.
+  const editable = !ctx.ownLogin;
   const cells = (
     <>
       <span className="font-medium">
@@ -434,11 +434,11 @@ function PersonRow({
         <PersonFields person={p} labelNotes={!ctx.lens} />
         {/* A band's own account: just their roles in it (it's the only band there). */}
         {ctx.lens ? (
-          membership && <BandRoles person={p} membership={membership} canRemove={!ctx.ownLogin} />
+          membership && <BandRoles person={p} membership={membership} canRemove />
         ) : (
           <PersonBands person={p} bandsOf={bandsOf} bands={bands} limited={limited} />
         )}
-        {everyone.length > 1 && !ctx.ownLogin && (
+        {everyone.length > 1 && (
           <form action={mergePeopleAction} className="flex flex-wrap items-end gap-2 border-t border-border pt-4">
             <input type="hidden" name="fromId" value={p.id} />
             <Field label={`Merge ${p.name} into…`} hint="Their bands, splits and payouts move to that person, then this record is removed.">
