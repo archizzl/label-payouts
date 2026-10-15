@@ -96,6 +96,14 @@ export async function mergePeople(orgId: string, intoId: number, fromId: number)
       await tx.delete(payouts).where(eq(payouts.id, p.id));
     }
 
+    // Their own login on a band's account moves with them (unless the kept person already has one
+    // there: then that login becomes one of the band's).
+    const intoLogins = await tx.select().from(schema.bandLoginPeople).where(eq(schema.bandLoginPeople.personId, intoId));
+    for (const l of await tx.select().from(schema.bandLoginPeople).where(eq(schema.bandLoginPeople.personId, fromId))) {
+      if (intoLogins.some((x) => x.orgId === l.orgId)) await tx.delete(schema.bandLoginPeople).where(eq(schema.bandLoginPeople.id, l.id));
+      else await tx.update(schema.bandLoginPeople).set({ personId: intoId }).where(eq(schema.bandLoginPeople.id, l.id));
+    }
+
     await tx.delete(people).where(eq(people.id, fromId));
   });
 }

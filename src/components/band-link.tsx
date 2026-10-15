@@ -7,8 +7,8 @@ import { cancelBandAccountInvite, unlink } from "@/server/link-actions";
 import type { bandLinksFor } from "@/server/links";
 import { possessive } from "@/lib/plural";
 import { ViewAsButton } from "./viewing-as";
-import { InviteLinkForm, InviteLinkRow, MakeSharedLogin } from "./band-invite-links";
-import { bandLoginNames, openInviteLinks } from "@/server/band-invite-links";
+import { InviteLinkForm, InviteLinkRow, LinkLoginToMember, MakeSharedLogin } from "./band-invite-links";
+import { bandLoginNames, openInviteLinks, unclaimedMembers } from "@/server/band-invite-links";
 
 type LinkRow = Awaited<ReturnType<typeof bandLinksFor>> extends Map<number, infer R> ? R : never;
 
@@ -73,6 +73,7 @@ export async function BandAccountSection({
     openInviteLinks(sub.org.id),
     bandLoginNames(sub.org.id),
   ]);
+  const unclaimed = await unclaimedMembers(sub.org.id, labelOrgId, band.id);
   const openInvites = invites.filter((i) => i.expiresAt > new Date());
   const base = process.env.BETTER_AUTH_URL ?? "";
   const nothingYet = logins.length === 0 && openInvites.length === 0 && links.length === 0;
@@ -94,6 +95,7 @@ export async function BandAccountSection({
                 <span className="text-muted">{user.email}</span>
                 <Badge tone="good">signs in</Badge>
                 {loginNames.has(user.id) && !logins.some((l) => !loginNames.has(l.user.id)) && <MakeSharedLogin userId={user.id} bandId={band.id} />}
+                {!loginNames.has(user.id) && <LinkLoginToMember userId={user.id} members={unclaimed} bandId={band.id} />}
               </li>
             ))}
             {links.map((l) => (

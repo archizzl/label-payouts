@@ -1,3 +1,4 @@
+import { eq } from "drizzle-orm";
 import { beforeAll, describe, expect, it } from "vitest";
 import { newAccount, testDb } from "../../../test/helpers/db";
 
@@ -59,6 +60,18 @@ describe("merging people", () => {
     expect(pay).toHaveLength(1);
     expect(pay[0]).toMatchObject({ personId: archie.id, amountCents: 1500, status: "pending" });
     expect(pay[0].byBand).toEqual({ [flag.id]: 1000, [sweet.id]: 500 });
+  });
+
+  it("keeps a member's own band login when they're merged into someone", async () => {
+    const { people: p, bandLoginPeople, user } = schema;
+    const bandOrg = await newAccount("Merge Band", "band");
+    const [u] = await db.insert(user).values({ id: "u-merge", name: "x", email: "merge@example.test", emailVerified: true, createdAt: new Date(), updatedAt: new Date() }).returning();
+    const [keep] = await db.insert(p).values({ orgId, name: "Keep Me" }).returning();
+    const [dupe] = await db.insert(p).values({ orgId, name: "keep me" }).returning();
+    await db.insert(bandLoginPeople).values({ orgId: bandOrg, userId: u.id, personId: dupe.id });
+    await people.mergePeople(orgId, keep.id, dupe.id);
+    const rows = await db.select().from(bandLoginPeople).where(eq(bandLoginPeople.userId, u.id));
+    expect(rows.map((r) => r.personId)).toEqual([keep.id]);
   });
 
   it("finds an existing person to reuse by email, or by name when emails don't conflict", async () => {

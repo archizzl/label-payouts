@@ -1,7 +1,7 @@
 import { CopyButton, SubmitButton } from "@/components/client";
 import { CreateInviteLink } from "./create-invite-link";
 import { Badge } from "@/components/ui";
-import { cancelInviteLink, makeSharedLogin } from "@/server/band-invite-actions";
+import { cancelInviteLink, linkLoginToMember, makeSharedLogin } from "@/server/band-invite-actions";
 import type { OpenInviteLink } from "@/server/band-invite-links";
 
 const base = () => process.env.BETTER_AUTH_URL ?? "";
@@ -40,6 +40,27 @@ export function MakeSharedLogin({ userId, bandId }: { userId: string; bandId?: n
       <input type="hidden" name="userId" value={userId} />
       <SubmitButton variant="ghost" size="sm" confirm="Make this the band’s shared login? It stops being this member’s own, and shows as the band.">
         Make it the band’s shared login
+      </SubmitButton>
+    </form>
+  );
+}
+
+/** On a login that isn't a member's: say which member it is (from those without a login yet). */
+export function LinkLoginToMember({ userId, members, bandId }: { userId: string; members: { id: number; name: string }[]; bandId?: number }) {
+  if (!members.length) return null;
+  return (
+    <form action={linkLoginToMember} className="mt-1 flex flex-wrap items-center gap-2">
+      {bandId !== undefined && <input type="hidden" name="bandId" value={bandId} />}
+      <input type="hidden" name="userId" value={userId} />
+      <select name="personId" aria-label="Which member this login is" className="!w-auto !py-0.5 text-xs" defaultValue={members[0].id}>
+        {members.map((m) => (
+          <option key={m.id} value={m.id}>
+            It’s {m.name}
+          </option>
+        ))}
+      </select>
+      <SubmitButton variant="ghost" size="sm">
+        Link
       </SubmitButton>
     </form>
   );

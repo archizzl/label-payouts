@@ -150,3 +150,24 @@ export async function makeSharedLogin(fd: FormData) {
   refresh(a.bandId);
   revalidatePath("/", "layout");
 }
+
+/** Say which member one of the band's logins is (one who doesn't have a login of their own yet). */
+export async function linkLoginToMember(fd: FormData) {
+  const a = await bandAccountFor(fd);
+  const userId = String(fd.get("userId") ?? "");
+  const personId = Number(fd.get("personId"));
+  const [login] = await db
+    .select({ id: schema.member.id })
+    .from(schema.member)
+    .where(and(eq(schema.member.organizationId, a.bandOrgId), eq(schema.member.userId, userId)));
+  if (!login) throw new Error("That login isn’t one of the band’s.");
+  if (!(await unclaimedMembers(a.bandOrgId, a.labelOrgId, a.bandId)).some((p) => p.id === personId)) {
+    throw new Error("That member already has a login. Choose someone else.");
+  }
+  await db
+    .insert(schema.bandLoginPeople)
+    .values({ orgId: a.bandOrgId, userId, personId })
+    .onConflictDoUpdate({ target: [schema.bandLoginPeople.orgId, schema.bandLoginPeople.userId], set: { personId } });
+  refresh(a.bandId);
+  revalidatePath("/", "layout");
+}
