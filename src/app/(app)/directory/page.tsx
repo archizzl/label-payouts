@@ -177,7 +177,7 @@ export default async function DirectoryPage() {
                     {members.map((m) => row(people.find((p) => p.id === m.personId)!, m))}
                   </div>
                 )}
-                <AddToBand bandId={b.id} bandName={b.name} people={people.filter((p) => !members.some((m) => m.personId === p.id && m.active))} />
+                {/* <AddToBand bandId={b.id} bandName={b.name} people={people.filter((p) => !members.some((m) => m.personId === p.id && m.active))} /> */}
                 {accounts.get(b.id) && (
                   <BandAccountLine
                     bandId={b.id}

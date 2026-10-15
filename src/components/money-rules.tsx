@@ -132,15 +132,15 @@ export async function MoneyRules({
 
       <ul className="space-y-1.5 text-sm text-muted">
         <li>
-          Set in <a href="#default-split">{possessive(bandName)} split</a>, <a href="#item-type-splits">splits for a kind of item</a>
-          {labelAccount ? ", " : " and "}
+          {/* Set in <a href="#default-split">{possessive(bandName)} split</a>, <a href="#item-type-splits">splits for a kind of item</a> */}
+          {/* {labelAccount ? ", " : " and "}
           <a href="#band-deductions">band funds and costs</a>
           {labelAccount && (
             <>
               {" "}and <Link href="/rules">Rules</Link>
             </>
           )}
-          .
+          . */}
         </li>
         {ownSplits > 0 && (
           <li>
