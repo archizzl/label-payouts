@@ -14,7 +14,8 @@ export async function StandingInviteLink({ bandOrgId, createdBy = null, bandId }
   return (
     <span className="flex flex-wrap items-center gap-2">
       <CopyButton text={`${base()}/join/${id}`} label="Copy invite link" />
-      <form action={resetInviteLink}>
+      {/* Hidden while Reset link is switched off, so it leaves no gap: take "hidden" off with it. */}
+      <form action={resetInviteLink} className="hidden">
         {bandId !== undefined && <input type="hidden" name="bandId" value={bandId} />}
         {/* <SubmitButton variant="ghost" size="sm" confirm="Reset the invite link? The old one stops working; anyone who already joined stays.">
           Reset link

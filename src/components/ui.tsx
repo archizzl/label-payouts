@@ -121,9 +121,9 @@ export function Empty({ children }: { children: ReactNode }) {
 }
 
 /** A disclosure used for inline add / edit forms. Always starts closed. */
-export function Disclosure({ summary, children }: { summary: ReactNode; children: ReactNode }) {
+export function Disclosure({ summary, children, className = "" }: { summary: ReactNode; children: ReactNode; className?: string }) {
   return (
-    <details className="group">
+    <details className={`group ${className}`}>
       <summary className={buttonClass("secondary", "sm")}>{summary}</summary>
       <div className="mt-3 border border-border bg-surface-2 p-4 text-left">{children}</div>
     </details>

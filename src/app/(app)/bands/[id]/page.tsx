@@ -18,7 +18,7 @@ import { ITEM_CATEGORIES } from "@/lib/bandcamp-csv";
 import { possessive } from "@/lib/plural";
 import { payHandlesSummary } from "@/lib/paypal-export";
 import { STATUS_LABEL, STATUS_TONE } from "@/lib/status";
-import { BandAccountSection } from "@/components/band-link";
+import { BandAccountButtons, LinkedBandAccount } from "@/components/band-link";
 import { ensureBandAccounts } from "@/server/band-accounts";
 import { linkForLabelBand } from "@/server/links";
 import { LabelFunds } from "@/components/label-funds";
@@ -64,6 +64,11 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
   if (rosterScope && !rosterScope.includes(id)) notFound();
 
   const showProjects = await projectsEnabled();
+  // Its account (label admins, on People): undefined for anyone else, or the label's own band.
+  const accountRow =
+    sp.tab === "people" && ctx.org.kind === "label" && ctx.isAdmin && !band.isLabel
+      ? await ensureBandAccounts(orgId).then(() => linkForLabelBand(orgId, id))
+      : undefined;
   const [members, allPeople, releases, allReleases, orgDeductions, names, defaultRules, labelRules, bandPeople, periodRows, { summary }, bandExpenses, expenseFiles, allProjects, projectTotals, loginOf] =
     await Promise.all([
       bandMembers(orgId, id),
@@ -542,7 +547,9 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
                 ))}
               </div>
             )}
-            <Disclosure summary="+ Add member">
+            <div id="band-account" className="flex scroll-mt-4 flex-wrap items-start gap-2">
+            {/* Opened, the form takes the row; the other buttons wrap below it. */}
+            <Disclosure summary="+ Add member manually" className="open:basis-full">
               <form action={addMember} className="grid gap-4 sm:grid-cols-2">
                 <input type="hidden" name="bandId" value={id} />
                 <Field label="Existing person" className="sm:col-span-2">
@@ -585,16 +592,11 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
                 </div>
               </form>
             </Disclosure>
+            {accountRow !== undefined && <BandAccountButtons labelOrgId={orgId} band={band} row={accountRow} />}
+            </div>
           </Card>
 
-          {ctx.org.kind === "label" && ctx.isAdmin && !band.isLabel && (
-            <BandAccountSection
-              labelOrgId={orgId}
-              band={band}
-              members={members.filter((m) => m.active).map((m) => ({ id: m.person.id, name: m.person.name, email: m.person.email }))}
-              row={await ensureBandAccounts(orgId).then(() => linkForLabelBand(orgId, id))}
-            />
-          )}
+          {accountRow !== undefined && <LinkedBandAccount band={band} row={accountRow} />}
 
         </>
       )}
