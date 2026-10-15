@@ -217,6 +217,7 @@ export async function savePerson(fd: FormData) {
     // Adding someone who's already here (same email, or same name without a conflicting email)
     // fills in their details instead of creating a duplicate.
     const existing = await findExistingPerson(orgId, values.name, values.email);
+    let personId = existing?.id;
     if (existing) {
       await db
         .update(people)
@@ -228,7 +229,18 @@ export async function savePerson(fd: FormData) {
           notes: existing.notes || values.notes,
         })
         .where(eq(people.id, existing.id));
-    } else await db.insert(people).values({ ...values, orgId });
+    } else [{ id: personId }] = await db.insert(people).values({ ...values, orgId }).returning({ id: people.id });
+    // The bands they were added to (the label's own).
+    const bandIds = fd.getAll("bandIds").map(Number).filter(Number.isInteger);
+    const ours = bandIds.length
+      ? await db.select({ id: schema.bands.id }).from(schema.bands).where(and(eq(schema.bands.orgId, orgId), inArray(schema.bands.id, bandIds)))
+      : [];
+    for (const b of ours) {
+      await db
+        .insert(bandMemberships)
+        .values({ orgId, bandId: b.id, personId: personId!, roles: [] })
+        .onConflictDoUpdate({ target: [bandMemberships.bandId, bandMemberships.personId], set: { active: true } });
+    }
   }
   if ((await autoMergeByEmail(orgId)).length) await syncAllPeriodStatuses(orgId);
   done();

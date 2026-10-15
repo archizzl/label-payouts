@@ -249,7 +249,7 @@ export default async function DirectoryPage() {
             </Disclosure>
           )}
           <Disclosure summary="+ Add someone">
-            <PersonFields />
+            <PersonFields bands={bands} />
           </Disclosure>
         </div>
       )}
@@ -525,7 +525,7 @@ function PersonBands({ person: p, bandsOf: all, bands, limited }: { person: Pers
   );
 }
 
-function PersonFields({ person, labelNotes = true }: { person?: Person; labelNotes?: boolean }) {
+function PersonFields({ person, labelNotes = true, bands = [] }: { person?: Person; labelNotes?: boolean; bands?: Band[] }) {
   return (
     <form action={savePerson} className="grid gap-4 sm:grid-cols-2">
       {person && <input type="hidden" name="id" value={person.id} />}
@@ -549,6 +549,20 @@ function PersonFields({ person, labelNotes = true }: { person?: Person; labelNot
         <Field label="Notes">
           <input name="notes" defaultValue={person?.notes ?? ""} />
         </Field>
+      )}
+      {/* Someone new: which bands they're in. */}
+      {!person && bands.length > 0 && (
+        <fieldset className="sm:col-span-2">
+          <legend className="mb-1 text-xs font-medium text-muted">Bands</legend>
+          <div className="grid gap-1 sm:grid-cols-3">
+            {bands.map((b) => (
+              <label key={b.id} className="flex items-center gap-2 text-sm">
+                <input type="checkbox" name="bandIds" value={b.id} />
+                <span className="truncate">{b.name}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
       )}
       <div className="sm:col-span-2">
         {person ? (
