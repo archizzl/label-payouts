@@ -8,8 +8,9 @@ import type { Context } from "@/server/context";
 import { inviteMemberTypes, listMemberTypes, memberTypeOf } from "@/server/member-types";
 import { InviteWhoFields } from "./invite-fields";
 import { RolePicker } from "./role-picker";
-import { LinkLoginToMember, MakeSharedLogin, StandingInviteLink } from "./band-invite-links";
-import { bandLoginNames, unclaimedMembers } from "@/server/band-invite-links";
+import { LoginIdentity, StandingInviteLink } from "./band-invite-links";
+import { bandMembers } from "@/server/band-member";
+import { bandLoginNames, bandLoginPersons } from "@/server/band-invite-links";
 
 const ROLE_LABEL: Record<string, string> = { owner: "owner", admin: "admin", member: "member" };
 
@@ -57,11 +58,9 @@ export async function WhoCanSignIn({ ctx }: { ctx: Context }) {
   const unlinked = people.filter((p) => !p.userId);
   // A band account: its members in the label's books (for invite links), its open links, and which
   // member each personal login is (the rest are the band's shared login).
-  const [loginNames, unclaimed] = ctx.managedBy
-    ? await Promise.all([bandLoginNames(orgId), unclaimedMembers(orgId, ctx.managedBy.labelOrgId, ctx.managedBy.bandId)])
-    : [new Map<string, string>(), []];
-  // A band account's shared login: one that isn't any member's own.
-  const sharedExists = members.some(({ user }) => !loginNames.has(user.id));
+  const [loginNames, loginPersons, bandPeople] = ctx.managedBy
+    ? await Promise.all([bandLoginNames(orgId), bandLoginPersons(orgId), bandMembers(ctx.managedBy.labelOrgId, ctx.managedBy.bandId)])
+    : [new Map<string, string>(), new Map<string, number>(), []];
 
   return (
         <Card title={`Who can sign in to ${ctx.org.name}`}>
@@ -100,8 +99,15 @@ export async function WhoCanSignIn({ ctx }: { ctx: Context }) {
                         {self && <span className="text-xs font-normal text-muted">(you)</span>}
                       </div>
                       <div className="text-xs text-muted">{user.email}</div>
-                      {managed && loginNames.has(user.id) && !sharedExists && <MakeSharedLogin userId={user.id} />}
-                      {managed && !loginNames.has(user.id) && <LinkLoginToMember userId={user.id} members={unclaimed} />}
+                      {managed && (
+                        <LoginIdentity
+                          userId={user.id}
+                          current={loginPersons.get(user.id) ?? null}
+                          bandName={ctx.org.name}
+                          members={bandPeople}
+                          takenByOthers={new Set([...loginPersons].filter(([u]) => u !== user.id).map(([, p]) => p))}
+                        />
+                      )}
                     </td>
                     {!managed && <td className="text-sm">{personOf(user.id)?.name ?? <span className="text-muted">not linked</span>}</td>}
                     {!managed && (

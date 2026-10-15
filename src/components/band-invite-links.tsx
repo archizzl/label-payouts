@@ -1,5 +1,5 @@
-import { CopyButton, SubmitButton } from "@/components/client";
-import { linkLoginToMember, makeSharedLogin, resetInviteLink } from "@/server/band-invite-actions";
+import { ActionForm, CopyButton, SaveWhenChanged, SubmitButton } from "@/components/client";
+import { resetInviteLink, setLoginIdentity } from "@/server/band-invite-actions";
 import { standingInviteLink } from "@/server/band-invite-links";
 
 const base = () => process.env.BETTER_AUTH_URL ?? "";
@@ -23,36 +23,47 @@ export async function StandingInviteLink({ bandOrgId, createdBy = null, bandId }
   );
 }
 
-/** On a member's own login: make it the band's shared login instead (when the band has none). */
-export function MakeSharedLogin({ userId, bandId }: { userId: string; bandId?: number }) {
+/**
+ * Who one of a band account's logins signs in as: the band itself, or one of its members (those
+ * without another login there). Save shows once it's changed.
+ */
+export function LoginIdentity({
+  userId,
+  current,
+  bandName,
+  members,
+  takenByOthers,
+  bandId,
+}: {
+  userId: string;
+  /** The member it signs in as, or null for the band itself. */
+  current: number | null;
+  bandName: string;
+  members: { id: number; name: string }[];
+  /** Members who have another login here. */
+  takenByOthers: Set<number>;
+  bandId?: number;
+}) {
   return (
-    <form action={makeSharedLogin} className="mt-1">
+    <ActionForm action={setLoginIdentity} keepOpen className="mt-1 flex flex-wrap items-center gap-2 text-sm">
       {bandId !== undefined && <input type="hidden" name="bandId" value={bandId} />}
       <input type="hidden" name="userId" value={userId} />
-      <SubmitButton variant="ghost" size="sm" confirm="Make this the band’s shared login? It stops being this member’s own, and shows as the band.">
-        Make it the band’s shared login
-      </SubmitButton>
-    </form>
-  );
-}
-
-/** On a login that isn't a member's: say which member it is (from those without a login yet). */
-export function LinkLoginToMember({ userId, members, bandId }: { userId: string; members: { id: number; name: string }[]; bandId?: number }) {
-  if (!members.length) return null;
-  return (
-    <form action={linkLoginToMember} className="mt-1 flex flex-wrap items-center gap-2">
-      {bandId !== undefined && <input type="hidden" name="bandId" value={bandId} />}
-      <input type="hidden" name="userId" value={userId} />
-      <select name="personId" aria-label="Which member this login is" className="!w-auto !py-0.5 text-xs" defaultValue={members[0].id}>
-        {members.map((m) => (
-          <option key={m.id} value={m.id}>
-            It’s {m.name}
-          </option>
-        ))}
-      </select>
-      <SubmitButton variant="ghost" size="sm">
-        Link
-      </SubmitButton>
-    </form>
+      <label className="flex items-center gap-2 text-muted">
+        Signs in as
+        <select name="as" defaultValue={current ?? "band"} className="!w-auto !py-0.5 text-sm">
+          <option value="band">{bandName} (the whole band)</option>
+          {members
+            .filter((m) => m.id === current || !takenByOthers.has(m.id))
+            .map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
+              </option>
+            ))}
+        </select>
+      </label>
+      <SaveWhenChanged>
+        <SubmitButton size="sm">Save</SubmitButton>
+      </SaveWhenChanged>
+    </ActionForm>
   );
 }

@@ -86,6 +86,15 @@ export async function hasSharedLogin(bandOrgId: string) {
   return logins.some((l) => !personal.some((p) => p.userId === l.userId));
 }
 
+/** Which member each of a band account's member logins is (person id), by user id. */
+export async function bandLoginPersons(bandOrgId: string): Promise<Map<string, number>> {
+  const rows = await db
+    .select({ userId: schema.bandLoginPeople.userId, personId: schema.bandLoginPeople.personId })
+    .from(schema.bandLoginPeople)
+    .where(eq(schema.bandLoginPeople.orgId, bandOrgId));
+  return new Map(rows.map((r) => [r.userId, r.personId]));
+}
+
 /** The member each of a band account's personal logins is, by user id. */
 export async function bandLoginNames(bandOrgId: string): Promise<Map<string, string>> {
   const rows = await db

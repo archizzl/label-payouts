@@ -7,8 +7,8 @@ import { cancelBandAccountInvite, unlink } from "@/server/link-actions";
 import type { bandLinksFor } from "@/server/links";
 import { possessive } from "@/lib/plural";
 import { ViewAsButton } from "./viewing-as";
-import { LinkLoginToMember, MakeSharedLogin, StandingInviteLink } from "./band-invite-links";
-import { bandLoginNames, unclaimedMembers } from "@/server/band-invite-links";
+import { LoginIdentity, StandingInviteLink } from "./band-invite-links";
+import { bandLoginNames, bandLoginPersons } from "@/server/band-invite-links";
 
 type LinkRow = Awaited<ReturnType<typeof bandLinksFor>> extends Map<number, infer R> ? R : never;
 
@@ -72,7 +72,7 @@ export async function BandAccountSection({
       .where(and(eq(schema.invitation.organizationId, sub.org.id), eq(schema.invitation.status, "pending"))),
     bandLoginNames(sub.org.id),
   ]);
-  const unclaimed = await unclaimedMembers(sub.org.id, labelOrgId, band.id);
+  const loginPersons = await bandLoginPersons(sub.org.id);
   const openInvites = invites.filter((i) => i.expiresAt > new Date());
   const base = process.env.BETTER_AUTH_URL ?? "";
   const nothingYet = logins.length === 0 && openInvites.length === 0;
@@ -93,8 +93,14 @@ export async function BandAccountSection({
                 <span>{loginNames.get(user.id) ?? band.name}</span>
                 <span className="text-muted">{user.email}</span>
                 <Badge tone="good">signs in</Badge>
-                {loginNames.has(user.id) && !logins.some((l) => !loginNames.has(l.user.id)) && <MakeSharedLogin userId={user.id} bandId={band.id} />}
-                {!loginNames.has(user.id) && <LinkLoginToMember userId={user.id} members={unclaimed} bandId={band.id} />}
+                <LoginIdentity
+                  userId={user.id}
+                  current={loginPersons.get(user.id) ?? null}
+                  bandName={band.name}
+                  members={members}
+                  takenByOthers={new Set([...loginPersons].filter(([u]) => u !== user.id).map(([, p]) => p))}
+                  bandId={band.id}
+                />
               </li>
             ))}
             {openInvites.map((i) => (

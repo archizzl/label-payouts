@@ -104,49 +104,56 @@ export async function joinWithInviteLink(_: InviteLinkState, fd: FormData): Prom
 }
 
 /**
- * Turn one of a band account's member logins into the band's shared login (it stops being that
- * member's). Only when the band has no shared login yet. A login that belongs to nothing else takes
- * the band's name.
+ * Who one of a band account's logins signs in as: the band itself (its one shared login), or one
+ * member (who has no other login there). A login that becomes the band's, and belongs to nothing
+ * else, takes the band's name.
  */
-export async function makeSharedLogin(fd: FormData) {
-  const a = await bandAccountFor(fd);
+export async function setLoginIdentity(_: InviteLinkState, fd: FormData): Promise<InviteLinkState> {
+  let a;
+  try {
+    a = await bandAccountFor(fd);
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
   const userId = String(fd.get("userId") ?? "");
+  const as = String(fd.get("as") ?? "");
   const [login] = await db
     .select({ id: schema.member.id })
     .from(schema.member)
     .where(and(eq(schema.member.organizationId, a.bandOrgId), eq(schema.member.userId, userId)));
-  if (!login) throw new Error("That login isn’t one of the band’s.");
-  if (await hasSharedLogin(a.bandOrgId)) throw new Error("The band already has its shared login.");
-  await db.delete(schema.bandLoginPeople).where(and(eq(schema.bandLoginPeople.orgId, a.bandOrgId), eq(schema.bandLoginPeople.userId, userId)));
-  const elsewhere = await db
-    .select({ id: schema.member.id })
-    .from(schema.member)
-    .where(and(eq(schema.member.userId, userId), ne(schema.member.organizationId, a.bandOrgId)));
-  if (!elsewhere.length) {
-    const [band] = await db.select({ name: schema.organization.name }).from(schema.organization).where(eq(schema.organization.id, a.bandOrgId));
-    if (band) await db.update(schema.user).set({ name: band.name }).where(eq(schema.user.id, userId));
+  if (!login) return { error: "That login isn’t one of the band’s." };
+  if (as === "band") {
+    // One shared login per band: another login already being the band blocks it.
+    const [personal, logins] = await Promise.all([
+      db.select({ userId: schema.bandLoginPeople.userId }).from(schema.bandLoginPeople).where(eq(schema.bandLoginPeople.orgId, a.bandOrgId)),
+      db.select({ userId: schema.member.userId }).from(schema.member).where(eq(schema.member.organizationId, a.bandOrgId)),
+    ]);
+    if (logins.some((l) => l.userId !== userId && !personal.some((p) => p.userId === l.userId))) {
+      return { error: "Another login already signs in as the band. Change that one first." };
+    }
+    await db.delete(schema.bandLoginPeople).where(and(eq(schema.bandLoginPeople.orgId, a.bandOrgId), eq(schema.bandLoginPeople.userId, userId)));
+    const elsewhere = await db
+      .select({ id: schema.member.id })
+      .from(schema.member)
+      .where(and(eq(schema.member.userId, userId), ne(schema.member.organizationId, a.bandOrgId)));
+    if (!elsewhere.length) {
+      const [band] = await db.select({ name: schema.organization.name }).from(schema.organization).where(eq(schema.organization.id, a.bandOrgId));
+      if (band) await db.update(schema.user).set({ name: band.name }).where(eq(schema.user.id, userId));
+    }
+  } else {
+    const personId = Number(as);
+    const [mine] = await db
+      .select({ personId: schema.bandLoginPeople.personId })
+      .from(schema.bandLoginPeople)
+      .where(and(eq(schema.bandLoginPeople.orgId, a.bandOrgId), eq(schema.bandLoginPeople.userId, userId)));
+    const open = await unclaimedMembers(a.bandOrgId, a.labelOrgId, a.bandId);
+    if (mine?.personId !== personId && !open.some((p) => p.id === personId)) return { error: "That member already has a login." };
+    await db
+      .insert(schema.bandLoginPeople)
+      .values({ orgId: a.bandOrgId, userId, personId })
+      .onConflictDoUpdate({ target: [schema.bandLoginPeople.orgId, schema.bandLoginPeople.userId], set: { personId } });
   }
   refresh(a.bandId);
   revalidatePath("/", "layout");
-}
-
-/** Say which member one of the band's logins is (one who doesn't have a login of their own yet). */
-export async function linkLoginToMember(fd: FormData) {
-  const a = await bandAccountFor(fd);
-  const userId = String(fd.get("userId") ?? "");
-  const personId = Number(fd.get("personId"));
-  const [login] = await db
-    .select({ id: schema.member.id })
-    .from(schema.member)
-    .where(and(eq(schema.member.organizationId, a.bandOrgId), eq(schema.member.userId, userId)));
-  if (!login) throw new Error("That login isn’t one of the band’s.");
-  if (!(await unclaimedMembers(a.bandOrgId, a.labelOrgId, a.bandId)).some((p) => p.id === personId)) {
-    throw new Error("That member already has a login. Choose someone else.");
-  }
-  await db
-    .insert(schema.bandLoginPeople)
-    .values({ orgId: a.bandOrgId, userId, personId })
-    .onConflictDoUpdate({ target: [schema.bandLoginPeople.orgId, schema.bandLoginPeople.userId], set: { personId } });
-  refresh(a.bandId);
-  revalidatePath("/", "layout");
+  return { ok: "Saved." };
 }
