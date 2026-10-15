@@ -391,3 +391,42 @@ export async function leaveAccount(_: FormState, fd: FormData): Promise<FormStat
   revalidatePath("/", "layout");
   redirect(next ? "/" : "/welcome");
 }
+
+/**
+ * Delete your login everywhere: it's taken out of every account and can't sign in again. Nothing in
+ * any account's books is deleted (payee records, payouts and receipts stay, just no longer linked
+ * to a login). Refused while you're the only admin of a label, or of a band that runs its own
+ * account, so nothing is left with nobody to run it. You type your email to confirm.
+ */
+export async function deleteMyLogin(_: FormState, fd: FormData): Promise<FormState> {
+  const session = await getSession();
+  if (!session) redirect("/login");
+  const { user } = session;
+  if (normalizeEmail(str(fd, "email")) !== normalizeEmail(user.email)) return { error: "Type your email exactly to confirm." };
+  const accounts = await accountsFor(user.id);
+  // Band accounts a label made are the label's to run.
+  const managed = new Set(
+    (
+      await db
+        .select({ orgId: schema.accountLinks.bandOrgId })
+        .from(schema.accountLinks)
+        .where(and(eq(schema.accountLinks.managed, true), eq(schema.accountLinks.status, "active")))
+    ).map((r) => r.orgId),
+  );
+  for (const a of accounts) {
+    if (managed.has(a.id) || a.role === "member") continue;
+    const others = await db
+      .select({ role: schema.member.role })
+      .from(schema.member)
+      .where(and(eq(schema.member.organizationId, a.id), ne(schema.member.userId, user.id)));
+    if (!others.some((m) => m.role === "owner" || m.role === "admin")) {
+      return { error: `You’re the only admin of ${a.name}. Make someone else an admin there first.` };
+    }
+  }
+  // Signed out first (so the browser's sign-in cookies go too), then the login itself: its sessions
+  // and own preferences go with it, and links from the books are cleared.
+  (await cookies()).delete(VIEW_AS_COOKIE);
+  await auth.api.signOut({ headers: await headers() });
+  await db.delete(schema.user).where(eq(schema.user.id, user.id));
+  redirect("/login");
+}

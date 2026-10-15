@@ -7,6 +7,7 @@ import { db, schema } from "@/db";
 import { saveAccountSettings, testBandcampConnection } from "@/server/account-actions";
 import { WhoCanSignIn } from "@/components/who-can-sign-in";
 import { LeaveAccount } from "@/components/leave-account";
+import { DeleteLogin } from "@/components/delete-login";
 import { SyncFooter } from "@/components/sync-status";
 import { setLabelAccountHolder, setSetupHidden } from "@/server/actions";
 import { bandcampApiOff } from "@/server/bandcamp-api";
@@ -27,6 +28,7 @@ export default async function AccountPage() {
       <>
         <PageHeader title="Settings" subtitle={own.org.name} />
         <LeaveAccount name={own.org.name} orgId={own.orgId} />
+        <DeleteLogin email={own.user.email} />
       </>
     );
   }
@@ -172,6 +174,7 @@ export default async function AccountPage() {
 
 
       <LeaveAccount name={ctx.org.name} orgId={ctx.orgId} />
+      <DeleteLogin email={ctx.user.email} />
       <SyncFooter orgId={ctx.orgId} onSettings />
     </>
   );
@@ -188,6 +191,7 @@ async function SubAccountSettings({ ctx }: { ctx: Context }) {
       </p> */}
       {ctx.isAdmin && <WhoCanSignIn ctx={ctx} />}
       <LeaveAccount name={ctx.org.name} orgId={ctx.orgId} />
+      <DeleteLogin email={ctx.user.email} />
     </>
   );
 }
