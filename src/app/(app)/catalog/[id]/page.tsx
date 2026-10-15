@@ -33,6 +33,10 @@ export default async function ReleasePage({ params, searchParams }: PageProps<"/
   const { orgId } = ctx;
   // Seeing the catalog without changing it: splits and costs show, the forms don't.
   const canEdit = can(ctx.access, "catalog", "edit");
+  // Splits, costs, donating a track and how album sales split are money: only for who can change splits.
+  const canMoney = can(ctx.access, "rules", "edit");
+  // A band's own account can't change the fields sales are matched by (they'd move money between bands).
+  const matchLocked = ctx.lens;
   const id = Number((await params).id);
   const [release] = await db
     .select()
@@ -59,6 +63,8 @@ export default async function ReleasePage({ params, searchParams }: PageProps<"/
       rulesWhere(orgId, ruleFilter("release", { releaseId: id })),
       db.select().from(schema.sales).where(eq(schema.sales.releaseId, id)),
     ]);
+  // Bands to choose from: just theirs, for someone limited to some bands.
+  const shownBands = catalogScope ? bands.filter((b) => catalogScope.includes(b.id)) : bands;
   const hasLabelDefault = labelRules.length > 0;
   const outside = new Map(outsideRows.map((a) => [a.id, a]));
   const contactPeople = new Map(peopleRows.map((p) => [p.id, p]));
@@ -204,7 +210,7 @@ export default async function ReleasePage({ params, searchParams }: PageProps<"/
           people={people}
           scope={{ scope: "release", releaseId: id }}
           emptyText={isMerch ? "No split for this item yet. Uses the band’s splits." : "Uses the band’s splits."}
-          readOnly={!canEdit}
+          readOnly={!canMoney}
         />
       </Card>
 
@@ -261,7 +267,7 @@ export default async function ReleasePage({ params, searchParams }: PageProps<"/
                     <div className="mb-3 ml-9 space-y-5 border border-border bg-surface-2 p-4">
                       <div>
                         <h3 className="mb-2 text-sm font-bold">split</h3>
-                        <SplitRules rules={rules} people={trackPeople} scope={{ scope: "track", trackId: t.id }} emptyText="No track split. Uses the release or band split." readOnly={!canEdit} />
+                        <SplitRules rules={rules} people={trackPeople} scope={{ scope: "track", trackId: t.id }} emptyText="No track split. Uses the release or band split." readOnly={!canMoney} />
                       </div>
                       {canEdit && (
                       <div>
@@ -275,15 +281,15 @@ export default async function ReleasePage({ params, searchParams }: PageProps<"/
                             <input name="position" type="number" defaultValue={t.position} />
                           </Field>
                           <Field label="Bandcamp URL">
-                            <input name="url" defaultValue={t.url ?? ""} />
+                            <input name="url" defaultValue={t.url ?? ""} readOnly={matchLocked} />
                           </Field>
                           <Field label="ISRC">
-                            <input name="isrc" defaultValue={t.isrc ?? ""} />
+                            <input name="isrc" defaultValue={t.isrc ?? ""} readOnly={matchLocked} />
                           </Field>
                           <Field label="Band">
                             <select name="bandId" defaultValue={t.bandId ?? ""}>
                               <option value="">Same as release ({band.name})</option>
-                              {bands
+                              {shownBands
                                 .filter((b) => b.id !== release.bandId)
                                 .map((b) => (
                                   <option key={b.id} value={b.id}>
@@ -292,9 +298,11 @@ export default async function ReleasePage({ params, searchParams }: PageProps<"/
                                 ))}
                             </select>
                           </Field>
-                          <label className="flex items-center gap-2 text-sm sm:col-span-2">
-                            <input type="checkbox" name="labelKeeps" defaultChecked={t.labelKeeps} /> Donated: the label keeps this track’s share
-                          </label>
+                          {canMoney && (
+                            <label className="flex items-center gap-2 text-sm sm:col-span-2">
+                              <input type="checkbox" name="labelKeeps" defaultChecked={t.labelKeeps} /> Donated: the label keeps this track’s share
+                            </label>
+                          )}
                           <div className="flex items-end gap-2">
                             <SaveWhenChanged>
                               <SubmitButton size="sm">save track</SubmitButton>
@@ -383,7 +391,7 @@ export default async function ReleasePage({ params, searchParams }: PageProps<"/
                       currency={p.currency ?? "USD"}
                       people={bandPeople}
                       personName={names.person}
-                      readOnly={!canEdit}
+                      readOnly={!canMoney}
                     />
                   </td>
                 </tr>
@@ -422,7 +430,7 @@ export default async function ReleasePage({ params, searchParams }: PageProps<"/
           {release.kind !== "album" && <input type="hidden" name="albumSplitMode" value={release.albumSplitMode} />}
           <Field label="Band">
             <select name="bandId" defaultValue={release.bandId}>
-              {bands.map((b) => (
+              {shownBands.map((b) => (
                 <option key={b.id} value={b.id}>
                   {b.name}
                 </option>
@@ -433,15 +441,15 @@ export default async function ReleasePage({ params, searchParams }: PageProps<"/
             <input name="title" defaultValue={release.title} required />
           </Field>
           <Field label="Bandcamp URL">
-            <input name="url" defaultValue={release.url ?? ""} />
+            <input name="url" defaultValue={release.url ?? ""} readOnly={matchLocked} />
           </Field>
           <Field label="Catalog number">
-            <input name="catalogNumber" defaultValue={release.catalogNumber ?? ""} />
+            <input name="catalogNumber" defaultValue={release.catalogNumber ?? ""} readOnly={matchLocked} />
           </Field>
           <Field label="Release date">
             <input name="releaseDate" type="date" defaultValue={release.releaseDate ?? ""} />
           </Field>
-          {release.kind === "album" && (
+          {release.kind === "album" && canMoney && (
             <Field label="Album sales without a release split use…">
               <select name="albumSplitMode" defaultValue={release.albumSplitMode}>
                 <option value="band_default">the band’s split</option>

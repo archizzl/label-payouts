@@ -10,7 +10,7 @@ import { parseReleasePage } from "@/lib/bandcamp-release";
 import { parseCents } from "@/lib/money";
 import { isSalePart, salePartLabel } from "@/lib/sale-parts";
 import { cleanCashtag, cleanVenmoHandle } from "@/lib/paypal-export";
-import { bandScope } from "@/lib/permissions";
+import { bandScope, can } from "@/lib/permissions";
 import { plural } from "@/lib/plural";
 import { summarize } from "@/lib/splits";
 import { deleteSubAccount, ensureBandAccounts, renameSubAccount } from "./band-accounts";
@@ -18,7 +18,7 @@ import { fetchPage, upsertRelease } from "./bandcamp";
 import { bandcampCredentials } from "./bandcamp-api";
 import { requestCatalogSync } from "./catalog-requests";
 import { syncAccount } from "./auto-sync";
-import { requireAccess, requireAdmin } from "./context";
+import { getContext, requireAccess, requireAdmin } from "./context";
 import { prepare, runSalesSync, saveSales } from "./sync";
 import { computePayoutPeriod, reRouteAll, strandedSales } from "./data";
 import { type PayoutScope, payoutName } from "./period-view";
@@ -344,15 +344,19 @@ export async function saveRelease(fd: FormData) {
   const id = optInt(fd, "id");
   await access.release(id);
   access.band(int(fd, "bandId"));
+  const [before] = id ? await db.select().from(releases).where(and(eq(releases.orgId, orgId), eq(releases.id, id))) : [];
+  // How album sales are split is money: only for whoever can change splits. The fields sales are
+  // matched by (URL, catalog number) stay the label's when a band's own account saves.
+  const money = can(access.access, "rules", "edit");
   const values = {
     bandId: int(fd, "bandId"),
     title: str(fd, "title"),
-    url: optStr(fd, "url"),
-    catalogNumber: optStr(fd, "catalogNumber"),
+    url: access.lens ? (before?.url ?? null) : optStr(fd, "url"),
+    catalogNumber: access.lens ? (before?.catalogNumber ?? null) : optStr(fd, "catalogNumber"),
     releaseDate: isoDate(optStr(fd, "releaseDate")),
-    albumSplitMode: (str(fd, "albumSplitMode") === "average_tracks" ? "average_tracks" : "band_default") as
-      | "average_tracks"
-      | "band_default",
+    albumSplitMode: money
+      ? ((str(fd, "albumSplitMode") === "average_tracks" ? "average_tracks" : "band_default") as "average_tracks" | "band_default")
+      : (before?.albumSplitMode ?? "band_default"),
   };
   if (!values.title) throw new Error("Title is required");
   await owned(orgId, bands, values.bandId);
@@ -393,7 +397,8 @@ export async function addTracks(fd: FormData) {
     await db.insert(tracks).values(
       lines.map((line, i) => {
         const [title, url] = line.split("|").map((s) => s.trim());
-        return { orgId, releaseId, title, url: url || null, position: existing + i + 1 };
+        // A band's own account adds titles; URLs (which match sales) come from the label or a sync.
+        return { orgId, releaseId, title, url: access.lens ? null : url || null, position: existing + i + 1 };
       }),
     );
   }
@@ -408,15 +413,18 @@ export async function saveTrack(fd: FormData) {
   const bandId = optInt(fd, "bandId");
   if (bandId) access.band(bandId);
   await owned(orgId, bands, bandId);
+  const [before] = await db.select().from(tracks).where(and(eq(tracks.orgId, orgId), eq(tracks.id, int(fd, "id"))));
+  // Donating a track's share is money; URL and ISRC decide which sales are its (label's, for a band account).
+  const money = can(access.access, "rules", "edit");
   await db
     .update(tracks)
     .set({
       title: str(fd, "title"),
-      url: optStr(fd, "url"),
-      isrc: optStr(fd, "isrc"),
+      url: access.lens ? (before?.url ?? null) : optStr(fd, "url"),
+      isrc: access.lens ? (before?.isrc ?? null) : optStr(fd, "isrc"),
       bandId,
       position: optInt(fd, "position") ?? 0,
-      labelKeeps: fd.get("labelKeeps") === "on",
+      labelKeeps: money ? fd.get("labelKeeps") === "on" : (before?.labelKeeps ?? false),
     })
     .where(and(eq(tracks.orgId, orgId), eq(tracks.id, int(fd, "id"))));
   await reRouteAll(orgId);
@@ -665,7 +673,9 @@ export async function setLabelKeepsNothing(fd: FormData) {
 
 /** "Sync with Bandcamp now": artists, releases, merch and sales, right away (not waiting for the hour). */
 export async function syncWithBandcamp(): Promise<ActionState> {
-  const { orgId } = await requireAdmin();
+  // A band's own account can sync too: it syncs the label's account (reading Bandcamp only).
+  const viewed = await getContext();
+  const { orgId } = viewed.lens ? viewed : await requireAdmin();
   // On the live site, artists and releases come from the catalog sync on a Mac: ask it to run now.
   await requestCatalogSync(orgId);
   const result = await syncAccount(orgId, { force: true });
