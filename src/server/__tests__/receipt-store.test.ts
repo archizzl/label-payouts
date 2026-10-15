@@ -2,7 +2,13 @@ import { describe, expect, it, vi } from "vitest";
 
 // Pretend to be on Cloudflare, with an in-memory receipts bucket.
 const objects = vi.hoisted(() => new Map<string, { bytes: ArrayBuffer; type?: string }>());
-vi.mock("@/db", () => ({ onCloudflare: true }));
+// How much the account's receipts already take up.
+const used = vi.hoisted(() => ({ bytes: 0 }));
+vi.mock("@/db", async () => ({
+  onCloudflare: true,
+  schema: await import("@/db/schema"),
+  db: { select: () => ({ from: () => ({ where: async () => [{ used: String(used.bytes) }] }) }) },
+}));
 vi.mock("@opennextjs/cloudflare", () => ({
   getCloudflareContext: () => ({
     env: {
@@ -31,6 +37,13 @@ describe("receipt files on the live site", () => {
     await store.discardStoredFiles(stored);
     expect(objects.size).toBe(0);
     expect(await store.readStoredFile(stored[0])).toBeNull();
+  });
+
+  it("refuses files that would take the account past its receipt space, and keeps nothing", async () => {
+    used.bytes = 20 * 1024 * 1024 - 3;
+    await expect(store.storeReceiptFiles("org1", [upload("c.png", "four")])).rejects.toThrow(/Receipt storage is full: 20 MB of 20 MB used/);
+    expect(objects.size).toBe(0);
+    used.bytes = 0;
   });
 
   it("still serves files kept in the database", async () => {
