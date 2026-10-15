@@ -6,6 +6,7 @@ import { Callout, Card, Field, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
 import { saveAccountSettings, testBandcampConnection } from "@/server/account-actions";
 import { WhoCanSignIn } from "@/components/who-can-sign-in";
+import { MemberTypesCard } from "@/components/member-types";
 import { LeaveAccount } from "@/components/leave-account";
 import { DeleteLogin } from "@/components/delete-login";
 import { DeleteAccount } from "@/components/delete-account";
@@ -28,7 +29,7 @@ export default async function AccountPage() {
     return (
       <>
         <PageHeader title="Settings" subtitle={own.org.name} />
-        <LeaveAccount name={own.org.name} orgId={own.orgId} />
+        {own.accounts.length > 1 && <LeaveAccount name={own.org.name} orgId={own.orgId} />}
         <DeleteLogin email={own.user.email} />
       </>
     );
@@ -174,7 +175,14 @@ export default async function AccountPage() {
       )}
 
 
-      <LeaveAccount name={ctx.org.name} orgId={ctx.orgId} />
+      {kind === "label" && (
+        <div id="who-can-sign-in" className="scroll-mt-4">
+          <WhoCanSignIn ctx={ctx} />
+          <MemberTypesCard orgId={orgId} />
+        </div>
+      )}
+
+      {own.accounts.length > 1 && <LeaveAccount name={ctx.org.name} orgId={ctx.orgId} />}
       <DeleteAccount name={ctx.org.name} orgId={ctx.orgId} label={kind === "label"} />
       <DeleteLogin email={ctx.user.email} />
       <SyncFooter orgId={ctx.orgId} onSettings />
@@ -192,7 +200,7 @@ async function SubAccountSettings({ ctx }: { ctx: Context }) {
         your sales, payouts, statements and receipts. The label keeps the books; ask them if something looks wrong.
       </p> */}
       {ctx.isAdmin && <WhoCanSignIn ctx={ctx} />}
-      <LeaveAccount name={ctx.org.name} orgId={ctx.orgId} />
+      {ctx.accounts.length > 1 && <LeaveAccount name={ctx.org.name} orgId={ctx.orgId} />}
       <DeleteLogin email={ctx.user.email} />
     </>
   );

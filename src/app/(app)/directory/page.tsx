@@ -254,8 +254,8 @@ export default async function DirectoryPage() {
         </div>
       )}
 
-      {/* Logins, invites and member types: admins only (it's who can see and change the books). */}
-      {ctx.isAdmin && (
+      {/* Logins, invites and member types: admins only (it's who can see and change the books). A label's are in Settings. */}
+      {ctx.isAdmin && ctx.org.kind !== "label" && (
         <div id="who-can-sign-in" className="mt-10 scroll-mt-4">
           <WhoCanSignIn ctx={ctx} />
           <MemberTypesCard orgId={orgId} />
