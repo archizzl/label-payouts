@@ -80,10 +80,12 @@ export async function resetPassword(_: FormState, fd: FormData): Promise<FormSta
   redirect("/login?reset=1");
 }
 
-export async function signOut() {
+/** Sign out, then to sign-in (or back to a same-site page, `next`, such as an invite link). */
+export async function signOut(fd?: FormData) {
   (await cookies()).delete(VIEW_AS_COOKIE);
   await auth.api.signOut({ headers: await headers() });
-  redirect("/login");
+  const next = fd ? str(fd, "next") : "";
+  redirect(next ? safeNext(next) : "/login");
 }
 
 // ---------- accounts ----------

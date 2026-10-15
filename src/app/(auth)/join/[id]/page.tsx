@@ -3,6 +3,7 @@ import { JoinBandForm } from "@/components/auth-forms";
 import { LinkButton } from "@/components/ui";
 import { hasSharedLogin, unclaimedMembers, usableInviteLink } from "@/server/band-invite-links";
 import { getSession } from "@/server/context";
+import { signOut } from "@/server/account-actions";
 
 export const metadata = { title: "join" };
 
@@ -33,6 +34,21 @@ export default async function JoinPage({ params, searchParams }: PageProps<"/joi
         {personName ? `Sign in as ${personName}` : session ? "Say who you are in the band" : "Sign in or create a login, then say who you are in the band"}
         {labelName ? `, to see what ${labelName} has for ${personName ? "the band" : "you"}.` : "."}
       </p>
+      {session && (
+        // Which login is joining, and what it gets: a chance to use another one first.
+        <div className="mb-5 flex flex-wrap items-center gap-x-3 gap-y-2 rounded border border-border px-3 py-2 text-sm">
+          <span>
+            Signed in as <b>{session.user.email}</b>. This adds <b>{band.name}</b>
+            {labelName ? ` (${labelName})` : ""} to that login.
+          </span>
+          <form action={signOut}>
+            <input type="hidden" name="next" value={`/join/${id}`} />
+            <button type="submit" className="cursor-pointer text-(--link) hover:underline">
+              Use a different login
+            </button>
+          </form>
+        </div>
+      )}
       {session ? (
         <JoinBandForm
           id={id}
