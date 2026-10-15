@@ -40,6 +40,7 @@ export default async function JoinPage({ params, searchParams }: PageProps<"/joi
           members={found.link.personId ? null : await unclaimedMembers(band.id, found.labelOrgId, found.bandId)}
           sharedTaken={await hasSharedLogin(band.id)}
           auto={(await searchParams).go === "1"}
+          email={session.user.email}
         />
       ) : (
         <div className="space-y-3">

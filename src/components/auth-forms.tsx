@@ -149,9 +149,12 @@ export function JoinBandForm({
   members,
   sharedTaken = false,
   auto = false,
+  email = "",
 }: {
   id: string;
   bandName: string;
+  /** Their login's email: the PayPal email to start from, if they're new to the band. */
+  email?: string;
   members: { id: number; name: string }[] | null;
   /** The band already has its shared login: no second one. */
   sharedTaken?: boolean;
@@ -181,17 +184,35 @@ export function JoinBandForm({
           <label className="flex items-center gap-2 text-sm">
             <input type="radio" name="as" value="new" checked={as === "new"} onChange={() => setAs("new")} /> I’m not listed
           </label>
-          {as === "new" && (
-            <Field label="Your name">
-              <input name="name" autoComplete="name" required />
-            </Field>
-          )}
           {!sharedTaken && (
             <label className="flex items-center gap-2 text-sm">
               <input type="radio" name="as" value="band" checked={as === "band"} onChange={() => setAs("band")} /> The whole band (one shared login)
             </label>
           )}
         </fieldset>
+      )}
+      {/* Someone the label doesn't have yet: their details, as in the Directory. */}
+      {members && as === "new" && (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Your name">
+            <input name="name" autoComplete="name" required />
+          </Field>
+          <Field label="Role in the band">
+            <input name="role" />
+          </Field>
+          <Field label="PayPal email">
+            <input name="email" type="email" defaultValue={email} />
+          </Field>
+          <Field label="PayPal.me handle">
+            <input name="paypalMe" />
+          </Field>
+          <Field label="Venmo username" hint="US only.">
+            <input name="venmo" placeholder="@yourname" />
+          </Field>
+          <Field label="Cash App $cashtag">
+            <input name="cashtag" placeholder="$yourname" />
+          </Field>
+        </div>
       )}
       <Result state={state} />
       <Submit pending={pending}>{`Join ${bandName}`}</Submit>

@@ -9,6 +9,7 @@ import { db, schema } from "@/db";
 import { subAccountFor } from "./band-accounts";
 import { hasSharedLogin, resetStandingLink, stamp, unclaimedMembers, usableInviteLink } from "./band-invite-links";
 import { auth } from "./auth";
+import { cleanCashtag, cleanVenmoHandle } from "@/lib/paypal-export";
 import { getSession, requireAdmin } from "./context";
 
 export type InviteLinkState = { ok?: string; error?: string; url?: string } | null;
@@ -83,8 +84,21 @@ export async function joinWithInviteLink(_: InviteLinkState, fd: FormData): Prom
   }
   if (choice === "new") {
     // Someone not in the label's books yet: a new member of the band.
-    const [p] = await db.insert(schema.people).values({ orgId: labelOrgId, name: newName }).returning({ id: schema.people.id });
-    await db.insert(schema.bandMemberships).values({ orgId: labelOrgId, bandId, personId: p.id, roles: [], active: true });
+    // With the details they gave: how to pay them, and what they do in the band.
+    const field = (k: string) => String(fd.get(k) ?? "").trim().slice(0, 200);
+    const [p] = await db
+      .insert(schema.people)
+      .values({
+        orgId: labelOrgId,
+        name: newName,
+        email: field("email") || null,
+        paypalMe: field("paypalMe") || null,
+        venmo: cleanVenmoHandle(field("venmo")) || null,
+        cashtag: cleanCashtag(field("cashtag")) || null,
+      })
+      .returning({ id: schema.people.id });
+    const role = field("role");
+    await db.insert(schema.bandMemberships).values({ orgId: labelOrgId, bandId, personId: p.id, roles: role ? [role] : [], active: true });
     personId = p.id;
   }
   if (personId) {
