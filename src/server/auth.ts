@@ -77,15 +77,8 @@ export const auth = betterAuth({
   },
   plugins: [
     organization({
-      // New accounts need approval: only site admins, and people who signed up with a site admin's
-      // invite link, create them directly. Everyone else applies (src/server/applications.ts), and
-      // approving creates the account on their behalf (which this doesn't block).
-      allowUserToCreateOrganization: async (u) => {
-        const admins = (process.env.SITE_ADMIN_EMAILS ?? "").split(",").map((e) => e.trim().toLowerCase());
-        if (admins.includes(u.email.trim().toLowerCase())) return true;
-        const [invited] = await db.select({ id: schema.signupInvites.id }).from(schema.signupInvites).where(eq(schema.signupInvites.usedByUserId, u.id)).limit(1);
-        return !!invited;
-      },
+      // Anyone signed in can set up their own label or band.
+      allowUserToCreateOrganization: true,
       schema: {
         organization: {
           additionalFields: { kind: { type: "string", required: true, defaultValue: "label", input: true } },

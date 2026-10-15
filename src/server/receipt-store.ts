@@ -1,7 +1,9 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
-import { onCloudflare } from "@/db";
+import { eq, sum } from "drizzle-orm";
+import { db, onCloudflare, schema } from "@/db";
+import { formatMegabytes, RECEIPT_SPACE_BYTES } from "@/lib/receipt-space";
 
 /*
  * Where receipt photos and PDFs live. On the live site: Cloudflare R2 (the RECEIPTS bucket), with
@@ -33,6 +35,7 @@ export type StoredFile = { filename: string; contentType: string; size: number; 
  * copy in memory). Call before saving the receipt; if that fails, pass these to discardStoredFiles.
  */
 export async function storeReceiptFiles(orgId: string, uploads: ReceiptUpload[]): Promise<StoredFile[]> {
+  await checkReceiptSpace(orgId, uploads);
   const store = bucket();
   const out: StoredFile[] = [];
   try {
@@ -52,6 +55,24 @@ export async function storeReceiptFiles(orgId: string, uploads: ReceiptUpload[])
     throw e;
   }
   return out;
+}
+
+/** How much an account's receipt files take up, in bytes. */
+export async function receiptBytesUsed(orgId: string): Promise<number> {
+  const [row] = await db.select({ used: sum(schema.expenseFiles.size) }).from(schema.expenseFiles).where(eq(schema.expenseFiles.orgId, orgId));
+  return Number(row?.used ?? 0);
+}
+
+/** Refuses uploads that would take an account past its receipt space (RECEIPT_SPACE_BYTES). */
+export async function checkReceiptSpace(orgId: string, uploads: { size: number }[]) {
+  const adding = uploads.reduce((n, u) => n + u.size, 0);
+  if (!adding) return;
+  const used = await receiptBytesUsed(orgId);
+  if (used + adding > RECEIPT_SPACE_BYTES) {
+    throw new Error(
+      `Receipt storage is full: ${formatMegabytes(used)} of ${formatMegabytes(RECEIPT_SPACE_BYTES)} used. Download and clear settled receipts to make room.`,
+    );
+  }
 }
 
 /** Remove files from storage (after their rows are deleted, or when saving the receipt failed). */

@@ -4,7 +4,7 @@ import { db, schema } from "@/db";
 import type { MerchOrder } from "@/lib/merch-orders";
 import { parseCents } from "@/lib/money";
 import { readReceiptFiles } from "./expenses";
-import { discardStoredFiles, storeReceiptFiles } from "./receipt-store";
+import { checkReceiptSpace, discardStoredFiles, storeReceiptFiles } from "./receipt-store";
 
 /*
  * What it cost to send a merch order (postage, packaging), recorded as receipts when it's marked
@@ -26,6 +26,8 @@ export async function readShipmentCosts(orgId: string, fd: FormData, order: Merc
   const postage = parseCents(str(fd, "postage"));
   const packaging = parseCents(str(fd, "packaging"));
   const files = await readReceiptFiles(fd, "receipt");
+  // Before the order's marked shipped, so a full store doesn't leave it half done.
+  await checkReceiptSpace(orgId, files);
   if (postage < 0 || packaging < 0) throw new Error("Costs can’t be negative.");
   if (!postage && !packaging) {
     if (files.length) throw new Error("Enter what the postage or packaging cost, to go with the receipt.");

@@ -4,6 +4,8 @@ import { connection } from "next/server";
 import { ExpenseForm, ExpenseTable, expenseTotals, SubmitReceiptForm } from "@/components/receipts";
 import { bandMembers } from "@/server/band-member";
 import { Card, Disclosure, MoneyList, PageHeader } from "@/components/ui";
+import { formatMegabytes, RECEIPT_SPACE_BYTES } from "@/lib/receipt-space";
+import { receiptBytesUsed } from "@/server/receipt-store";
 import { db, schema } from "@/db";
 import { ClearFilesPart } from "@/components/receipt-cleanup";
 import { bandScope, can, inBandScope } from "@/lib/permissions";
@@ -26,7 +28,7 @@ export default async function ReceiptsPage({ searchParams }: PageProps<"/receipt
   const bandFilter = Number(sp.band) || undefined;
   // Just the receipts they paid for or sent in (for someone who gets paid here).
   const mineOnly = !!person && sp.mine === "1";
-  const [all, files, bands, releases, people, projects, clearable] = await Promise.all([
+  const [all, files, bands, releases, people, projects, clearable, spaceUsed] = await Promise.all([
     accountExpenses(orgId, bandFilter ? { bandId: bandFilter } : undefined),
     expenseFileList(orgId),
     db.select().from(schema.bands).where(eq(schema.bands.orgId, orgId)).orderBy(asc(schema.bands.name)),
@@ -34,6 +36,7 @@ export default async function ReceiptsPage({ searchParams }: PageProps<"/receipt
     db.select().from(schema.people).where(eq(schema.people.orgId, orgId)).orderBy(asc(schema.people.name)),
     projectsEnabled().then((on) => (on ? accountProjects(orgId) : [])),
     canChange && !scope ? clearableFiles(orgId) : null,
+    canChange && !scope ? receiptBytesUsed(orgId) : null,
   ]);
   // A band's shared login sends nothing in itself: "mine" is whoever's using it.
   const isMine = (e: (typeof all)[number]) => e.paidByPersonId === person?.id || (!lens && e.submittedByUserId === user.id);
@@ -57,6 +60,13 @@ export default async function ReceiptsPage({ searchParams }: PageProps<"/receipt
     <>
       <PageHeader
         title="Receipts"
+        subtitle={
+          spaceUsed !== null && (
+            <span className={spaceUsed > RECEIPT_SPACE_BYTES * 0.9 ? "text-warn" : undefined}>
+              {formatMegabytes(spaceUsed)} of {formatMegabytes(RECEIPT_SPACE_BYTES)} used
+            </span>
+          )
+        }
       />
       <nav className="mb-6 flex flex-wrap gap-2 text-sm">
         <Link href="/receipts" className={`rounded-full px-3 py-1 ${!bandFilter && !mineOnly ? "bg-text text-bg" : "bg-surface-2 text-muted"}`}>

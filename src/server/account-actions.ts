@@ -10,10 +10,8 @@ import { auth } from "./auth";
 import { accountContext, accountsFor, getSession, requireAdmin, VIEW_AS_COOKIE } from "./context";
 import { AREAS, type Area, normalizeBandAreas, normalizePermissions } from "@/lib/permissions";
 import { assignMemberType, memberTypeForInvite, parseRoleChoice, setInviteMemberType, setManagedBands } from "./member-types";
-import { preapproved } from "./applications";
 import { myPeople, normalizeEmail } from "./people";
 import { cleanCashtag, cleanVenmoHandle } from "@/lib/paypal-export";
-import { isSiteAdminEmail } from "./site-admin";
 import { bandcampCredentials, forgetBandcampSignIn, myBands } from "./bandcamp-api";
 import { encryptSecret } from "./secrets";
 import { discardStoredFiles } from "./receipt-store";
@@ -102,9 +100,6 @@ export async function createAccount(_: FormState, fd: FormData): Promise<FormSta
   const name = str(fd, "name");
   const kind = str(fd, "kind") === "band" ? "band" : "label";
   if (!name) return { error: `Give your ${kind} a name.` };
-  if (!isSiteAdminEmail(session.user.email) && !(await preapproved(session.user.id))) {
-    return { error: "New accounts need approval: apply on the welcome page." };
-  }
   let orgId: string;
   try {
     const org = await auth.api.createOrganization({ body: { name, slug: slugify(name), kind }, headers: await headers() });
