@@ -1,31 +1,22 @@
 import { CopyButton, SubmitButton } from "@/components/client";
-import { CreateInviteLink } from "./create-invite-link";
-import { Badge } from "@/components/ui";
-import { cancelInviteLink, linkLoginToMember, makeSharedLogin } from "@/server/band-invite-actions";
-import type { OpenInviteLink } from "@/server/band-invite-links";
+import { linkLoginToMember, makeSharedLogin, resetInviteLink } from "@/server/band-invite-actions";
+import { standingInviteLink } from "@/server/band-invite-links";
 
 const base = () => process.env.BETTER_AUTH_URL ?? "";
 
 /**
- * Make an invite link to a band's account: nothing to fill in. Whoever opens it says who they are
- * when they join. `bandId` when the label makes it for one of its bands.
+ * A band account's standing invite link, the same every time: copy it to send. Reset makes the old
+ * one stop working. `bandId` when the label manages it for one of its bands.
  */
-export function InviteLinkForm({ bandId }: { bandId?: number }) {
-  return <CreateInviteLink bandId={bandId} />;
-}
-
-/** One open invite link: who it's for, copy it, or cancel it. */
-export function InviteLinkRow({ link, bandId }: { link: OpenInviteLink; bandId?: number }) {
+export async function StandingInviteLink({ bandOrgId, createdBy = null, bandId }: { bandOrgId: string; createdBy?: string | null; bandId?: number }) {
+  const id = await standingInviteLink(bandOrgId, createdBy);
   return (
     <span className="flex flex-wrap items-center gap-2">
-      {link.personName && <span className="text-text">{link.personName}</span>}
-      <Badge tone="warn">invite link</Badge>
-      <CopyButton text={`${base()}/join/${link.id}`} label="Copy invite link" />
-      <form action={cancelInviteLink}>
+      <CopyButton text={`${base()}/join/${id}`} label="Copy invite link" />
+      <form action={resetInviteLink}>
         {bandId !== undefined && <input type="hidden" name="bandId" value={bandId} />}
-        <input type="hidden" name="id" value={link.id} />
-        <SubmitButton variant="ghost" size="sm" confirm="Cancel this invite link? It stops working.">
-          Cancel
+        <SubmitButton variant="ghost" size="sm" confirm="Reset the invite link? The old one stops working; anyone who already joined stays.">
+          Reset link
         </SubmitButton>
       </form>
     </span>

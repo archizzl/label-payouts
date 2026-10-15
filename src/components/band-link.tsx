@@ -7,8 +7,8 @@ import { cancelBandAccountInvite, unlink } from "@/server/link-actions";
 import type { bandLinksFor } from "@/server/links";
 import { possessive } from "@/lib/plural";
 import { ViewAsButton } from "./viewing-as";
-import { InviteLinkForm, InviteLinkRow, LinkLoginToMember, MakeSharedLogin } from "./band-invite-links";
-import { bandLoginNames, openInviteLinks, unclaimedMembers } from "@/server/band-invite-links";
+import { LinkLoginToMember, MakeSharedLogin, StandingInviteLink } from "./band-invite-links";
+import { bandLoginNames, unclaimedMembers } from "@/server/band-invite-links";
 
 type LinkRow = Awaited<ReturnType<typeof bandLinksFor>> extends Map<number, infer R> ? R : never;
 
@@ -59,7 +59,7 @@ export async function BandAccountSection({
 
   const sub = await subAccountFor(labelOrgId, band.id);
   if (!sub) return null;
-  const [logins, invites, links, loginNames] = await Promise.all([
+  const [logins, invites, loginNames] = await Promise.all([
     db
       .select({ user: schema.user })
       .from(schema.member)
@@ -70,13 +70,12 @@ export async function BandAccountSection({
       .select()
       .from(schema.invitation)
       .where(and(eq(schema.invitation.organizationId, sub.org.id), eq(schema.invitation.status, "pending"))),
-    openInviteLinks(sub.org.id),
     bandLoginNames(sub.org.id),
   ]);
   const unclaimed = await unclaimedMembers(sub.org.id, labelOrgId, band.id);
   const openInvites = invites.filter((i) => i.expiresAt > new Date());
   const base = process.env.BETTER_AUTH_URL ?? "";
-  const nothingYet = logins.length === 0 && openInvites.length === 0 && links.length === 0;
+  const nothingYet = logins.length === 0 && openInvites.length === 0;
 
   return (
     <div id="band-account" className="scroll-mt-4">
@@ -98,11 +97,6 @@ export async function BandAccountSection({
                 {!loginNames.has(user.id) && <LinkLoginToMember userId={user.id} members={unclaimed} bandId={band.id} />}
               </li>
             ))}
-            {links.map((l) => (
-              <li key={l.id}>
-                <InviteLinkRow link={l} bandId={band.id} />
-              </li>
-            ))}
             {openInvites.map((i) => (
               <li key={i.id} className="flex flex-wrap items-center gap-2">
                 <span className="font-medium">{i.email}</span>
@@ -122,7 +116,9 @@ export async function BandAccountSection({
             ))}
           </ul>
         )}
-        <InviteLinkForm bandId={band.id} />
+        <div className="mt-3">
+          <StandingInviteLink bandOrgId={sub.org.id} bandId={band.id} />
+        </div>
         {viewMembers}
       </Card>
     </div>

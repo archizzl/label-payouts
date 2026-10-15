@@ -1,27 +1,30 @@
 import "server-only";
-import { and, eq, gt, isNull } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
+import { and, desc, eq, gt, isNull } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { bandMembers } from "./band-member";
 
 /*
- * Single-use links to join a label-made band account (see schema.bandInviteLinks). Whoever opens
- * one signs in, or signs up with any email, and becomes one of the band's logins: the band's own
- * shared login, or, with a member named on the link, that member's own.
+ * Invite links to join a label-made band account (see schema.bandInviteLinks). Each band has one
+ * standing link: whoever opens it signs in, or signs up with any email, and becomes one of the
+ * band's logins (a member's own, or the band's shared one), until the link is reset. Older links
+ * were single-use: once used (usedAt), they stay dead.
  */
-
-export const INVITE_LINK_DAYS = 14;
 
 /** "2026-09-27 14:03:00" in UTC, like the rest of the app's timestamps. */
 export const stamp = (d: Date) => d.toISOString().slice(0, 19).replace("T", " ");
 
-export type OpenInviteLink = { id: string; personId: number | null; personName: string | null; expiresAt: string };
+/** A standing link never runs out (until it's reset). */
+const NEVER = "9999-12-31 00:00:00";
 
-/** A band account's links that can still be used, newest first, with the member each is for. */
-export async function openInviteLinks(bandOrgId: string): Promise<OpenInviteLink[]> {
-  const rows = await db
-    .select({ link: schema.bandInviteLinks, personName: schema.people.name })
+/**
+ * A band account's standing invite link, the same every time: whoever has it can join, until the
+ * link is reset. Made the first time it's needed (the newest open link, if there are older ones).
+ */
+export async function standingInviteLink(bandOrgId: string, createdByUserId: string | null): Promise<string> {
+  const [open] = await db
+    .select({ id: schema.bandInviteLinks.id })
     .from(schema.bandInviteLinks)
-    .leftJoin(schema.people, eq(schema.people.id, schema.bandInviteLinks.personId))
     .where(
       and(
         eq(schema.bandInviteLinks.orgId, bandOrgId),
@@ -29,10 +32,22 @@ export async function openInviteLinks(bandOrgId: string): Promise<OpenInviteLink
         isNull(schema.bandInviteLinks.canceledAt),
         gt(schema.bandInviteLinks.expiresAt, stamp(new Date())),
       ),
-    );
-  return rows
-    .map((r) => ({ id: r.link.id, personId: r.link.personId, personName: r.personName, expiresAt: r.link.expiresAt }))
-    .sort((a, b) => b.expiresAt.localeCompare(a.expiresAt));
+    )
+    .orderBy(desc(schema.bandInviteLinks.createdAt))
+    .limit(1);
+  if (open) return open.id;
+  const id = randomUUID();
+  await db.insert(schema.bandInviteLinks).values({ id, orgId: bandOrgId, createdByUserId, expiresAt: NEVER });
+  return id;
+}
+
+/** Reset: every open link to the band's account stops working, and a new standing one replaces them. */
+export async function resetStandingLink(bandOrgId: string, createdByUserId: string | null) {
+  await db
+    .update(schema.bandInviteLinks)
+    .set({ canceledAt: stamp(new Date()) })
+    .where(and(eq(schema.bandInviteLinks.orgId, bandOrgId), isNull(schema.bandInviteLinks.usedAt), isNull(schema.bandInviteLinks.canceledAt)));
+  return standingInviteLink(bandOrgId, createdByUserId);
 }
 
 /** A link that can still be used, with its band account and label, or null. */

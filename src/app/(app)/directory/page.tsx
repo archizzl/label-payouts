@@ -18,7 +18,7 @@ import { type BandAccountSummary, bandAccountSummaries, ensureBandAccounts } fro
 import { MemberTypesCard } from "@/components/member-types";
 import { possibleDuplicates } from "@/server/people";
 import { cancelBandAccountInvite } from "@/server/link-actions";
-import { InviteLinkForm, InviteLinkRow } from "@/components/band-invite-links";
+import { StandingInviteLink } from "@/components/band-invite-links";
 
 export const metadata = { title: "directory" };
 
@@ -364,10 +364,7 @@ function BandAccountLine({
               </form>
             </span>
           ))}
-          {a.links.map((l) => (
-            <InviteLinkRow key={l.id} link={l} bandId={bandId} />
-          ))}
-          {a.logins === 0 && a.invites.length === 0 && a.links.length === 0 && <InviteLinkForm bandId={bandId} />}
+          <StandingInviteLink bandOrgId={a.orgId} bandId={bandId} />
         </>
       ) : (
         <>

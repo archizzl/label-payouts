@@ -8,8 +8,8 @@ import type { Context } from "@/server/context";
 import { inviteMemberTypes, listMemberTypes, memberTypeOf } from "@/server/member-types";
 import { InviteWhoFields } from "./invite-fields";
 import { RolePicker } from "./role-picker";
-import { InviteLinkForm, InviteLinkRow, LinkLoginToMember, MakeSharedLogin } from "./band-invite-links";
-import { bandLoginNames, openInviteLinks, unclaimedMembers } from "@/server/band-invite-links";
+import { LinkLoginToMember, MakeSharedLogin, StandingInviteLink } from "./band-invite-links";
+import { bandLoginNames, unclaimedMembers } from "@/server/band-invite-links";
 
 const ROLE_LABEL: Record<string, string> = { owner: "owner", admin: "admin", member: "member" };
 
@@ -57,9 +57,9 @@ export async function WhoCanSignIn({ ctx }: { ctx: Context }) {
   const unlinked = people.filter((p) => !p.userId);
   // A band account: its members in the label's books (for invite links), its open links, and which
   // member each personal login is (the rest are the band's shared login).
-  const [links, loginNames, unclaimed] = ctx.managedBy
-    ? await Promise.all([openInviteLinks(orgId), bandLoginNames(orgId), unclaimedMembers(orgId, ctx.managedBy.labelOrgId, ctx.managedBy.bandId)])
-    : [[], new Map<string, string>(), []];
+  const [loginNames, unclaimed] = ctx.managedBy
+    ? await Promise.all([bandLoginNames(orgId), unclaimedMembers(orgId, ctx.managedBy.labelOrgId, ctx.managedBy.bandId)])
+    : [new Map<string, string>(), []];
   // A band account's shared login: one that isn't any member's own.
   const sharedExists = members.some(({ user }) => !loginNames.has(user.id));
 
@@ -159,20 +159,12 @@ export async function WhoCanSignIn({ ctx }: { ctx: Context }) {
                   </tr>
                 );
               })}
-              {links.map((l) => (
-                <tr key={l.id}>
-                  <td colSpan={managed ? 1 : 3}>
-                    <InviteLinkRow link={l} />
-                  </td>
-                  <td />
-                </tr>
-              ))}
             </tbody>
           </table>
 
           {managed ? (
             // A band account: an invite link, for the band or one member; whoever opens it picks their own email.
-            <InviteLinkForm />
+            <StandingInviteLink bandOrgId={orgId} createdBy={ctx.user.id} />
           ) : (
           <Disclosure summary="+ Invite someone">
             <ActionForm action={inviteMember} className="grid gap-4 sm:grid-cols-3">

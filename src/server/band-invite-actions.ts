@@ -7,7 +7,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db, schema } from "@/db";
 import { subAccountFor } from "./band-accounts";
-import { hasSharedLogin, INVITE_LINK_DAYS, stamp, unclaimedMembers, usableInviteLink } from "./band-invite-links";
+import { hasSharedLogin, resetStandingLink, stamp, unclaimedMembers, usableInviteLink } from "./band-invite-links";
 import { auth } from "./auth";
 import { getSession, requireAdmin } from "./context";
 
@@ -31,31 +31,10 @@ function refresh(bandId: number) {
   revalidatePath(`/bands/${bandId}`);
 }
 
-/** A new single-use link to the band's account. Whoever uses it says who they are when they join. */
-export async function createInviteLink(_: InviteLinkState, fd: FormData): Promise<InviteLinkState> {
-  let a;
-  try {
-    a = await bandAccountFor(fd);
-  } catch (e) {
-    return { error: (e as Error).message };
-  }
-  const id = randomUUID();
-  await db.insert(schema.bandInviteLinks).values({
-    id,
-    orgId: a.bandOrgId,
-    createdByUserId: a.userId,
-    expiresAt: stamp(new Date(Date.now() + INVITE_LINK_DAYS * 86_400_000)),
-  });
-  refresh(a.bandId);
-  return { ok: "Invite link made.", url: `${process.env.BETTER_AUTH_URL ?? ""}/join/${id}` };
-}
-
-export async function cancelInviteLink(fd: FormData) {
+/** Reset the band's standing invite link: the old one stops working. */
+export async function resetInviteLink(fd: FormData) {
   const a = await bandAccountFor(fd);
-  await db
-    .update(schema.bandInviteLinks)
-    .set({ canceledAt: stamp(new Date()) })
-    .where(and(eq(schema.bandInviteLinks.id, String(fd.get("id"))), eq(schema.bandInviteLinks.orgId, a.bandOrgId)));
+  await resetStandingLink(a.bandOrgId, a.userId);
   refresh(a.bandId);
 }
 
@@ -85,20 +64,15 @@ export async function joinWithInviteLink(_: InviteLinkState, fd: FormData): Prom
     const open = await unclaimedMembers(band.id, labelOrgId, bandId);
     if (!personId || !open.some((p) => p.id === personId)) return { error: "That member already has a login. Choose who you are." };
   }
-  // Claim it first, so the same link can't be used twice at once.
-  const claimed = await db
-    .update(schema.bandInviteLinks)
-    .set({ usedAt: now, usedByUserId: userId })
-    .where(
-      and(
-        eq(schema.bandInviteLinks.id, id),
-        eq(schema.bandInviteLinks.orgId, band.id),
-        isNull(schema.bandInviteLinks.usedAt),
-        isNull(schema.bandInviteLinks.canceledAt),
-      ),
-    )
-    .returning({ id: schema.bandInviteLinks.id });
-  if (!claimed.length) return { error: "This invite link was just used." };
+  // A link from before standing links was single-use: mark it used. The standing link stays open.
+  if (link.expiresAt < "9999") {
+    const claimed = await db
+      .update(schema.bandInviteLinks)
+      .set({ usedAt: now, usedByUserId: userId })
+      .where(and(eq(schema.bandInviteLinks.id, id), isNull(schema.bandInviteLinks.usedAt), isNull(schema.bandInviteLinks.canceledAt)))
+      .returning({ id: schema.bandInviteLinks.id });
+    if (!claimed.length) return { error: "This invite link was just used." };
+  }
   const [already] = await db
     .select({ id: schema.member.id })
     .from(schema.member)
@@ -113,10 +87,15 @@ export async function joinWithInviteLink(_: InviteLinkState, fd: FormData): Prom
     personId = p.id;
   }
   if (personId) {
-    await db
-      .insert(schema.bandLoginPeople)
-      .values({ orgId: band.id, userId, personId })
-      .onConflictDoUpdate({ target: [schema.bandLoginPeople.orgId, schema.bandLoginPeople.userId], set: { personId } });
+    try {
+      await db
+        .insert(schema.bandLoginPeople)
+        .values({ orgId: band.id, userId, personId })
+        .onConflictDoUpdate({ target: [schema.bandLoginPeople.orgId, schema.bandLoginPeople.userId], set: { personId } });
+    } catch {
+      // Someone else just took that member (one login per member).
+      return { error: "That member already has a login. Choose who you are." };
+    }
   }
   // Straight into the band's account (through Better Auth, so the cached session cookie follows).
   await auth.api.setActiveOrganization({ body: { organizationId: band.id }, headers: await headers() });
