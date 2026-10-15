@@ -7,7 +7,9 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db, schema } from "@/db";
 import { subAccountFor } from "./band-accounts";
-import { hasSharedLogin, resetStandingLink, stamp, unclaimedMembers, usableInviteLink } from "./band-invite-links";
+import { hasSharedLogin, resetStandingLink, stamp, unclaimedMembers, unclaimedPeople, usableInviteLink } from "./band-invite-links";
+import { applyMyDetails } from "./people";
+import { ownBand } from "./data";
 import { auth } from "./auth";
 import { cleanCashtag, cleanVenmoHandle } from "@/lib/paypal-export";
 import { getSession, requireAdmin } from "./context";
@@ -39,31 +41,36 @@ export async function resetInviteLink(fd: FormData) {
   refresh(a.bandId);
 }
 
-/** Use an invite link: the signed-in login joins the band's account, then works in it. */
+/**
+ * Use an invite link: the signed-in login joins the band's account (or the label's), then works in
+ * it. Whatever they filled in of their details (name, how they're paid) is saved to every payee
+ * record that's theirs, the one they joined as included; blank fields leave things as they are.
+ */
 export async function joinWithInviteLink(_: InviteLinkState, fd: FormData): Promise<InviteLinkState> {
   const id = String(fd.get("id") ?? "");
   const session = await getSession();
   if (!session) redirect(`/login?next=${encodeURIComponent(`/join/${id}`)}`);
   const found = await usableInviteLink(id);
   if (!found) return { error: "This invite link has been used, cancelled or has expired. Ask for a new one." };
-  const { link, band, labelOrgId, bandId } = found;
+  const { link, band: org, labelOrgId } = found;
   const userId = session.user.id;
   const now = stamp(new Date());
+  const field = (k: string) => String(fd.get(k) ?? "").trim().slice(0, 200);
   // Who they are: the member the link names, one they picked (who has no login of their own yet),
-  // someone new to add to the band, or the band itself (its shared login).
+  // someone new, or (a band) the band itself, its shared login.
   const choice = link.personId ? String(link.personId) : String(fd.get("as") ?? "");
-  const newName = String(fd.get("name") ?? "").trim().slice(0, 120);
+  const newName = field("name").slice(0, 120);
   let personId: number | null = null;
   if (choice === "new") {
     if (!newName) return { error: "Enter your name." };
-  } else if (choice === "band") {
+  } else if (choice === "band" && !found.forLabel) {
     // One shared login per band.
-    if (await hasSharedLogin(band.id)) return { error: `${band.name} already has its shared login. Choose who you are.` };
+    if (await hasSharedLogin(org.id)) return { error: `${org.name} already has its shared login. Choose who you are.` };
   } else {
     personId = Number(choice) || null;
-    // Each member has at most one login of their own.
-    const open = await unclaimedMembers(band.id, labelOrgId, bandId);
-    if (!personId || !open.some((p) => p.id === personId)) return { error: "That member already has a login. Choose who you are." };
+    // Each person has at most one login of their own.
+    const open = found.forLabel ? await unclaimedPeople(labelOrgId) : await unclaimedMembers(org.id, labelOrgId, found.bandId);
+    if (!personId || !open.some((p) => p.id === personId)) return { error: "That person already has a login. Choose who you are." };
   }
   // A link from before standing links was single-use: mark it used. The standing link stays open.
   if (link.expiresAt < "9999") {
@@ -77,48 +84,76 @@ export async function joinWithInviteLink(_: InviteLinkState, fd: FormData): Prom
   const [already] = await db
     .select({ id: schema.member.id })
     .from(schema.member)
-    .where(and(eq(schema.member.organizationId, band.id), eq(schema.member.userId, userId)));
+    .where(and(eq(schema.member.organizationId, org.id), eq(schema.member.userId, userId)));
   if (!already) {
-    // The band's own login manages the account; a member's own login just uses it.
-    await db.insert(schema.member).values({ id: randomUUID(), organizationId: band.id, userId, role: choice === "band" ? "admin" : "member", createdAt: new Date() });
+    // The band's own login manages the account; everyone else's just uses it (a label's admins
+    // choose roles under Who can sign in).
+    await db.insert(schema.member).values({ id: randomUUID(), organizationId: org.id, userId, role: choice === "band" ? "admin" : "member", createdAt: new Date() });
   }
+  // What they filled in of their details (blank: left as it is).
+  const opt = (k: string) => field(k) || undefined;
+  const details = {
+    name: newName || undefined,
+    email: opt("email"),
+    paypalMe: opt("paypalMe"),
+    venmo: cleanVenmoHandle(field("venmo")) || undefined,
+    cashtag: cleanCashtag(field("cashtag")) || undefined,
+  };
   if (choice === "new") {
-    // Someone not in the label's books yet: a new member of the band.
-    // With the details they gave: how to pay them, and what they do in the band.
-    const field = (k: string) => String(fd.get(k) ?? "").trim().slice(0, 200);
+    // Someone not in the label's books yet: with the details they gave, and (a band) what they do in it.
     const [p] = await db
       .insert(schema.people)
       .values({
         orgId: labelOrgId,
         name: newName,
-        email: field("email") || null,
-        paypalMe: field("paypalMe") || null,
-        venmo: cleanVenmoHandle(field("venmo")) || null,
-        cashtag: cleanCashtag(field("cashtag")) || null,
+        email: details.email ?? null,
+        paypalMe: details.paypalMe ?? null,
+        venmo: details.venmo ?? null,
+        cashtag: details.cashtag ?? null,
+        // On a label, their payee record is linked to their login directly.
+        userId: found.forLabel ? userId : null,
       })
       .returning({ id: schema.people.id });
-    const role = field("role");
-    await db.insert(schema.bandMemberships).values({ orgId: labelOrgId, bandId, personId: p.id, roles: role ? [role] : [], active: true });
+    // In the band they joined: a label's band, or the band that runs its own account.
+    const bandId = found.forLabel ? (org.kind === "band" ? (await ownBand(org.id))?.id : null) : found.bandId;
+    if (bandId) {
+      const role = field("role");
+      await db.insert(schema.bandMemberships).values({ orgId: labelOrgId, bandId, personId: p.id, roles: role ? [role] : [], active: true });
+    }
     personId = p.id;
+  } else if (personId && found.forLabel) {
+    const linked = await db
+      .update(schema.people)
+      .set({ userId })
+      .where(and(eq(schema.people.orgId, labelOrgId), eq(schema.people.id, personId), isNull(schema.people.userId)))
+      .returning({ id: schema.people.id });
+    if (!linked.length) return { error: "That person already has a login. Choose who you are." };
   }
-  if (personId) {
+  if (personId && !found.forLabel) {
     try {
       await db
         .insert(schema.bandLoginPeople)
-        .values({ orgId: band.id, userId, personId })
+        .values({ orgId: org.id, userId, personId })
         .onConflictDoUpdate({ target: [schema.bandLoginPeople.orgId, schema.bandLoginPeople.userId], set: { personId } });
     } catch {
       // Someone else just took that member (one login per member).
       return { error: "That member already has a login. Choose who you are." };
     }
   }
-  // A login still going by the band's name (from signing up through the link) takes the member's.
-  if (personId && session.user.name === band.name) {
-    const [p] = await db.select({ name: schema.people.name }).from(schema.people).where(eq(schema.people.id, personId));
-    if (p) await auth.api.updateUser({ body: { name: p.name }, headers: await headers() });
+  if (personId) {
+    // Everywhere they're someone, the one they just joined as included.
+    await applyMyDetails(userId, details);
+    // Their login's name: what they gave, or (a login still going by the band's name, from signing
+    // up through the link) the name the label has for them.
+    let name = details.name;
+    if (!name && session.user.name === org.name) {
+      const [p] = await db.select({ name: schema.people.name }).from(schema.people).where(eq(schema.people.id, personId));
+      name = p?.name;
+    }
+    if (name && name !== session.user.name) await auth.api.updateUser({ body: { name }, headers: await headers() });
   }
-  // Straight into the band's account (through Better Auth, so the cached session cookie follows).
-  await auth.api.setActiveOrganization({ body: { organizationId: band.id }, headers: await headers() });
+  // Straight into the account (through Better Auth, so the cached session cookie follows).
+  await auth.api.setActiveOrganization({ body: { organizationId: org.id }, headers: await headers() });
   revalidatePath("/", "layout");
   redirect("/");
 }

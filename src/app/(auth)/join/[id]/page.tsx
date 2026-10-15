@@ -1,15 +1,16 @@
 import Link from "next/link";
 import { JoinBandForm } from "@/components/auth-forms";
 import { LinkButton } from "@/components/ui";
-import { hasSharedLogin, unclaimedMembers, usableInviteLink } from "@/server/band-invite-links";
+import { hasSharedLogin, unclaimedMembers, unclaimedPeople, usableInviteLink } from "@/server/band-invite-links";
+import { myDetails } from "@/server/people";
 import { getSession } from "@/server/context";
 import { signOut } from "@/server/account-actions";
 
 export const metadata = { title: "join" };
 
 /**
- * An invite link to a band's account (see band-invite-links.ts): sign in or sign up with any email,
- * then join. As a member (the link names one), the login is theirs; otherwise it's the band's.
+ * An invite link to a band's account, or a label's (see band-invite-links.ts): sign in or sign up
+ * with any email, say who you are, check your details, then join.
  */
 export default async function JoinPage({ params, searchParams }: PageProps<"/join/[id]">) {
   const id = (await params).id;
@@ -31,7 +32,9 @@ export default async function JoinPage({ params, searchParams }: PageProps<"/joi
     <>
       <h1 className="mb-2 text-xl font-bold">Join {band.name}</h1>
       <p className="mb-5 text-sm text-muted">
-        {personName ? `Sign in as ${personName}` : session ? "Say who you are in the band" : "Sign in or create a login, then say who you are in the band"}
+        {personName
+          ? `Sign in as ${personName}`
+          : `${session ? "Say" : "Sign in or create a login, then say"} who you are ${found.forLabel ? `at ${band.name}` : "in the band"}`}
         {labelName ? `, to see what ${labelName} has for ${personName ? "the band" : "you"}.` : "."}
       </p>
       {session && (
@@ -53,10 +56,18 @@ export default async function JoinPage({ params, searchParams }: PageProps<"/joi
         <JoinBandForm
           id={id}
           bandName={band.name}
-          members={found.link.personId ? null : await unclaimedMembers(band.id, found.labelOrgId, found.bandId)}
-          sharedTaken={await hasSharedLogin(band.id)}
+          members={
+            found.link.personId
+              ? null
+              : found.forLabel
+                ? await unclaimedPeople(found.labelOrgId)
+                : await unclaimedMembers(band.id, found.labelOrgId, found.bandId)
+          }
+          forLabel={found.forLabel}
+          askRole={!found.forLabel || band.kind === "band"}
+          sharedTaken={!found.forLabel && (await hasSharedLogin(band.id))}
           auto={(await searchParams).go === "1"}
-          email={session.user.email}
+          details={await myDetails(session.user.id, session.user.name)}
         />
       ) : (
         <div className="space-y-3">

@@ -10,7 +10,7 @@ import { auth } from "./auth";
 import { accountContext, accountsFor, getSession, requireAdmin, VIEW_AS_COOKIE } from "./context";
 import { AREAS, type Area, normalizeBandAreas, normalizePermissions } from "@/lib/permissions";
 import { assignMemberType, memberTypeForInvite, parseRoleChoice, setInviteMemberType, setManagedBands } from "./member-types";
-import { myPeople, normalizeEmail } from "./people";
+import { applyMyDetails, normalizeEmail } from "./people";
 import { cleanCashtag, cleanVenmoHandle } from "@/lib/paypal-export";
 import { bandcampCredentials, forgetBandcampSignIn, myBands } from "./bandcamp-api";
 import { encryptSecret } from "./secrets";
@@ -487,19 +487,15 @@ export async function saveMyDetails(_: FormState, fd: FormData): Promise<FormSta
   if (!name) return { error: "Enter your name." };
   // Through Better Auth, so the cached session cookie has the new name too.
   await auth.api.updateUser({ body: { name }, headers: await headers() });
-  const mine = await myPeople(session.user.id);
-  if (mine.length && fd.has("email")) {
+  if (fd.has("email")) {
     const opt = (k: string) => str(fd, k).slice(0, 200) || null;
-    await db
-      .update(schema.people)
-      .set({
-        name,
-        email: opt("email"),
-        paypalMe: opt("paypalMe"),
-        venmo: cleanVenmoHandle(str(fd, "venmo")) || null,
-        cashtag: cleanCashtag(str(fd, "cashtag")) || null,
-      })
-      .where(inArray(schema.people.id, mine.map((p) => p.id)));
+    await applyMyDetails(session.user.id, {
+      name,
+      email: opt("email"),
+      paypalMe: opt("paypalMe"),
+      venmo: cleanVenmoHandle(str(fd, "venmo")) || null,
+      cashtag: cleanCashtag(str(fd, "cashtag")) || null,
+    });
   }
   revalidatePath("/", "layout");
   return { ok: "Saved." };

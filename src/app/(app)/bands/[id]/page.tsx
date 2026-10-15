@@ -23,7 +23,7 @@ import { ensureBandAccounts } from "@/server/band-accounts";
 import { linkForLabelBand } from "@/server/links";
 import { LabelFunds } from "@/components/label-funds";
 import { ExpenseForm, ExpenseTable } from "@/components/receipts";
-import { addMember, deleteBand, removeMember, saveRelease, updateMembership } from "@/server/actions";
+import { deleteBand, removeMember, saveRelease, updateMembership } from "@/server/actions";
 import { bandScope, can } from "@/lib/permissions";
 import { getContext, requireAccess } from "@/server/context";
 import { projectsEnabled } from "@/server/features";
@@ -97,7 +97,6 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
     ...members.filter((m) => m.active).map((m) => ({ id: m.person.id, name: m.person.name, roles: m.roles, inBand: true })),
     ...allPeople.filter((p) => !members.some((m) => m.active && m.person.id === p.id)).map((p) => ({ id: p.id, name: p.name, inBand: false })),
   ];
-  const memberIds = new Set(members.map((m) => m.person.id));
   const releaseOpts = allReleases.map((r) => ({
     id: r.id,
     name: r.title,
@@ -547,53 +546,11 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
                 ))}
               </div>
             )}
-            <div id="band-account" className="flex scroll-mt-4 flex-wrap items-start gap-2">
-            {/* Opened, the form takes the row; the other buttons wrap below it. */}
-            <Disclosure summary="+ Add member manually" className="open:basis-full">
-              <form action={addMember} className="grid gap-4 sm:grid-cols-2">
-                <input type="hidden" name="bandId" value={id} />
-                <Field label="Existing person" className="sm:col-span-2">
-                  <select name="personId" defaultValue="">
-                    <option value="">New person (fill in below)</option>
-                    {allPeople
-                      .filter((p) => !memberIds.has(p.id))
-                      .map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name}
-                        </option>
-                      ))}
-                  </select>
-                </Field>
-                <Field label="Name">
-                  <input name="name" />
-                </Field>
-                <Field label="Roles (comma-separated)">
-                  <input name="roles" placeholder="vocals, guitar, songwriter" />
-                </Field>
-                <Field label="Email (optional)" className="sm:col-span-2">
-                  <input name="email" type="email" />
-                </Field>
-                <details className="sm:col-span-2">
-                  <summary className="text-sm text-link">Other ways to pay them (PayPal.me, Venmo, Cash App)</summary>
-                  <div className="mt-3 grid gap-4 sm:grid-cols-3">
-                    <Field label="PayPal.me handle">
-                      <input name="paypalMe" placeholder="yourname" />
-                    </Field>
-                    <Field label="Venmo username">
-                      <input name="venmo" placeholder="@yourname" />
-                    </Field>
-                    <Field label="Cash App $cashtag">
-                      <input name="cashtag" placeholder="$yourname" />
-                    </Field>
-                  </div>
-                </details>
-                <div className="sm:col-span-2">
-                  <SubmitButton>Add member</SubmitButton>
-                </div>
-              </form>
-            </Disclosure>
-            {accountRow !== undefined && <BandAccountButtons labelOrgId={orgId} band={band} row={accountRow} />}
-            </div>
+            {accountRow !== undefined && (
+              <div id="band-account" className="flex scroll-mt-4 flex-wrap items-center gap-2">
+                <BandAccountButtons labelOrgId={orgId} band={band} row={accountRow} />
+              </div>
+            )}
           </Card>
 
           {accountRow !== undefined && <LinkedBandAccount band={band} row={accountRow} />}

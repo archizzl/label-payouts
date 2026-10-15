@@ -1,11 +1,11 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import { and, desc, eq, gt, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, gt, isNull } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { bandMembers } from "./band-member";
 
 /*
- * Invite links to join a label-made band account (see schema.bandInviteLinks). Each band has one
+ * Invite links to join a label-made band account, or a label itself (see schema.bandInviteLinks). Each band has one
  * standing link: whoever opens it signs in, or signs up with any email, and becomes one of the
  * band's logins (a member's own, or the band's shared one), until the link is reset. Older links
  * were single-use: once used (usedAt), they stay dead.
@@ -59,13 +59,17 @@ export async function usableInviteLink(id: string) {
     .leftJoin(schema.people, eq(schema.people.id, schema.bandInviteLinks.personId))
     .where(eq(schema.bandInviteLinks.id, id));
   if (!row || row.link.usedAt || row.link.canceledAt || row.link.expiresAt <= stamp(new Date())) return null;
+  const own = { link: row.link, band: row.org, personName: row.personName, labelName: null, labelOrgId: row.org.id, bandId: null, forLabel: true as const };
+  // A label's own invite link (or a band that runs its own account): whoever opens it becomes one of
+  // its members, in its own books.
+  if (row.org.kind === "label") return own;
   const [label] = await db
     .select({ name: schema.organization.name, labelOrgId: schema.accountLinks.labelOrgId, bandId: schema.accountLinks.labelBandId })
     .from(schema.accountLinks)
     .innerJoin(schema.organization, eq(schema.organization.id, schema.accountLinks.labelOrgId))
     .where(and(eq(schema.accountLinks.bandOrgId, row.org.id), eq(schema.accountLinks.managed, true)));
-  if (!label) return null;
-  return { link: row.link, band: row.org, personName: row.personName, labelName: label.name, labelOrgId: label.labelOrgId, bandId: label.bandId };
+  if (!label) return own;
+  return { link: row.link, band: row.org, personName: row.personName, labelName: label.name, labelOrgId: label.labelOrgId, bandId: label.bandId, forLabel: false as const };
 }
 
 /** The band's members in the label's books who don't have a login of their own on its account yet. */
@@ -75,6 +79,15 @@ export async function unclaimedMembers(bandOrgId: string, labelOrgId: string, ba
     db.select({ personId: schema.bandLoginPeople.personId }).from(schema.bandLoginPeople).where(eq(schema.bandLoginPeople.orgId, bandOrgId)),
   ]);
   return members.filter((m) => !claimed.some((c) => c.personId === m.id));
+}
+
+/** A label's people who don't have a login yet (for its own invite link). */
+export async function unclaimedPeople(labelOrgId: string) {
+  return db
+    .select({ id: schema.people.id, name: schema.people.name })
+    .from(schema.people)
+    .where(and(eq(schema.people.orgId, labelOrgId), isNull(schema.people.userId)))
+    .orderBy(asc(schema.people.name));
 }
 
 /** Whether a band account already has its shared login (a login that isn't one member's own). */

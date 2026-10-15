@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db, schema } from "@/db";
 
 const { people, bandMemberships, splitShares, deductions, payouts, outsideArtists } = schema;
@@ -223,4 +223,29 @@ export async function loginEmails(orgId: string) {
   const byPerson = new Map(direct.map((r) => [r.personId, r.email]));
   /** Their login in this band (or, outside a band, in the label). */
   return (personId: number, bandId: number | null) => (bandId != null ? byBand.get(`${bandId}:${personId}`) : undefined) ?? byPerson.get(personId) ?? null;
+}
+
+/** Your name and how you're paid, as set on Account or when joining. */
+export type MyDetails = { name: string; email: string | null; paypalMe: string | null; venmo: string | null; cashtag: string | null };
+
+/**
+ * Write your details to every payee record that's yours (see myPeople). Only the fields given are
+ * written: a field left out (undefined) stays as each record has it.
+ */
+export async function applyMyDetails(userId: string, details: Partial<MyDetails>) {
+  const set = Object.fromEntries(Object.entries(details).filter(([, v]) => v !== undefined));
+  if (!Object.keys(set).length) return;
+  const mine = await myPeople(userId);
+  if (!mine.length) return;
+  await db
+    .update(people)
+    .set(set)
+    .where(inArray(people.id, mine.map((p) => p.id)));
+}
+
+/** The details to start a form from: your login's name, and each field's first filled-in value across your records. */
+export async function myDetails(userId: string, loginName: string): Promise<MyDetails> {
+  const mine = await myPeople(userId);
+  const first = (k: "email" | "paypalMe" | "venmo" | "cashtag") => mine.find((p) => p[k])?.[k] ?? null;
+  return { name: loginName, email: first("email"), paypalMe: first("paypalMe"), venmo: first("venmo"), cashtag: first("cashtag") };
 }

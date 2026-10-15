@@ -1,12 +1,10 @@
 import { and, asc, eq } from "drizzle-orm";
-import Link from "next/link";
-import { ActionForm, CopyButton, SubmitButton } from "@/components/client";
-import { Badge, Card, Disclosure, Field } from "@/components/ui";
+import { CopyButton, SubmitButton } from "@/components/client";
+import { Badge, Card } from "@/components/ui";
 import { db, schema } from "@/db";
-import { cancelInvite, inviteMember, removeAccountMember } from "@/server/account-actions";
+import { cancelInvite, removeAccountMember } from "@/server/account-actions";
 import type { Context } from "@/server/context";
 import { inviteMemberTypes, listMemberTypes, memberTypeOf } from "@/server/member-types";
-import { InviteWhoFields } from "./invite-fields";
 import { RolePicker } from "./role-picker";
 import { LoginEditToggle, LoginIdentity, StandingInviteLink } from "./band-invite-links";
 import { bandMembers } from "@/server/band-member";
@@ -55,7 +53,6 @@ export async function WhoCanSignIn({ ctx }: { ctx: Context }) {
   const personOf = (userId: string) => people.find((p) => p.userId === userId);
   const base = process.env.BETTER_AUTH_URL ?? "";
   const openInvites = invites.filter((i) => i.expiresAt > new Date());
-  const unlinked = people.filter((p) => !p.userId);
   // A band account: its members in the label's books (for invite links), its open links, and which
   // member each personal login is (the rest are the band's shared login).
   const [loginNames, loginPersons, bandPeople] = ctx.managedBy
@@ -174,27 +171,10 @@ export async function WhoCanSignIn({ ctx }: { ctx: Context }) {
             </tbody>
           </table>
 
-          {managed ? (
-            // A band account: an invite link, for the band or one member; whoever opens it picks their own email.
+          {/* One invite link, the same every time: whoever opens it signs up (or in) with their own email, says who they are and fills in their details. */}
+          <div className="mt-4">
             <StandingInviteLink bandOrgId={orgId} createdBy={ctx.user.id} />
-          ) : (
-          <Disclosure summary="+ Invite someone">
-            <ActionForm action={inviteMember} className="grid gap-4 sm:grid-cols-3">
-              <>
-                  <InviteWhoFields people={unlinked.map((p) => ({ id: p.id, name: p.name, email: p.email }))} />
-                  <Field label="Role">
-                    <select name="role" defaultValue="member">
-                      {roleOptions}
-                    </select>
-                  </Field>
-                </>
-              <div className="sm:col-span-3">
-                <SubmitButton>Create invite</SubmitButton>
-                {/* <p className="mt-2 text-xs text-muted">There’s no email sending yet: copy the invite link from the list and send it to them.</p> */}
-              </div>
-            </ActionForm>
-          </Disclosure>
-          )}
+          </div>
         </Card>
   );
 }

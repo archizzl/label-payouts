@@ -139,26 +139,33 @@ export function ResetPasswordForm({ token }: { token: string }) {
 }
 
 /**
- * Join a band's account with an invite link. `members`: the band's members without a login of their
- * own yet, to pick from (or add yourself, or be the band's shared login); null when the link already
- * says who. `auto`: straight after signing up or in, when there's nothing to choose.
+ * Join a band's account (or a label's) with an invite link. `members`: its people without a login of
+ * their own yet, to pick from (or add yourself, or be the band's shared login); null when the link
+ * already says who. `details`: what this login already has for itself, to check or change before
+ * joining (saved everywhere it's someone). `auto`: straight after signing up or in, when there's
+ * nothing to choose.
  */
 export function JoinBandForm({
   id,
   bandName,
   members,
+  forLabel = false,
+  askRole = !forLabel,
   sharedTaken = false,
   auto = false,
-  email = "",
+  details,
 }: {
   id: string;
   bandName: string;
-  /** Their login's email: the PayPal email to start from, if they're new to the band. */
-  email?: string;
   members: { id: number; name: string }[] | null;
+  /** An account's own invite link (a label's, or a band's that runs its own account): no shared login. */
+  forLabel?: boolean;
+  /** Ask someone new what they do in the band. */
+  askRole?: boolean;
   /** The band already has its shared login: no second one. */
   sharedTaken?: boolean;
   auto?: boolean;
+  details: { name: string; email: string | null; paypalMe: string | null; venmo: string | null; cashtag: string | null };
 }) {
   const [state, action, pending] = useActionState(joinWithInviteLink, null);
   const [as, setAs] = useState(members?.[0] ? String(members[0].id) : "new");
@@ -184,34 +191,37 @@ export function JoinBandForm({
           <label className="flex items-center gap-2 text-sm">
             <input type="radio" name="as" value="new" checked={as === "new"} onChange={() => setAs("new")} /> I’m not listed
           </label>
-          {!sharedTaken && (
+          {!forLabel && !sharedTaken && (
             <label className="flex items-center gap-2 text-sm">
               <input type="radio" name="as" value="band" checked={as === "band"} onChange={() => setAs("band")} /> The whole band (one shared login)
             </label>
           )}
         </fieldset>
       )}
-      {/* Someone the label doesn't have yet: their details, as in the Directory. */}
-      {members && as === "new" && (
+      {/* Their details, to check before joining: saved to every record that's theirs. */}
+      {members && as !== "band" && (
         <div className="grid gap-3 sm:grid-cols-2">
+          <h2 className="text-sm font-medium sm:col-span-2">Your details</h2>
           <Field label="Your name">
-            <input name="name" autoComplete="name" required />
-          </Field>
-          <Field label="Role in the band">
-            <input name="role" />
+            <input name="name" autoComplete="name" required={as === "new"} defaultValue={details.name === bandName ? "" : details.name} />
           </Field>
           <Field label="PayPal email">
-            <input name="email" type="email" defaultValue={email} />
+            <input name="email" type="email" defaultValue={details.email ?? ""} />
           </Field>
           <Field label="PayPal.me handle">
-            <input name="paypalMe" />
+            <input name="paypalMe" defaultValue={details.paypalMe ?? ""} />
           </Field>
           <Field label="Venmo username" hint="US only.">
-            <input name="venmo" placeholder="@yourname" />
+            <input name="venmo" defaultValue={details.venmo ?? ""} placeholder="@yourname" />
           </Field>
           <Field label="Cash App $cashtag">
-            <input name="cashtag" placeholder="$yourname" />
+            <input name="cashtag" defaultValue={details.cashtag ?? ""} placeholder="$yourname" />
           </Field>
+          {askRole && as === "new" && (
+            <Field label="Role in the band">
+              <input name="role" />
+            </Field>
+          )}
         </div>
       )}
       <Result state={state} />

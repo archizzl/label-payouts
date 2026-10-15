@@ -180,7 +180,6 @@ export default async function DirectoryPage() {
                     {members.map((m) => row(people.find((p) => p.id === m.personId)!, m))}
                   </div>
                 )}
-                {/* <AddToBand bandId={b.id} bandName={b.name} people={people.filter((p) => !members.some((m) => m.personId === p.id && m.active))} /> */}
                 {/* A band's own login brings people in with its invite link. */}
                 {ctx.lens && !ctx.ownLogin && (
                   <div className="mt-3">
@@ -257,9 +256,6 @@ export default async function DirectoryPage() {
               <BandFields />
             </Disclosure>
           )}
-          <Disclosure summary="+ Add someone">
-            <PersonFields bands={bands} />
-          </Disclosure>
         </div>
       )}
 
@@ -286,51 +282,6 @@ function ColumnHeads() {
       <span className="text-right">owed</span>
       <span className="text-right">paid / kept</span>
       <span />
-    </div>
-  );
-}
-
-/** Add someone to a band: someone already in the books, or someone new. */
-function AddToBand({ bandId, bandName, people }: { bandId: number; bandName: string; people: Person[] }) {
-  return (
-    <div className="mt-3">
-      <Disclosure
-        summary={
-          <>
-            Add someone manually
-          </>
-        }
-      >
-        <form action={addMember} className="grid gap-4 sm:grid-cols-2">
-          <input type="hidden" name="bandId" value={bandId} />
-          {people.length > 0 && (
-            <Field label="Someone already here" className="sm:col-span-2">
-              <select name="personId" defaultValue="">
-                <option value="">Someone new (fill in below)</option>
-                {people.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-            </Field>
-          )}
-          <Field label="Name">
-            <input name="name" />
-          </Field>
-          <Field label="Roles (comma-separated)">
-            <input name="roles" placeholder="vocals, guitar, songwriter" />
-          </Field>
-          <Field label="Email (optional)" className="sm:col-span-2">
-            <input name="email" type="email" />
-          </Field>
-          <div className="sm:col-span-2">
-            <SubmitButton>
-              Add to <span className="normal-case">{bandName}</span>
-            </SubmitButton>
-          </div>
-        </form>
-      </Disclosure>
     </div>
   );
 }
@@ -587,7 +538,7 @@ function BandRoles({ person: p, membership: m, canRemove }: { person: Person; me
   );
 }
 
-function PersonFields({ person, labelNotes = true, bands = [] }: { person?: Person; labelNotes?: boolean; bands?: Band[] }) {
+function PersonFields({ person, labelNotes = true }: { person?: Person; labelNotes?: boolean }) {
   return (
     <form action={savePerson} className="grid gap-4 sm:grid-cols-2">
       {person && <input type="hidden" name="id" value={person.id} />}
@@ -611,20 +562,6 @@ function PersonFields({ person, labelNotes = true, bands = [] }: { person?: Pers
         <Field label="Notes">
           <input name="notes" defaultValue={person?.notes ?? ""} />
         </Field>
-      )}
-      {/* Someone new: which bands they're in. */}
-      {!person && bands.length > 0 && (
-        <fieldset className="sm:col-span-2">
-          <legend className="mb-1 text-xs font-medium text-muted">Bands</legend>
-          <div className="grid gap-1 sm:grid-cols-3">
-            {bands.map((b) => (
-              <label key={b.id} className="flex items-center gap-2 text-sm">
-                <input type="checkbox" name="bandIds" value={b.id} />
-                <span className="truncate">{b.name}</span>
-              </label>
-            ))}
-          </div>
-        </fieldset>
       )}
       <div className="sm:col-span-2">
         {person ? (
