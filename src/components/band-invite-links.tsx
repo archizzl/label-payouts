@@ -1,4 +1,5 @@
 import { ActionForm, CopyButton, SaveWhenChanged, SubmitButton } from "@/components/client";
+import { buttonClass } from "@/components/ui";
 import { resetInviteLink, setLoginIdentity } from "@/server/band-invite-actions";
 import { standingInviteLink } from "@/server/band-invite-links";
 
@@ -73,7 +74,7 @@ export function LoginIdentity({
  */
 export function LoginEditToggle() {
   return (
-    <label className="cursor-pointer text-sm text-link hover:underline">
+    <label className={`${buttonClass("ghost", "sm")} cursor-pointer`}>
       <input type="checkbox" className="login-edit hidden" />
       <span className="group-has-[.login-edit:checked]:hidden">edit</span>
       <span className="hidden group-has-[.login-edit:checked]:inline">close</span>

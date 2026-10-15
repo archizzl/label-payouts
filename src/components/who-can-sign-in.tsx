@@ -127,17 +127,17 @@ export async function WhoCanSignIn({ ctx }: { ctx: Context }) {
                     </td>
                     )}
                     <td className="text-right">
-                      {member.role !== "owner" && !self && (
-                        <div className="flex justify-end gap-2">
+                      <div className="flex justify-end gap-1">
+                        {member.role !== "owner" && !self && (
                           <form action={removeAccountMember}>
                             <input type="hidden" name="memberId" value={member.id} />
                             <SubmitButton variant="ghost" size="sm" confirm={`Remove ${user.name}'s access? Their payout history stays.`}>
                               Remove
                             </SubmitButton>
                           </form>
-                        </div>
-                      )}
-                      {managed && <LoginEditToggle />}
+                        )}
+                        {managed && <LoginEditToggle />}
+                      </div>
                     </td>
                   </tr>
                 );
