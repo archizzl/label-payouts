@@ -101,7 +101,7 @@ export async function WhoCanSignIn({ ctx }: { ctx: Context }) {
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                         <span className="text-xs text-muted">{user.email}</span>
                         {/* A band account: who this login signs in as, shown with Edit. */}
-                        {managed && (
+                        {managed && !self && (
                           <span className="hidden group-has-[.login-edit:checked]:inline-flex">
                             <LoginIdentity
                               userId={user.id}
@@ -136,7 +136,7 @@ export async function WhoCanSignIn({ ctx }: { ctx: Context }) {
                             </SubmitButton>
                           </form>
                         )}
-                        {managed && <LoginEditToggle />}
+                        {managed && !self && <LoginEditToggle />}
                       </div>
                     </td>
                   </tr>

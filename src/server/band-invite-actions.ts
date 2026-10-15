@@ -19,10 +19,10 @@ export type InviteLinkState = { ok?: string; error?: string; url?: string } | nu
  */
 async function bandAccountFor(fd: FormData) {
   const ctx = await requireAdmin();
-  if (ctx.managedBy) return { bandOrgId: ctx.orgId, labelOrgId: ctx.managedBy.labelOrgId, bandId: ctx.managedBy.bandId, userId: ctx.user.id };
+  if (ctx.managedBy) return { bandOrgId: ctx.orgId, labelOrgId: ctx.managedBy.labelOrgId, bandId: ctx.managedBy.bandId, userId: ctx.user.id, label: false };
   const sub = await subAccountFor(ctx.orgId, Number(fd.get("bandId")));
   if (!sub) throw new Error("This band doesn’t have an account from the label.");
-  return { bandOrgId: sub.org.id, labelOrgId: ctx.orgId, bandId: sub.link.labelBandId, userId: ctx.user.id };
+  return { bandOrgId: sub.org.id, labelOrgId: ctx.orgId, bandId: sub.link.labelBandId, userId: ctx.user.id, label: true };
 }
 
 function refresh(bandId: number) {
@@ -78,7 +78,8 @@ export async function joinWithInviteLink(_: InviteLinkState, fd: FormData): Prom
     .from(schema.member)
     .where(and(eq(schema.member.organizationId, band.id), eq(schema.member.userId, userId)));
   if (!already) {
-    await db.insert(schema.member).values({ id: randomUUID(), organizationId: band.id, userId, role: "admin", createdAt: new Date() });
+    // The band's own login manages the account; a member's own login just uses it.
+    await db.insert(schema.member).values({ id: randomUUID(), organizationId: band.id, userId, role: choice === "band" ? "admin" : "member", createdAt: new Date() });
   }
   if (choice === "new") {
     // Someone not in the label's books yet: a new member of the band.
@@ -117,6 +118,8 @@ export async function setLoginIdentity(_: InviteLinkState, fd: FormData): Promis
   }
   const userId = String(fd.get("userId") ?? "");
   const as = String(fd.get("as") ?? "");
+  // The band's own login changing itself would leave nobody (but the label) to manage logins.
+  if (userId === a.userId && !a.label) return { error: "Change your own login from the label’s side." };
   const [login] = await db
     .select({ id: schema.member.id })
     .from(schema.member)
@@ -140,6 +143,8 @@ export async function setLoginIdentity(_: InviteLinkState, fd: FormData): Promis
       const [band] = await db.select({ name: schema.organization.name }).from(schema.organization).where(eq(schema.organization.id, a.bandOrgId));
       if (band) await db.update(schema.user).set({ name: band.name }).where(eq(schema.user.id, userId));
     }
+    // The band's login manages the account's logins.
+    await db.update(schema.member).set({ role: "admin" }).where(eq(schema.member.id, login.id));
   } else {
     const personId = Number(as);
     const [mine] = await db
@@ -152,6 +157,8 @@ export async function setLoginIdentity(_: InviteLinkState, fd: FormData): Promis
       .insert(schema.bandLoginPeople)
       .values({ orgId: a.bandOrgId, userId, personId })
       .onConflictDoUpdate({ target: [schema.bandLoginPeople.orgId, schema.bandLoginPeople.userId], set: { personId } });
+    // A member's own login sees the band, not who can sign in to it.
+    await db.update(schema.member).set({ role: "member" }).where(eq(schema.member.id, login.id));
   }
   refresh(a.bandId);
   revalidatePath("/", "layout");

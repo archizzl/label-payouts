@@ -1,4 +1,4 @@
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import Link from "next/link";
 import { connection } from "next/server";
 import { redirect } from "next/navigation";
@@ -8,6 +8,8 @@ import { SyncFooter } from "@/components/sync-status";
 import { Badge, Card, Disclosure, Empty, Field, MoneyList, PageHeader, RolesList } from "@/components/ui";
 import { ViewAsButton } from "@/components/viewing-as";
 import { WhoCanSignIn } from "@/components/who-can-sign-in";
+import { MyDetails } from "@/components/my-details";
+import { bandMemberChoice } from "@/server/band-member";
 import { db, schema } from "@/db";
 import { payHandlesSummary } from "@/lib/paypal-export";
 import { bandScope } from "@/lib/permissions";
@@ -38,6 +40,17 @@ export default async function DirectoryPage() {
   await connection();
   const ctx = await requireAccess("roster");
   const { orgId } = ctx;
+  // A band member's own login: their own details first.
+  const choice = ctx.lens ? await bandMemberChoice() : null;
+  const mine =
+    choice?.fixed && choice.chosen && ctx.managedBy
+      ? await db
+          .select({ person: schema.people, roles: schema.bandMemberships.roles })
+          .from(schema.people)
+          .innerJoin(schema.bandMemberships, and(eq(schema.bandMemberships.personId, schema.people.id), eq(schema.bandMemberships.bandId, ctx.managedBy.bandId)))
+          .where(and(eq(schema.people.orgId, orgId), eq(schema.people.id, choice.chosen.id)))
+          .then((r) => r[0] ?? null)
+      : null;
   // A band manager: just their bands and the people in them, and nothing label-wide.
   const scope = bandScope(ctx.access, "roster");
   // Bands' own accounts (label admins): bands added since (or from before sub-accounts) get theirs.
@@ -120,6 +133,7 @@ export default async function DirectoryPage() {
       <PageHeader
         title="Directory"
       />
+      {mine && <MyDetails person={mine.person} roles={mine.roles} />}
 
       {shownDuplicates.length > 0 && (
         <Card title="Possible duplicates">

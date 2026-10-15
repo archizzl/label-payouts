@@ -2,7 +2,7 @@ import "server-only";
 import { and, eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { db, schema } from "@/db";
-import { type Context, requireAdmin } from "./context";
+import { accountContext, type Context, requireAdmin } from "./context";
 
 /*
  * Links between a band's own account and its label's account. An active link gives the band
@@ -64,11 +64,13 @@ export type LinkedView = {
 };
 
 /**
- * For the read-only "from your label" pages: the signed-in admin of a band account, looking at a
- * label linked to it. Anything else is a 404, so nobody learns which links exist.
+ * For the read-only "from your label" pages: someone signed in to a band account, looking at a
+ * label linked to it (any login on a band account the label made, else its admins). Anything else
+ * is a 404, so nobody learns which links exist.
  */
 export async function requireLinkedView(linkId: number): Promise<LinkedView> {
-  const ctx = await requireAdmin();
+  const own = await accountContext();
+  const ctx = own.managedBy ? own : await requireAdmin();
   const [row] = await db
     .select({ link: accountLinks, label: organization, band: bands })
     .from(accountLinks)

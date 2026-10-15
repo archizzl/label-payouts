@@ -239,6 +239,13 @@
       "when": 1792018554129,
       "tag": "0033_one_login_per_member",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1792076111160,
+      "tag": "0034_member_logins_are_members",
+      "breakpoints": true
     }
   ]
 }
