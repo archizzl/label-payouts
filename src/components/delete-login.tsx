@@ -7,7 +7,7 @@ import { deleteMyLogin } from "@/server/account-actions";
  * Type your email to confirm.
  */
 export function DeleteLogin({ email, accounts }: { email: string; accounts: number }) {
-  const title = accounts > 1 ? "Leave all your accounts and delete your login" : "Delete your login";
+  const title = accounts > 1 ? "Delete all of your accounts" : "Delete your account";
   return (
     <Card title={title}>
       <ActionForm action={deleteMyLogin} className="flex flex-wrap items-end gap-3">
