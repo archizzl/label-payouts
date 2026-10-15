@@ -3,7 +3,11 @@ import { saveBand } from "@/server/actions";
 import { SubmitButton } from "./client";
 import { Field } from "./ui";
 
-export function BandFields({ band }: { band?: typeof schema.bands.$inferSelect }) {
+/**
+ * A band's details: the same form for the label (on the band's Settings tab) and for the band's own
+ * account (its Settings), except the label's notes, which only the label sees.
+ */
+export function BandFields({ band, labelNotes = true }: { band?: typeof schema.bands.$inferSelect; labelNotes?: boolean }) {
   return (
     <form action={saveBand} className="grid gap-4 sm:grid-cols-2">
       {band && <input type="hidden" name="id" value={band.id} />}
@@ -20,9 +24,11 @@ export function BandFields({ band }: { band?: typeof schema.bands.$inferSelect }
       >
         <input name="urlPatterns" defaultValue={band?.urlPatterns.join(", ")} />
       </Field>
-      <Field label="Notes" className="sm:col-span-2">
-        <textarea name="notes" rows={2} defaultValue={band?.notes ?? ""} />
-      </Field>
+      {labelNotes && (
+        <Field label="Notes" className="sm:col-span-2">
+          <textarea name="notes" rows={2} defaultValue={band?.notes ?? ""} />
+        </Field>
+      )}
       <div className="sm:col-span-2">
         <SubmitButton>{band ? "Save band" : "Add band"}</SubmitButton>
       </div>

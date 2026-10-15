@@ -160,21 +160,29 @@ export async function saveBand(fd: FormData) {
   const id = optInt(fd, "id");
   if (id) access.band(id);
   else access.labelWide();
-  // A band's own account edits its people, not the band (its name and how sales are matched to it).
-  if (access.lens) throw new Error("The label looks after the band’s details.");
   const values = {
     name: str(fd, "name"),
     aliases: list(fd, "aliases"),
     urlPatterns: list(fd, "urlPatterns"),
-    notes: optStr(fd, "notes"),
+    // The label's notes about the band: not the band's own account's to see or change.
+    ...(access.lens ? {} : { notes: optStr(fd, "notes") }),
   };
   if (!values.name) throw new Error("Band name is required");
+  if (id && access.lens) {
+    // A band renaming itself keeps its old name as another spelling, so sales still find it.
+    const [before] = await db.select({ name: bands.name }).from(bands).where(and(eq(bands.orgId, orgId), eq(bands.id, id)));
+    if (before && before.name !== values.name && !values.aliases.includes(before.name)) values.aliases.push(before.name);
+  }
   let bandId = id;
   if (id) await db.update(bands).set(values).where(and(eq(bands.orgId, orgId), eq(bands.id, id)));
   else [{ id: bandId }] = await db.insert(bands).values({ ...values, orgId }).returning({ id: bands.id });
-  // Its account from the label: made for a new band, renamed with it.
+  // Its account from the label: made for a new band, renamed with it. A band that runs its own
+  // account: the account is the band, so it takes the name too.
   if (id) await renameSubAccount(orgId, id, values.name);
   else await ensureBandAccounts(orgId);
+  if (id && !access.lens && access.org.kind === "band") {
+    await db.update(schema.organization).set({ name: values.name }).where(eq(schema.organization.id, orgId));
+  }
   await reRouteAll(orgId);
   done();
   if (!id) redirect(`/bands/${bandId}`);

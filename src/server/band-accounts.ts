@@ -11,7 +11,7 @@ import { slugify } from "@/lib/slug";
  * with "view as" (src/server/context.ts). Bands that already had their own account linked keep it.
  */
 
-const { accountLinks, bands, organization } = schema;
+const { accountLinks, bands, bandLoginPeople, member, organization, user } = schema;
 
 /** Short and unguessable: the link code is unused for these, but the column needs one. */
 const token = (n: number) => randomBytes(n).toString("hex");
@@ -90,7 +90,15 @@ export async function managingLabel(bandOrgId: string) {
 /** A band was renamed in the label's books: its sub-account follows. */
 export async function renameSubAccount(labelOrgId: string, bandId: number, name: string) {
   const row = await subAccountFor(labelOrgId, bandId);
-  if (row && row.org.name !== name) await db.update(organization).set({ name }).where(eq(organization.id, row.org.id));
+  if (!row || row.org.name === name) return;
+  await db.update(organization).set({ name }).where(eq(organization.id, row.org.id));
+  // The band's shared login goes by the band's name: it follows (members' own logins keep theirs).
+  const [logins, personal] = await Promise.all([
+    db.select({ userId: member.userId }).from(member).where(eq(member.organizationId, row.org.id)),
+    db.select({ userId: bandLoginPeople.userId }).from(bandLoginPeople).where(eq(bandLoginPeople.orgId, row.org.id)),
+  ]);
+  const shared = logins.map((l) => l.userId).filter((u) => !personal.some((p) => p.userId === u));
+  if (shared.length) await db.update(user).set({ name }).where(and(inArray(user.id, shared), eq(user.name, row.org.name)));
 }
 
 /** A band is being deleted from the label's books: its sub-account goes with it. */

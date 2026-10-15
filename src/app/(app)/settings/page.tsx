@@ -1,4 +1,4 @@
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
@@ -7,6 +7,8 @@ import { Callout, Card, Field, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
 import { saveAccountSettings, testBandcampConnection } from "@/server/account-actions";
 import { WhoCanSignIn } from "@/components/who-can-sign-in";
+import { BandFields } from "@/components/band-fields";
+import { ownBand } from "@/server/data";
 import { MemberTypesCard } from "@/components/member-types";
 import { DeleteAccount } from "@/components/delete-account";
 import { SyncFooter } from "@/components/sync-status";
@@ -26,10 +28,14 @@ export default async function SettingsPage() {
   if (own.managedBy) return <SubAccountSettings ctx={own} />;
   const ctx = await requireAdmin();
   const { orgId } = ctx;
-  const [[settings], labels, people] = await Promise.all([
+  const [[settings], labels, people, [band]] = await Promise.all([
     db.select().from(schema.accountSettings).where(eq(schema.accountSettings.orgId, orgId)),
     ctx.org.kind === "band" ? labelsForBandAccount(orgId) : Promise.resolve([]),
     ctx.org.kind === "label" ? db.select().from(schema.people).where(eq(schema.people.orgId, orgId)).orderBy(asc(schema.people.name)) : [],
+    // A band's own account: its band's details, the same form the label has for its bands.
+    ctx.org.kind === "band"
+      ? ownBand(orgId).then((b) => (b ? db.select().from(schema.bands).where(eq(schema.bands.id, b.id)) : []))
+      : [],
   ]);
   const holder = people.find((p) => p.holdsLabelAccount);
   const kind = ctx.org.kind;
@@ -45,11 +51,19 @@ export default async function SettingsPage() {
         </Callout>
       )}
 
-      <Card title="Account">
+      {band && (
+        <Card title="Band">
+          <BandFields band={band} />
+        </Card>
+      )}
+
+      <Card title={band ? "Bandcamp" : "Account"}>
         <ActionForm action={saveAccountSettings} className="grid gap-4 sm:grid-cols-2">
-          <Field label={kind === "band" ? "Band name" : "Label name"}>
-            <input name="name" required defaultValue={ctx.org.name} />
-          </Field>
+          {!band && (
+            <Field label="Label name">
+              <input name="name" required defaultValue={ctx.org.name} />
+            </Field>
+          )}
           <Field label="Bandcamp address">
             <input name="bandcampUrl" defaultValue={settings?.bandcampUrl ?? ""} placeholder="mylabel.bandcamp.com" />
           </Field>
@@ -180,14 +194,17 @@ export default async function SettingsPage() {
 
 /** A band account the label made: it's the label's to name and set up, so just who signs in. */
 async function SubAccountSettings({ ctx }: { ctx: Context }) {
+  const m = ctx.managedBy!;
+  const [band] = await db.select().from(schema.bands).where(and(eq(schema.bands.orgId, m.labelOrgId), eq(schema.bands.id, m.bandId)));
   return (
     <>
-      <PageHeader title="Settings" subtitle={`${ctx.org.name} · band account`} />
-      {/* <p className="mb-8 text-sm text-muted">
-        {m.labelName} made this account for {ctx.org.name}, so you can see <Link href={`/from-label/${m.linkId}`}>what the label has for you</Link>:
-        your sales, payouts, statements and receipts. The label keeps the books; ask them if something looks wrong.
-      </p> */}
-      <WhoCanSignIn ctx={ctx} />
+      <PageHeader title="Settings" subtitle={ctx.org.name} />
+      {/* The same form the label has for the band, without the label's own notes. Who signs in is in the Directory. */}
+      {band && (
+        <Card title="Band">
+          <BandFields band={band} labelNotes={false} />
+        </Card>
+      )}
     </>
   );
 }

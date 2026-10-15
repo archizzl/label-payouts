@@ -1,4 +1,6 @@
+import { and, eq } from "drizzle-orm";
 import { connection } from "next/server";
+import { db, schema } from "@/db";
 import { ActionForm, SaveWhenChanged, SubmitButton } from "@/components/client";
 import { Card, Field, PageHeader } from "@/components/ui";
 import { DeleteLogin } from "@/components/delete-login";
@@ -16,7 +18,17 @@ export const metadata = { title: "account" };
 export default async function AccountPage() {
   await connection();
   const { user } = await realContext();
-  const [mine, accounts] = await Promise.all([myPeople(user.id), accountsFor(user.id)]);
+  const [mine, accounts, madeByLabels] = await Promise.all([
+    myPeople(user.id),
+    accountsFor(user.id),
+    db
+      .select({ orgId: schema.accountLinks.bandOrgId })
+      .from(schema.accountLinks)
+      .where(and(eq(schema.accountLinks.managed, true), eq(schema.accountLinks.status, "active"))),
+  ]);
+  // Only ever a band's own login (in the band accounts labels make): it goes by the band's name, and
+  // the band's details are under Settings.
+  const bandLoginOnly = mine.length === 0 && accounts.every((a) => a.role !== "member" && madeByLabels.some((l) => l.orgId === a.id));
   // Where your records differ, the first one with something filled in.
   const first = (k: "email" | "paypalMe" | "venmo" | "cashtag") => mine.find((p) => p[k])?.[k] ?? "";
 
@@ -24,34 +36,36 @@ export default async function AccountPage() {
     <>
       <PageHeader title="Account" subtitle={user.email} />
 
-      <Card title="Your details">
-        <ActionForm action={saveMyDetails} className="grid gap-4 sm:grid-cols-2">
-          <Field label="Name">
-            <input name="name" required defaultValue={user.name} autoComplete="name" />
-          </Field>
-          {mine.length > 0 && (
-            <>
-              <Field label="PayPal email">
-                <input name="email" type="email" defaultValue={first("email")} />
-              </Field>
-              <Field label="PayPal.me handle">
-                <input name="paypalMe" defaultValue={first("paypalMe")} />
-              </Field>
-              <Field label="Venmo username" hint="US only.">
-                <input name="venmo" defaultValue={first("venmo")} placeholder="@yourname" />
-              </Field>
-              <Field label="Cash App $cashtag">
-                <input name="cashtag" defaultValue={first("cashtag")} placeholder="$yourname" />
-              </Field>
-            </>
-          )}
-          <div className="sm:col-span-2">
-            <SaveWhenChanged>
-              <SubmitButton>Save</SubmitButton>
-            </SaveWhenChanged>
-          </div>
-        </ActionForm>
-      </Card>
+      {!bandLoginOnly && (
+        <Card title="Your details">
+          <ActionForm action={saveMyDetails} className="grid gap-4 sm:grid-cols-2">
+            <Field label="Name">
+              <input name="name" required defaultValue={user.name} autoComplete="name" />
+            </Field>
+            {mine.length > 0 && (
+              <>
+                <Field label="PayPal email">
+                  <input name="email" type="email" defaultValue={first("email")} />
+                </Field>
+                <Field label="PayPal.me handle">
+                  <input name="paypalMe" defaultValue={first("paypalMe")} />
+                </Field>
+                <Field label="Venmo username" hint="US only.">
+                  <input name="venmo" defaultValue={first("venmo")} placeholder="@yourname" />
+                </Field>
+                <Field label="Cash App $cashtag">
+                  <input name="cashtag" defaultValue={first("cashtag")} placeholder="$yourname" />
+                </Field>
+              </>
+            )}
+            <div className="sm:col-span-2">
+              <SaveWhenChanged>
+                <SubmitButton>Save</SubmitButton>
+              </SaveWhenChanged>
+            </div>
+          </ActionForm>
+        </Card>
+      )}
 
       <Card title="Password">
         <ActionForm action={changeMyPassword} className="flex flex-wrap items-end gap-3">

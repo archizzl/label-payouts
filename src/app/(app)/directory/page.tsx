@@ -8,6 +8,7 @@ import { SyncFooter } from "@/components/sync-status";
 import { Badge, Card, Disclosure, Empty, Field, MoneyList, PageHeader, RolesList } from "@/components/ui";
 import { ViewAsButton } from "@/components/viewing-as";
 import { WhoCanSignIn } from "@/components/who-can-sign-in";
+import { StandingInviteLink } from "@/components/band-invite-links";
 import { db, schema } from "@/db";
 import { payHandlesSummary } from "@/lib/paypal-export";
 import { bandScope } from "@/lib/permissions";
@@ -180,6 +181,12 @@ export default async function DirectoryPage() {
                   </div>
                 )}
                 {/* <AddToBand bandId={b.id} bandName={b.name} people={people.filter((p) => !members.some((m) => m.personId === p.id && m.active))} /> */}
+                {/* A band's own login brings people in with its invite link. */}
+                {ctx.lens && !ctx.ownLogin && (
+                  <div className="mt-3">
+                    <StandingInviteLink bandOrgId={ctx.org.id} />
+                  </div>
+                )}
                 {accounts.get(b.id) && (
                   <BandAccountLine
                     bandId={b.id}
