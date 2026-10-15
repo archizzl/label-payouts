@@ -1,6 +1,7 @@
 import "server-only";
 import { and, asc, eq, inArray, or } from "drizzle-orm";
 import { db, schema } from "@/db";
+import { possessive } from "@/lib/plural";
 import { managingLabel, subAccountFor } from "./band-accounts";
 
 /*
@@ -122,4 +123,24 @@ export async function shareDetails(personId: number, details: Partial<Shared>) {
   if (!Object.keys(set).length) return;
   const others = await counterpartIds([personId]);
   if (others.length) await db.update(people).set(set).where(inArray(people.id, others));
+}
+
+/**
+ * A warning when the band's own Bandcamp API access reaches a Bandcamp band the label's also reaches:
+ * that band's sales would come into both books and be paid out twice. Goes by what each API access
+ * last reported (Test connection and the hourly sync note it). Null when there's no overlap.
+ */
+export async function bothBooksWarning(bandOrgId: string): Promise<string | null> {
+  const managed = await managingLabel(bandOrgId);
+  if (!managed) return null;
+  const rows = await db
+    .select({ orgId: accountSettings.orgId, bands: accountSettings.bandcampBands })
+    .from(accountSettings)
+    .where(inArray(accountSettings.orgId, [bandOrgId, managed.labelOrgId]));
+  const own = rows.find((r) => r.orgId === bandOrgId)?.bands ?? [];
+  const labelIds = new Set((rows.find((r) => r.orgId === managed.labelOrgId)?.bands ?? []).map((b) => b.id));
+  const names = [...new Set(own.filter((b) => labelIds.has(b.id)).map((b) => b.name))];
+  if (!names.length) return null;
+  const list = names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
+  return `${possessive(managed.labelName)} Bandcamp API access also reaches ${list}, so ${names.length === 1 ? "its" : "their"} sales would come into both books and be paid out twice.`;
 }

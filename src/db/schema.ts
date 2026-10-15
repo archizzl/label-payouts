@@ -45,6 +45,8 @@ export const accountSettings = pgTable("account_settings", {
   /** Which Bandcamp accounts the API last reported, and when ("Test connection" or a sync). */
   bandcampConnectedAs: text("bandcamp_connected_as"),
   bandcampCheckedAt: text("bandcamp_checked_at"),
+  /** The Bandcamp bands (with a label's artists) the API last reported, so a band's own books can tell if the label's also reach them. */
+  bandcampBands: jsonb("bandcamp_bands").$type<{ id: number; name: string }[]>(),
   /**
    * Syncing with Bandcamp (artists, releases, merch, sales): when the last one started (also how
    * only one runs at a time) and finished, what it brought in, and anything that went wrong.

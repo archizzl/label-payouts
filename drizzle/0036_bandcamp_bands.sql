@@ -1,0 +1,1 @@
+ALTER TABLE "account_settings" ADD COLUMN "bandcamp_bands" jsonb;

@@ -165,4 +165,53 @@ describe("a label-made band account's own books", () => {
     const [saved] = await db.select().from(schema.accountSettings).where(eq(schema.accountSettings.orgId, bandOrgId));
     expect(saved.bandcampClientId).toBe("band-client");
   });
+
+  it("warns when the label's Bandcamp API access reaches the same Bandcamp band", async () => {
+    const { labelOrgId, bandOrgId } = await setup();
+    await own.setOwnBooks(bandOrgId, true);
+    const reached = (orgId: string, bands: { id: number; name: string }[]) =>
+      db.insert(schema.accountSettings).values({ orgId, bandcampBands: bands }).onConflictDoUpdate({ target: schema.accountSettings.orgId, set: { bandcampBands: bands } });
+
+    expect(await own.bothBooksWarning(bandOrgId)).toBeNull(); // nothing checked yet
+    await reached(labelOrgId, [
+      { id: 1, name: "Label" },
+      { id: 2, name: "Other Band" },
+    ]);
+    await reached(bandOrgId, [{ id: 3, name: "Glass Harbor" }]);
+    expect(await own.bothBooksWarning(bandOrgId)).toBeNull();
+
+    await reached(labelOrgId, [
+      { id: 1, name: "Label" },
+      { id: 3, name: "Glass Harbor" },
+    ]);
+    expect(await own.bothBooksWarning(bandOrgId)).toBe(
+      "Label’s Bandcamp API access also reaches Glass Harbor, so its sales would come into both books and be paid out twice.",
+    );
+    // Only for a band account's own books.
+    expect(await own.bothBooksWarning(labelOrgId)).toBeNull();
+  });
+
+  it("Test connection notes the Bandcamp bands reached, and warns about the overlap", async () => {
+    const { labelOrgId, bandOrgId } = await setup();
+    await own.setOwnBooks(bandOrgId, true);
+    const secrets = await import("../secrets");
+    await db
+      .update(schema.accountSettings)
+      .set({ bandcampClientId: `band-${bandOrgId}`, bandcampClientSecret: secrets.encryptSecret("s") })
+      .where(eq(schema.accountSettings.orgId, bandOrgId));
+    await db.insert(schema.accountSettings).values({ orgId: labelOrgId, bandcampBands: [{ id: 1, name: "Label" }, { id: 3, name: "Glass Harbor" }] });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url.includes("oauth_token")) return new Response(JSON.stringify({ access_token: "A", refresh_token: "R", expires_in: 3600 }));
+        return new Response(JSON.stringify({ bands: [{ band_id: 3, name: "Glass Harbor", subdomain: "glassharbor" }] }));
+      }),
+    );
+    const actions = await import("../account-actions");
+    signedIn = { orgId: bandOrgId, managedBy: { labelOrgId, labelName: "Label", ownBooks: true } };
+    expect(await actions.testBandcampConnection()).toEqual({
+      error: "Connected to Glass Harbor. Label’s Bandcamp API access also reaches Glass Harbor, so its sales would come into both books and be paid out twice.",
+    });
+    vi.unstubAllGlobals();
+  });
 });

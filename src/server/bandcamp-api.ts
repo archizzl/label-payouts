@@ -104,7 +104,7 @@ export async function forgetBandcampSignIn(orgId: string) {
   tokens.delete(cacheKey(orgId));
   await db
     .update(schema.accountSettings)
-    .set({ bandcampAccessToken: null, bandcampRefreshToken: null, bandcampTokenExpiresAt: null, bandcampConnectedAs: null, bandcampCheckedAt: null })
+    .set({ bandcampAccessToken: null, bandcampRefreshToken: null, bandcampTokenExpiresAt: null, bandcampConnectedAs: null, bandcampCheckedAt: null, bandcampBands: null })
     .where(eq(schema.accountSettings.orgId, orgId));
 }
 
@@ -180,9 +180,10 @@ export type BandcampAccountBand = {
 export async function myBands(orgId: string, creds: BandcampCredentials) {
   const bands = (await call<{ bands: BandcampAccountBand[] }>(orgId, creds, "account/1/my_bands")).bands;
   const summary = bands.map((b) => (b.member_bands?.length ? `${b.name} (with ${b.member_bands.length} artists)` : b.name)).join(", ");
+  const reached = bands.flatMap((b) => [b, ...(b.member_bands ?? [])]).map((b) => ({ id: b.band_id, name: b.name }));
   await db
     .update(schema.accountSettings)
-    .set({ bandcampConnectedAs: summary || "no Bandcamp accounts", bandcampCheckedAt: new Date().toISOString() })
+    .set({ bandcampConnectedAs: summary || "no Bandcamp accounts", bandcampCheckedAt: new Date().toISOString(), bandcampBands: reached })
     .where(eq(schema.accountSettings.orgId, orgId));
   return bands;
 }

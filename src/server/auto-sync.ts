@@ -5,7 +5,7 @@ import { db, schema } from "@/db";
 import { artistsFromApi, merchFromApi, releasesFromSales } from "./api-catalog";
 import { type BandcampAccountBand, bandcampCredentials, myBands } from "./bandcamp-api";
 import { ensureBandAccounts, managingLabel } from "./band-accounts";
-import { syncOwnPeople } from "./own-books";
+import { bothBooksWarning, syncOwnPeople } from "./own-books";
 import { reRouteAll } from "./data";
 import { loadOpenOrders } from "./merch-orders";
 import { addArtists, importReleases, lookupLabelArtists, lookupLabelReleases, refreshBandPhotos, type ReleaseImportRow, runSalesSync } from "./sync";
@@ -76,7 +76,8 @@ export async function claimSync(orgId: string, force: boolean): Promise<boolean>
   return claimed.length > 0;
 }
 
-export type SyncResult = { ran: boolean; summary: string; errors: string[] };
+/** `warning`: something about to go wrong with money (a band's own books overlapping the label's). */
+export type SyncResult = { ran: boolean; summary: string; errors: string[]; warning?: string | null };
 
 import { plural } from "@/lib/plural";
 
@@ -166,6 +167,7 @@ export async function syncAccount(orgId: string, { force = false } = {}): Promis
 
   // Through the API: the label's artists, then merch and formats.
   let accounts: BandcampAccountBand[] = [];
+  let warning: string | null = null;
   if (creds) {
     await step("Bandcamp accounts", async () => {
       accounts = await myBands(orgId, creds);
@@ -177,6 +179,13 @@ export async function syncAccount(orgId: string, { force = false } = {}): Promis
         if (linked) found.push(`${plural(linked, "band")} linked to Bandcamp`);
       });
     }
+  }
+
+  // A band's own books: the same Bandcamp band in the label's books would be paid twice.
+  if (managed) {
+    await step("Bandcamp accounts", async () => {
+      warning = await bothBooksWarning(orgId);
+    });
   }
 
   if (settings.bandcampUrl) await fromPublicPages(orgId, settings.bandcampUrl, org?.kind ?? null, step, found, errors, false);
@@ -213,9 +222,9 @@ export async function syncAccount(orgId: string, { force = false } = {}): Promis
   const summary = found.length ? `Brought in ${found.join(", ")}.` : "Up to date.";
   await db
     .update(accountSettings)
-    .set({ syncFinishedAt: iso(Date.now()), syncSummary: summary, syncError: errors.length ? errors.join(" ") : null })
+    .set({ syncFinishedAt: iso(Date.now()), syncSummary: summary, syncError: [warning, ...errors].filter(Boolean).join(" ") || null })
     .where(eq(accountSettings.orgId, orgId));
-  return { ran: true, summary, errors };
+  return { ran: true, summary, errors, warning };
 }
 
 /**

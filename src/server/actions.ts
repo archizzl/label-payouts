@@ -720,7 +720,9 @@ export async function syncWithBandcamp(_?: ActionState, fd?: FormData): Promise<
   const result = await syncAccount(orgId, { force: true });
   done();
   if (!result.ran) return { error: result.summary };
-  return result.errors.length ? { error: `${result.summary} Some of it didn't work: ${result.errors.join(" ")}` } : { ok: result.summary };
+  if (!result.errors.length && !result.warning) return { ok: result.summary };
+  const failed = result.errors.length ? `Some of it didn't work: ${result.errors.join(" ")}` : "";
+  return { error: [result.summary, result.warning, failed].filter(Boolean).join(" ") };
 }
 
 export async function deleteImport(fd: FormData) {
