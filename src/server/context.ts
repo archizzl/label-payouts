@@ -197,14 +197,16 @@ export const realContext = cache(async (): Promise<Context> => {
   const org = accounts.find((a) => a.id === session.session.activeOrganizationId) ?? accounts[0];
   const isAdmin = org.role !== "member";
   // Everything else at once: their payee record, their member type, whether a label manages this
-  // account, and (rarely) remembering the account.
-  const [[person], type, managedBy] = await Promise.all([
+  // account, their name as saved now (the session's copy is cached, so right after a change on
+  // Account it would still have the old one), and (rarely) remembering the account.
+  const [[person], type, managedBy, [saved]] = await Promise.all([
     db
       .select()
       .from(schema.people)
       .where(and(eq(schema.people.orgId, org.id), eq(schema.people.userId, session.user.id))),
     isAdmin ? null : memberTypeFor(org.id, session.user.id),
     org.kind === "band" ? managingLabel(org.id) : null,
+    db.select({ name: schema.user.name }).from(schema.user).where(eq(schema.user.id, session.user.id)),
     org.id !== session.session.activeOrganizationId
       ? // Remember it, so the next request doesn't have to guess.
         db.update(schema.session).set({ activeOrganizationId: org.id }).where(eq(schema.session.id, session.session.id))
@@ -212,7 +214,7 @@ export const realContext = cache(async (): Promise<Context> => {
   ]);
   const { access, memberType } = await accessFrom(org.id, isAdmin, type, person?.id ?? null);
   return {
-    user: { id: session.user.id, name: session.user.name, email: session.user.email },
+    user: { id: session.user.id, name: saved?.name ?? session.user.name, email: session.user.email },
     org,
     orgId: org.id,
     role: org.role,
