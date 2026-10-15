@@ -45,12 +45,11 @@ export function LoginIdentity({
   bandId?: number;
 }) {
   return (
-    <ActionForm action={setLoginIdentity} keepOpen className="mt-1 flex flex-wrap items-center gap-2 text-sm">
+    <ActionForm action={setLoginIdentity} keepOpen className="flex flex-wrap items-center gap-2 text-sm">
       {bandId !== undefined && <input type="hidden" name="bandId" value={bandId} />}
       <input type="hidden" name="userId" value={userId} />
-      <label className="flex items-center gap-2 text-muted">
-        Signs in as
-        <select name="as" defaultValue={current ?? "band"} className="!w-auto !py-0.5 text-sm">
+      <label>
+        <select name="as" defaultValue={current ?? "band"} aria-label="Signs in as" className="!w-auto !py-0.5 text-sm">
           <option value="band">{bandName} (the whole band)</option>
           {members
             .filter((m) => m.id === current || !takenByOthers.has(m.id))
@@ -65,5 +64,19 @@ export function LoginIdentity({
         <SubmitButton size="sm">Save</SubmitButton>
       </SaveWhenChanged>
     </ActionForm>
+  );
+}
+
+/**
+ * "Edit" for a band login's row: ticking it shows the row's Signs in as setting (marked
+ * group-has-[.login-edit:checked]), with no script needed. The row is the `group`.
+ */
+export function LoginEditToggle() {
+  return (
+    <label className="cursor-pointer text-sm text-link hover:underline">
+      <input type="checkbox" className="login-edit hidden" />
+      <span className="group-has-[.login-edit:checked]:hidden">edit</span>
+      <span className="hidden group-has-[.login-edit:checked]:inline">close</span>
+    </label>
   );
 }

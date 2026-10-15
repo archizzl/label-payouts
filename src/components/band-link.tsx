@@ -1,13 +1,13 @@
-import { and, asc, eq } from "drizzle-orm";
-import { CopyButton, SubmitButton } from "@/components/client";
+import { asc, eq } from "drizzle-orm";
+import { SubmitButton } from "@/components/client";
 import { Badge, Card, Empty } from "@/components/ui";
 import { db, schema } from "@/db";
 import { subAccountFor } from "@/server/band-accounts";
-import { cancelBandAccountInvite, unlink } from "@/server/link-actions";
+import { unlink } from "@/server/link-actions";
 import type { bandLinksFor } from "@/server/links";
 import { possessive } from "@/lib/plural";
 import { ViewAsButton } from "./viewing-as";
-import { LoginIdentity, StandingInviteLink } from "./band-invite-links";
+import { LoginEditToggle, LoginIdentity, StandingInviteLink } from "./band-invite-links";
 import { bandLoginNames, bandLoginPersons } from "@/server/band-invite-links";
 
 type LinkRow = Awaited<ReturnType<typeof bandLinksFor>> extends Map<number, infer R> ? R : never;
@@ -59,23 +59,17 @@ export async function BandAccountSection({
 
   const sub = await subAccountFor(labelOrgId, band.id);
   if (!sub) return null;
-  const [logins, invites, loginNames] = await Promise.all([
+  const [logins, loginNames] = await Promise.all([
     db
       .select({ user: schema.user })
       .from(schema.member)
       .innerJoin(schema.user, eq(schema.user.id, schema.member.userId))
       .where(eq(schema.member.organizationId, sub.org.id))
       .orderBy(asc(schema.user.name)),
-    db
-      .select()
-      .from(schema.invitation)
-      .where(and(eq(schema.invitation.organizationId, sub.org.id), eq(schema.invitation.status, "pending"))),
     bandLoginNames(sub.org.id),
   ]);
   const loginPersons = await bandLoginPersons(sub.org.id);
-  const openInvites = invites.filter((i) => i.expiresAt > new Date());
-  const base = process.env.BETTER_AUTH_URL ?? "";
-  const nothingYet = logins.length === 0 && openInvites.length === 0;
+  const nothingYet = logins.length === 0;
 
   return (
     <div id="band-account" className="scroll-mt-4">
@@ -89,34 +83,22 @@ export async function BandAccountSection({
         ) : (
           <ul className="mb-4 space-y-2 text-sm">
             {logins.map(({ user }) => (
-              <li key={user.id} className="flex flex-wrap items-center gap-2">
+              <li key={user.id} className="group flex flex-wrap items-center gap-2">
                 <span>{loginNames.get(user.id) ?? band.name}</span>
                 <span className="text-muted">{user.email}</span>
+                <span className="hidden group-has-[.login-edit:checked]:inline-flex">
+                  <LoginIdentity
+                    userId={user.id}
+                    current={loginPersons.get(user.id) ?? null}
+                    bandName={band.name}
+                    members={members}
+                    takenByOthers={new Set([...loginPersons].filter(([u]) => u !== user.id).map(([, p]) => p))}
+                    bandId={band.id}
+                  />
+                </span>
                 <Badge tone="good">signs in</Badge>
-                <LoginIdentity
-                  userId={user.id}
-                  current={loginPersons.get(user.id) ?? null}
-                  bandName={band.name}
-                  members={members}
-                  takenByOthers={new Set([...loginPersons].filter(([u]) => u !== user.id).map(([, p]) => p))}
-                  bandId={band.id}
-                />
-              </li>
-            ))}
-            {openInvites.map((i) => (
-              <li key={i.id} className="flex flex-wrap items-center gap-2">
-                <span className="font-medium">{i.email}</span>
-                <Badge>invited</Badge>
-                <span className="text-xs text-muted">expires {i.expiresAt.toISOString().slice(0, 10)}</span>
-                <span className="ml-auto flex gap-2">
-                  <CopyButton text={`${base}/invite/${i.id}`} label="Copy invite link" />
-                  <form action={cancelBandAccountInvite}>
-                    <input type="hidden" name="bandId" value={band.id} />
-                    <input type="hidden" name="id" value={i.id} />
-                    <SubmitButton variant="ghost" size="sm" confirm={`Cancel the invite for ${i.email}? Its link stops working.`}>
-                      Cancel invite
-                    </SubmitButton>
-                  </form>
+                <span className="ml-auto">
+                  <LoginEditToggle />
                 </span>
               </li>
             ))}

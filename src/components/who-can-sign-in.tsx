@@ -8,7 +8,7 @@ import type { Context } from "@/server/context";
 import { inviteMemberTypes, listMemberTypes, memberTypeOf } from "@/server/member-types";
 import { InviteWhoFields } from "./invite-fields";
 import { RolePicker } from "./role-picker";
-import { LoginIdentity, StandingInviteLink } from "./band-invite-links";
+import { LoginEditToggle, LoginIdentity, StandingInviteLink } from "./band-invite-links";
 import { bandMembers } from "@/server/band-member";
 import { bandLoginNames, bandLoginPersons } from "@/server/band-invite-links";
 
@@ -92,22 +92,27 @@ export async function WhoCanSignIn({ ctx }: { ctx: Context }) {
               {members.map(({ member, user }) => {
                 const self = user.id === ctx.user.id;
                 return (
-                  <tr key={member.id}>
+                  <tr key={member.id} className="group">
                     <td>
                       <div className="font-medium">
                         {managed ? (loginNames.get(user.id) ?? ctx.org.name) : user.name}{" "}
                         {self && <span className="text-xs font-normal text-muted">(you)</span>}
                       </div>
-                      <div className="text-xs text-muted">{user.email}</div>
-                      {managed && (
-                        <LoginIdentity
-                          userId={user.id}
-                          current={loginPersons.get(user.id) ?? null}
-                          bandName={ctx.org.name}
-                          members={bandPeople}
-                          takenByOthers={new Set([...loginPersons].filter(([u]) => u !== user.id).map(([, p]) => p))}
-                        />
-                      )}
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                        <span className="text-xs text-muted">{user.email}</span>
+                        {/* A band account: who this login signs in as, shown with Edit. */}
+                        {managed && (
+                          <span className="hidden group-has-[.login-edit:checked]:inline-flex">
+                            <LoginIdentity
+                              userId={user.id}
+                              current={loginPersons.get(user.id) ?? null}
+                              bandName={ctx.org.name}
+                              members={bandPeople}
+                              takenByOthers={new Set([...loginPersons].filter(([u]) => u !== user.id).map(([, p]) => p))}
+                            />
+                          </span>
+                        )}
+                      </div>
                     </td>
                     {!managed && <td className="text-sm">{personOf(user.id)?.name ?? <span className="text-muted">not linked</span>}</td>}
                     {!managed && (
@@ -132,6 +137,7 @@ export async function WhoCanSignIn({ ctx }: { ctx: Context }) {
                           </form>
                         </div>
                       )}
+                      {managed && <LoginEditToggle />}
                     </td>
                   </tr>
                 );

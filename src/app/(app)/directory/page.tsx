@@ -3,7 +3,7 @@ import Link from "next/link";
 import { connection } from "next/server";
 import { redirect } from "next/navigation";
 import { BandFields } from "@/components/band-fields";
-import { ActionForm, CopyButton, OpenLinkedSection, SaveWhenChanged, SubmitButton } from "@/components/client";
+import { ActionForm, OpenLinkedSection, SaveWhenChanged, SubmitButton } from "@/components/client";
 import { SyncFooter } from "@/components/sync-status";
 import { Badge, Card, Disclosure, Empty, Field, MoneyList, PageHeader, RolesList } from "@/components/ui";
 import { ViewAsButton } from "@/components/viewing-as";
@@ -17,7 +17,6 @@ import { labelHost } from "@/server/data";
 import { type BandAccountSummary, bandAccountSummaries, ensureBandAccounts } from "@/server/band-accounts";
 import { MemberTypesCard } from "@/components/member-types";
 import { possibleDuplicates } from "@/server/people";
-import { cancelBandAccountInvite } from "@/server/link-actions";
 import { StandingInviteLink } from "@/components/band-invite-links";
 
 export const metadata = { title: "directory" };
@@ -336,7 +335,6 @@ function BandAccountLine({
   account: BandAccountSummary;
 }) {
   const manage = `/bands/${bandId}?tab=people#band-account`;
-  const base = process.env.BETTER_AUTH_URL ?? "";
   return (
     <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
       {a.managed ? (
@@ -350,20 +348,6 @@ function BandAccountLine({
               <Link href={manage}>manage</Link>
             </>
           )}
-          {a.invites.map((i) => (
-            <span key={i.id} className="flex flex-wrap items-center gap-2">
-              <span className="text-text">{i.email}</span>
-              <Badge tone="warn">invited</Badge>
-              <CopyButton text={`${base}/invite/${i.id}`} label="Copy invite link" />
-              <form action={cancelBandAccountInvite}>
-                <input type="hidden" name="bandId" value={bandId} />
-                <input type="hidden" name="id" value={i.id} />
-                <SubmitButton variant="ghost" size="sm" confirm={`Cancel the invite for ${i.email}? Its link stops working.`}>
-                  Cancel invite
-                </SubmitButton>
-              </form>
-            </span>
-          ))}
           <StandingInviteLink bandOrgId={a.orgId} bandId={bandId} />
         </>
       ) : (
