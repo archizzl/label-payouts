@@ -30,6 +30,9 @@ export const accountSettings = pgTable("account_settings", {
     .references(() => organization.id, { onDelete: "cascade" }),
   /** The account's Bandcamp address, e.g. "mylabel.bandcamp.com". */
   bandcampUrl: text("bandcamp_url"),
+  /** Where else the label or band is: its Spotify and Apple Music pages. */
+  spotifyUrl: text("spotify_url"),
+  appleMusicUrl: text("apple_music_url"),
   bandcampClientId: text("bandcamp_client_id"),
   /** Encrypted at rest (see src/server/secrets.ts). */
   bandcampClientSecret: text("bandcamp_client_secret"),

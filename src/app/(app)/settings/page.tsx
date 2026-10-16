@@ -144,7 +144,7 @@ type Settings = typeof schema.accountSettings.$inferSelect;
 /** The account's Bandcamp address and API access (and a label's name, given `labelName`). */
 function BandcampCard({ settings, labelName }: { settings: Settings | undefined; labelName?: string }) {
   return (
-    <Card title={labelName === undefined ? "Bandcamp" : "Account"}>
+    <Card title={labelName === undefined ? "Links and Bandcamp" : "Account"}>
       <ActionForm action={saveAccountSettings} className="grid gap-4 sm:grid-cols-2">
         {labelName !== undefined && (
           <Field label="Label name">
@@ -153,6 +153,12 @@ function BandcampCard({ settings, labelName }: { settings: Settings | undefined;
         )}
         <Field label="Bandcamp address">
           <input name="bandcampUrl" defaultValue={settings?.bandcampUrl ?? ""} placeholder="mylabel.bandcamp.com" />
+        </Field>
+        <Field label="Spotify">
+          <input name="spotifyUrl" type="url" defaultValue={settings?.spotifyUrl ?? ""} />
+        </Field>
+        <Field label="Apple Music">
+          <input name="appleMusicUrl" type="url" defaultValue={settings?.appleMusicUrl ?? ""} />
         </Field>
         <div className="sm:col-span-2">
           <h3 className="mb-1 text-sm font-medium">Bandcamp API access (optional)</h3>

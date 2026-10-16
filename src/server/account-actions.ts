@@ -12,6 +12,7 @@ import { bothBooksWarning, setOwnBooks, syncOwnPeople } from "./own-books";
 import { AREAS, type Area, normalizeBandAreas, normalizePermissions } from "@/lib/permissions";
 import { assignMemberType, memberTypeForInvite, parseRoleChoice, setInviteMemberType, setManagedBands } from "./member-types";
 import { applyMyDetails, normalizeEmail } from "./people";
+import { ownBand } from "./data";
 import { cleanCashtag, cleanVenmoHandle } from "@/lib/paypal-export";
 import { bandcampCredentials, forgetBandcampSignIn, myBands } from "./bandcamp-api";
 import { encryptSecret } from "./secrets";
@@ -109,17 +110,62 @@ export async function createAccount(_: FormState, fd: FormData): Promise<FormSta
   } catch (e) {
     return { error: messageOf(e, "Couldn't create the account.") };
   }
-  const [me] = await db
-    .insert(schema.people)
-    .values({ orgId, userId: session.user.id, name: session.user.name, email: session.user.email })
-    .returning();
-  if (kind === "band") {
-    const [band] = await db.insert(schema.bands).values({ orgId, name }).returning();
-    await db.insert(schema.bandMemberships).values({ orgId, bandId: band.id, personId: me.id });
-  }
+  // A band account is its band. Whoever made it isn't assumed to be in it: setup asks.
+  if (kind === "band") await db.insert(schema.bands).values({ orgId, name });
   await auth.api.setActiveOrganization({ body: { organizationId: orgId }, headers: await headers() });
   revalidatePath("/", "layout");
-  redirect(kind === "band" ? "/directory" : "/");
+  redirect("/welcome/setup");
+}
+
+/** Setting up a new account, step 1: where it is (Bandcamp, Spotify, Apple Music). Then: are you in it? */
+export async function saveSetupLinks(_: FormState, fd: FormData): Promise<FormState> {
+  const { orgId } = await requireAdmin();
+  const values = {
+    bandcampUrl: str(fd, "bandcampUrl").slice(0, 300) || null,
+    spotifyUrl: str(fd, "spotifyUrl").slice(0, 300) || null,
+    appleMusicUrl: str(fd, "appleMusicUrl").slice(0, 300) || null,
+  };
+  await db.insert(schema.accountSettings).values({ orgId, ...values }).onConflictDoUpdate({ target: schema.accountSettings.orgId, set: values });
+  redirect("/welcome/setup?step=you");
+}
+
+/**
+ * Setting up a new account, step 2: whether whoever made it is in it (a member of the band, or
+ * someone the label pays). If so, they're added with their details, linked to their login, and
+ * those details are saved everywhere else they're someone too.
+ */
+export async function saveSetupMe(_: FormState, fd: FormData): Promise<FormState> {
+  const ctx = await requireAdmin();
+  const { orgId, user } = ctx;
+  const done = ctx.org.kind === "band" ? "/directory" : "/";
+  if (str(fd, "inIt") !== "yes") redirect(done);
+  const name = str(fd, "name").slice(0, 120);
+  if (!name) return { error: "Enter your name." };
+  const opt = (k: string) => str(fd, k).slice(0, 200) || null;
+  const details = {
+    name,
+    email: opt("email"),
+    paypalMe: opt("paypalMe"),
+    venmo: cleanVenmoHandle(str(fd, "venmo")) || null,
+    cashtag: cleanCashtag(str(fd, "cashtag")) || null,
+  };
+  // Already here (going back through setup): just their details.
+  const [already] = await db
+    .select({ id: schema.people.id })
+    .from(schema.people)
+    .where(and(eq(schema.people.orgId, orgId), eq(schema.people.userId, user.id)));
+  if (!already) {
+    const [me] = await db.insert(schema.people).values({ orgId, userId: user.id, ...details }).returning({ id: schema.people.id });
+    const band = ctx.org.kind === "band" ? await ownBand(orgId) : null;
+    if (band) {
+      const role = str(fd, "role");
+      await db.insert(schema.bandMemberships).values({ orgId, bandId: band.id, personId: me.id, roles: role ? [role] : [] });
+    }
+  }
+  await applyMyDetails(user.id, details);
+  if (name !== user.name) await auth.api.updateUser({ body: { name }, headers: await headers() });
+  revalidatePath("/", "layout");
+  redirect(done);
 }
 
 /** Work in another of your accounts. */
@@ -163,6 +209,9 @@ export async function saveAccountSettings(_: FormState, fd: FormData): Promise<F
   const changedAccess = !!before && (before.bandcampClientId !== clientId || !!secret);
   const values = {
     bandcampUrl: str(fd, "bandcampUrl") || null,
+    // Only from forms that have them (a band account's own books has just Bandcamp).
+    ...(fd.has("spotifyUrl") ? { spotifyUrl: str(fd, "spotifyUrl") || null } : {}),
+    ...(fd.has("appleMusicUrl") ? { appleMusicUrl: str(fd, "appleMusicUrl") || null } : {}),
     bandcampClientId: clientId,
     // Blank keeps the saved secret; clearing the client ID removes both.
     ...(secret ? { bandcampClientSecret: encryptSecret(secret) } : {}),

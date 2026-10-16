@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState } from "react";
-import { acceptInvite, createAccount, type FormState, resetPassword, signIn, signUp } from "@/server/account-actions";
+import { acceptInvite, createAccount, type FormState, resetPassword, saveSetupLinks, saveSetupMe, signIn, signUp } from "@/server/account-actions";
 import { joinWithInviteLink } from "@/server/band-invite-actions";
 import { buttonClass, Field } from "./ui";
 
@@ -226,6 +226,84 @@ export function JoinBandForm({
       )}
       <Result state={state} />
       <Submit pending={pending}>{`Join ${bandName}`}</Submit>
+    </form>
+  );
+}
+
+/** Setting up a new account, step 1: where it is. */
+export function SetupLinksForm({ kind, saved }: { kind: "label" | "band"; saved: { bandcampUrl: string; spotifyUrl: string; appleMusicUrl: string } }) {
+  const [state, action, pending] = useActionState(saveSetupLinks, null);
+  return (
+    <form action={action} className="space-y-4">
+      <Field label="Bandcamp address">
+        <input name="bandcampUrl" defaultValue={saved.bandcampUrl} placeholder={kind === "band" ? "yourband.bandcamp.com" : "yourlabel.bandcamp.com"} />
+      </Field>
+      <Field label="Spotify">
+        <input name="spotifyUrl" type="url" defaultValue={saved.spotifyUrl} placeholder="https://open.spotify.com/artist/…" />
+      </Field>
+      <Field label="Apple Music">
+        <input name="appleMusicUrl" type="url" defaultValue={saved.appleMusicUrl} placeholder="https://music.apple.com/…" />
+      </Field>
+      <Result state={state} />
+      <Submit pending={pending}>Continue</Submit>
+    </form>
+  );
+}
+
+/**
+ * Setting up a new account, step 2: is whoever made it in it (a member of the band, someone the
+ * label pays)? If so, their details, starting from what their login already has.
+ */
+export function SetupMeForm({
+  kind,
+  name,
+  details,
+}: {
+  kind: "label" | "band";
+  name: string;
+  details: { name: string; email: string | null; paypalMe: string | null; venmo: string | null; cashtag: string | null };
+}) {
+  const [state, action, pending] = useActionState(saveSetupMe, null);
+  const [inIt, setInIt] = useState(kind === "band" ? "yes" : "no");
+  return (
+    <form action={action} className="space-y-4">
+      <fieldset className="space-y-2">
+        <legend className="mb-1 text-sm font-medium">{kind === "band" ? `Are you in ${name}?` : `Does ${name} pay you?`}</legend>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="radio" name="inIt" value="yes" checked={inIt === "yes"} onChange={() => setInIt("yes")} />
+          {kind === "band" ? "Yes, I’m a member" : "Yes, I get paid from its sales"}
+        </label>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="radio" name="inIt" value="no" checked={inIt === "no"} onChange={() => setInIt("no")} />
+          {kind === "band" ? "No, I just run the account" : "No"}
+        </label>
+      </fieldset>
+      {inIt === "yes" && (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Your name">
+            <input name="name" required autoComplete="name" defaultValue={details.name} />
+          </Field>
+          {kind === "band" && (
+            <Field label="Role in the band">
+              <input name="role" />
+            </Field>
+          )}
+          <Field label="PayPal email">
+            <input name="email" type="email" defaultValue={details.email ?? ""} />
+          </Field>
+          <Field label="PayPal.me handle">
+            <input name="paypalMe" defaultValue={details.paypalMe ?? ""} />
+          </Field>
+          <Field label="Venmo username" hint="US only.">
+            <input name="venmo" defaultValue={details.venmo ?? ""} placeholder="@yourname" />
+          </Field>
+          <Field label="Cash App $cashtag">
+            <input name="cashtag" defaultValue={details.cashtag ?? ""} placeholder="$yourname" />
+          </Field>
+        </div>
+      )}
+      <Result state={state} />
+      <Submit pending={pending}>Done</Submit>
     </form>
   );
 }
