@@ -7,13 +7,15 @@ import { redirect } from "next/navigation";
 import { db, schema } from "@/db";
 import { slugify } from "@/lib/slug";
 import { auth } from "./auth";
-import { accountContext, accountsFor, BOOKS_COOKIE, getSession, ownBooksValue, realContext, requireAdmin, VIEW_AS_COOKIE } from "./context";
+import { accountContext, accountsFor, BOOKS_COOKIE, type Context, getSession, ownBooksValue, realContext, requireAdmin, VIEW_AS_COOKIE } from "./context";
 import { bothBooksWarning, setOwnBooks, syncOwnPeople } from "./own-books";
 import { AREAS, type Area, normalizeBandAreas, normalizePermissions } from "@/lib/permissions";
 import { assignMemberType, memberTypeForInvite, parseRoleChoice, setInviteMemberType, setManagedBands } from "./member-types";
 import { applyMyDetails, normalizeEmail } from "./people";
 import { deleteAccountsWithBooks, soleAccounts } from "./account-deletion";
-import { ownBand } from "./data";
+import { ownBand, reRouteAll } from "./data";
+import { renameSubAccount } from "./band-accounts";
+import { bandcampPattern } from "@/lib/routing";
 import { cleanCashtag, cleanVenmoHandle } from "@/lib/paypal-export";
 import { bandcampCredentials, forgetBandcampSignIn, myBands } from "./bandcamp-api";
 import { encryptSecret } from "./secrets";
@@ -186,42 +188,87 @@ export async function saveAccountSettings(_: FormState, fd: FormData): Promise<F
   if (managedBy && !managedBy.ownBooks) return { error: "Turn on own books first." };
   const name = managedBy ? "" : str(fd, "name");
   if (name) await db.update(schema.organization).set({ name }).where(eq(schema.organization.id, orgId));
-  const clientId = str(fd, "bandcampClientId") || null;
-  // Bandcamp allows one sign-in per API client: two accounts sharing one would keep signing each other out.
-  if (clientId) {
-    const [other] = await db
-      .select({ orgId: schema.accountSettings.orgId })
-      .from(schema.accountSettings)
-      .where(and(eq(schema.accountSettings.bandcampClientId, clientId), ne(schema.accountSettings.orgId, orgId)))
-      .limit(1);
-    if (other) {
-      return {
-        error:
-          other.orgId === managedBy?.labelOrgId
-            ? `That’s ${managedBy.labelName}’s Bandcamp API access. Your own books need the band’s own client ID from Bandcamp.`
-            : "That Bandcamp API access is already used by another account.",
-      };
+  const error = await writeAccountSettings(orgId, managedBy, fd);
+  if (error) return { error };
+  revalidatePath("/", "layout");
+  return { ok: "Saved" };
+}
+
+/**
+ * An account's links and Bandcamp API access, from whichever of those fields the form has (a field
+ * the form doesn't have stays as it is). An error message if the API access can't be used.
+ */
+async function writeAccountSettings(orgId: string, managedBy: Context["managedBy"], fd: FormData): Promise<string | null> {
+  const values: Partial<typeof schema.accountSettings.$inferInsert> = {};
+  if (fd.has("bandcampUrl")) values.bandcampUrl = str(fd, "bandcampUrl") || null;
+  if (fd.has("spotifyUrl")) values.spotifyUrl = str(fd, "spotifyUrl") || null;
+  if (fd.has("appleMusicUrl")) values.appleMusicUrl = str(fd, "appleMusicUrl") || null;
+  let changedAccess = false;
+  if (fd.has("bandcampClientId")) {
+    const clientId = str(fd, "bandcampClientId") || null;
+    // Bandcamp allows one sign-in per API client: two accounts sharing one would keep signing each other out.
+    if (clientId) {
+      const [other] = await db
+        .select({ orgId: schema.accountSettings.orgId })
+        .from(schema.accountSettings)
+        .where(and(eq(schema.accountSettings.bandcampClientId, clientId), ne(schema.accountSettings.orgId, orgId)))
+        .limit(1);
+      if (other) {
+        return other.orgId === managedBy?.labelOrgId
+          ? `That’s ${managedBy.labelName}’s Bandcamp API access. Your own books need the band’s own client ID from Bandcamp.`
+          : "That Bandcamp API access is already used by another account.";
+      }
     }
-  }
-  const secret = str(fd, "bandcampClientSecret");
-  // New API access means the saved Bandcamp sign-in belongs to the old one: forget it.
-  const [before] = await db.select().from(schema.accountSettings).where(eq(schema.accountSettings.orgId, orgId));
-  const changedAccess = !!before && (before.bandcampClientId !== clientId || !!secret);
-  const values = {
-    bandcampUrl: str(fd, "bandcampUrl") || null,
-    // Only from forms that have them (a band account's own books has just Bandcamp).
-    ...(fd.has("spotifyUrl") ? { spotifyUrl: str(fd, "spotifyUrl") || null } : {}),
-    ...(fd.has("appleMusicUrl") ? { appleMusicUrl: str(fd, "appleMusicUrl") || null } : {}),
-    bandcampClientId: clientId,
+    const secret = str(fd, "bandcampClientSecret");
+    // New API access means the saved Bandcamp sign-in belongs to the old one: forget it.
+    const [before] = await db.select().from(schema.accountSettings).where(eq(schema.accountSettings.orgId, orgId));
+    changedAccess = !!before && (before.bandcampClientId !== clientId || !!secret);
+    values.bandcampClientId = clientId;
     // Blank keeps the saved secret; clearing the client ID removes both.
-    ...(secret ? { bandcampClientSecret: encryptSecret(secret) } : {}),
-    ...(clientId ? {} : { bandcampClientSecret: null }),
-  };
+    if (secret) values.bandcampClientSecret = encryptSecret(secret);
+    if (!clientId) values.bandcampClientSecret = null;
+  }
+  if (!Object.keys(values).length) return null;
   await db
     .insert(schema.accountSettings)
     .values({ orgId, ...values })
     .onConflictDoUpdate({ target: schema.accountSettings.orgId, set: values });
   if (changedAccess) await forgetBandcampSignIn(orgId);
+  return null;
+}
+
+/**
+ * A band account's Settings, one form: the band (its name and other spellings, kept on its record in
+ * the books it's in: its own, or the label's for a band account the label made), where it is
+ * (Bandcamp, which is also how its sales are matched to it, Spotify, Apple Music), and Bandcamp API
+ * access for its own books.
+ */
+export async function saveBandSettings(_: FormState, fd: FormData): Promise<FormState> {
+  const ctx = await requireAdmin();
+  if (ctx.org.kind !== "band") return { error: "This is for a band’s account." };
+  const m = ctx.managedBy;
+  // The books its band is in, and which band.
+  const booksId = m ? m.labelOrgId : ctx.orgId;
+  const bandId = m ? m.bandId : (await ownBand(ctx.orgId))?.id;
+  if (!bandId) return { error: "This account has no band." };
+  const [band] = await db.select().from(schema.bands).where(and(eq(schema.bands.orgId, booksId), eq(schema.bands.id, bandId)));
+  if (!band) return { error: "This account has no band." };
+  const name = str(fd, "name").slice(0, 200);
+  if (!name) return { error: "Enter the band’s name." };
+  const aliases = str(fd, "aliases").split(",").map((a) => a.trim()).filter(Boolean);
+  // Renamed: the old name stays another spelling, so sales still find it.
+  if (band.name !== name && !aliases.includes(band.name)) aliases.push(band.name);
+  // Its Bandcamp address is also how its sales are matched to it (in place of the old address's).
+  const [before] = await db.select({ url: schema.accountSettings.bandcampUrl }).from(schema.accountSettings).where(eq(schema.accountSettings.orgId, ctx.orgId));
+  const oldPattern = bandcampPattern(before?.url ?? null);
+  const newPattern = bandcampPattern(str(fd, "bandcampUrl") || null);
+  const urlPatterns = [...band.urlPatterns.filter((p) => p !== oldPattern && p !== newPattern), ...(newPattern ? [newPattern] : [])];
+  const error = await writeAccountSettings(ctx.orgId, m, fd);
+  if (error) return { error };
+  await db.update(schema.bands).set({ name, aliases, urlPatterns }).where(eq(schema.bands.id, band.id));
+  if (m) await renameSubAccount(booksId, bandId, name);
+  else await db.update(schema.organization).set({ name }).where(eq(schema.organization.id, ctx.orgId));
+  await reRouteAll(booksId);
   revalidatePath("/", "layout");
   return { ok: "Saved" };
 }

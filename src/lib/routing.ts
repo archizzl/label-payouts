@@ -65,6 +65,12 @@ export function normalizeUrl(u: string): string {
     .replace(/\/+$/, "");
 }
 
+/** A band's Bandcamp address as a pattern its sales' URLs are matched by: its host ("band.bandcamp.com"). */
+export function bandcampPattern(address: string | null): string | null {
+  if (!address?.trim()) return null;
+  return normalizeUrl(address).split("/")[0] || null;
+}
+
 /** The key a manual routing decision is remembered under. */
 export function routingKey(sale: Pick<RoutableSale, "itemUrl" | "artist" | "itemName">): string {
   if (sale.itemUrl) return `url:${normalizeUrl(sale.itemUrl)}`;

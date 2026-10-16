@@ -57,7 +57,9 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
   // A band account the label made, in its own books: the band and its members come from the label's
   // books, so they're changed there (the band on Settings, its members in the Directory).
   const ownBooks = ctx.books === "own";
-  if (ownBooks && tab === "settings") redirect("/settings");
+  // A band account (its own books, or a band that runs its own account): the band's settings are its Settings.
+  const settingsElsewhere = ownBooks || ctx.org.kind === "band";
+  if (settingsElsewhere && tab === "settings") redirect("/settings");
   const [band] = await db
     .select()
     .from(schema.bands)
@@ -259,7 +261,7 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
         }
       />
 
-      <BandTabs bandId={id} active={tab} needsSplit={needsSplit} members={members.filter((m) => m.active).length} noSettings={ownBooks} />
+      <BandTabs bandId={id} active={tab} needsSplit={needsSplit} members={members.filter((m) => m.active).length} noSettings={settingsElsewhere} />
 
       {band.isLabel && (
         <Callout tone="neutral">
