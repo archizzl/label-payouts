@@ -11,7 +11,7 @@ const listOf = (names: string[]) => (names.length < 2 ? (names[0] ?? "") : `${na
  * everyone else's books stay. Type your email to confirm.
  */
 export function DeleteLogin({ email, accounts, sole, bare = false }: { email: string; accounts: number; sole: { id: string; name: string }[]; bare?: boolean }) {
-  const title = accounts > 1 ? "Delete all of your accounts" : "Delete your account";
+  const title = "Delete your account";
   const names = listOf(sole.map((a) => a.name));
   const form = (
     <ActionForm action={deleteMyLogin} className="space-y-3">
@@ -28,9 +28,9 @@ export function DeleteLogin({ email, accounts, sole, bare = false }: { email: st
         <SubmitButton
           variant="danger"
           size="sm"
-          confirm={`Delete your login${sole.length ? ` and ${names}` : ""}? You won’t be able to sign in with it again.${sole.length ? " This can’t be undone." : ""}`}
+          confirm={`Delete your account${sole.length ? ` and ${names}` : ""}? You won’t be able to sign in with it again.${sole.length ? " This can’t be undone." : ""}`}
         >
-          {sole.length ? `Delete login and ${sole.length === 1 ? sole[0].name : `${sole.length} accounts`}` : accounts > 1 ? "Leave all and delete login" : "Delete login"}
+          {sole.length ? `Delete account and ${sole.length === 1 ? sole[0].name : `${sole.length} groups`}` : accounts > 1 ? "Leave all and delete account" : "Delete account"}
         </SubmitButton>
       </div>
     </ActionForm>

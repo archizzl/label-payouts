@@ -495,7 +495,7 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
                   <span>person</span>
                   <span>roles</span>
                   <span>paypal</span>
-                  <span>login</span>
+                  <span>account</span>
                   <span />
                 </div>
                 {members.map((m) => (

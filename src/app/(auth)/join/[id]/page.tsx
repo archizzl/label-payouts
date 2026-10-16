@@ -39,7 +39,7 @@ export default async function JoinPage({ params, searchParams }: PageProps<"/joi
       <p className="mb-5 text-sm text-muted">
         {personName
           ? `Sign in as ${personName}`
-          : `${session ? "Say" : "Sign in or create a login, then say"} who you are ${found.forLabel && band.kind === "label" ? `at ${band.name}` : "in the band"}`}
+          : `${session ? "Say" : "Sign in or create an account, then say"} who you are ${found.forLabel && band.kind === "label" ? `at ${band.name}` : "in the band"}`}
         {labelName ? `, to see what ${labelName} has for ${personName ? "the band" : "you"}.` : "."}
       </p>
       {session && (
@@ -47,12 +47,12 @@ export default async function JoinPage({ params, searchParams }: PageProps<"/joi
         <div className="mb-5 flex flex-wrap items-center gap-x-3 gap-y-2 rounded border border-border px-3 py-2 text-sm">
           <span>
             Signed in as <b>{session.user.email}</b>. This adds <b>{band.name}</b>
-            {labelName ? ` (${labelName})` : ""} to that login.
+            {labelName ? ` (${labelName})` : ""} to that account.
           </span>
           <form action={signOut}>
             <input type="hidden" name="next" value={`/join/${id}`} />
             <button type="submit" className="cursor-pointer text-(--link) hover:underline">
-              Use a different login
+              Use a different account
             </button>
           </form>
         </div>
@@ -61,7 +61,7 @@ export default async function JoinPage({ params, searchParams }: PageProps<"/joi
         // A band that already runs its own account here: connect that instead of joining a new one.
         <div className="mb-6 border-b border-border pb-6">
           <h2 className="mb-1 text-sm font-medium">Already run {band.name} here?</h2>
-          <p className="mb-3 text-sm text-muted">Connect that account instead: it keeps its books, and shows what {labelName} has for the band.</p>
+          <p className="mb-3 text-sm text-muted">Connect it instead: it keeps its books, and shows what {labelName} has for the band.</p>
           <ConnectExistingForm id={id} accounts={connectable} labelName={labelName ?? ""} />
         </div>
       )}
@@ -85,7 +85,7 @@ export default async function JoinPage({ params, searchParams }: PageProps<"/joi
       ) : (
         <div className="space-y-3">
           <LinkButton href={`/signup?next=${encodeURIComponent(after)}&name=${encodeURIComponent(name)}`} variant="primary" className="w-full">
-            Create a login
+            Create an account
           </LinkButton>
           <p className="text-center text-sm text-muted">
             Already have one? <Link href={`/login?next=${encodeURIComponent(after)}`}>Sign in</Link>

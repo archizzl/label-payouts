@@ -36,7 +36,7 @@ async function ownBandRow(bandOrgId: string) {
  */
 export async function setOwnBooks(bandOrgId: string, on: boolean) {
   const m = await managingLabel(bandOrgId);
-  if (!m) throw new Error("Only a band account a label made has books of its own to turn on.");
+  if (!m) throw new Error("Only a band group a label made has books of its own to turn on.");
   await db.insert(accountSettings).values({ orgId: bandOrgId, ownBooks: on }).onConflictDoUpdate({ target: accountSettings.orgId, set: { ownBooks: on } });
   if (!on) return;
   if (!(await ownBandRow(bandOrgId))) {

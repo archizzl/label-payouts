@@ -26,7 +26,7 @@ export async function saveProject(_: ProjectState, fd: FormData): Promise<Projec
       .select({ id: bands.id })
       .from(bands)
       .where(and(eq(bands.orgId, orgId), eq(bands.id, bandId)));
-    if (!b) return { error: "That band isn't part of this account." };
+    if (!b) return { error: "That band isn't part of this group." };
   }
   const releaseIds = [...new Set(fd.getAll("releaseIds").map(Number).filter(Number.isFinite))];
   if (releaseIds.length) {
@@ -34,7 +34,7 @@ export async function saveProject(_: ProjectState, fd: FormData): Promise<Projec
       .select({ id: releases.id })
       .from(releases)
       .where(and(eq(releases.orgId, orgId), inArray(releases.id, releaseIds)));
-    if (found.length !== releaseIds.length) return { error: "Some of those releases aren't part of this account." };
+    if (found.length !== releaseIds.length) return { error: "Some of those releases aren't part of this group." };
   }
   const budget = str(fd, "budget");
   const values = {

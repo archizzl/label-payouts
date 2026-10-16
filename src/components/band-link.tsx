@@ -13,9 +13,9 @@ export function LinkedBandAccount({ band, row }: { band: { name: string }; row: 
   if (row?.link.status !== "active" || row.link.managed) return null;
   return (
     <div className="scroll-mt-4">
-      <Card title="Their account">
+      <Card title="Their group">
         <div className="flex flex-wrap items-center gap-3 text-sm text-muted">
-          <span>Linked to their own account (“{row.bandAccount?.name}”), which can see this band’s books.</span>
+          <span>Linked to their own group (“{row.bandAccount?.name}”), which can see this band’s books.</span>
           <form action={unlink} className="ml-auto">
             <input type="hidden" name="id" value={row.link.id} />
             <SubmitButton variant="ghost" size="sm" confirm={`Unlink ${row.bandAccount?.name}? They'll no longer see ${band.name}'s books.`}>

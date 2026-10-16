@@ -216,7 +216,7 @@ export async function syncAccount(orgId: string, { force = false } = {}): Promis
   }
 
   // New artists get their band accounts.
-  if (org?.kind === "label") await step("Band accounts", () => ensureBandAccounts(orgId).then(() => undefined));
+  if (org?.kind === "label") await step("Band groups", () => ensureBandAccounts(orgId).then(() => undefined));
   // A band's own books: its members, as the label has them now.
   if (managed) await step("Members", () => syncOwnPeople(orgId));
   const summary = found.length ? `Brought in ${found.join(", ")}.` : "Up to date.";
@@ -263,7 +263,7 @@ export async function syncCatalog(orgId: string): Promise<{ summary: string; err
     try {
       await ensureBandAccounts(orgId);
     } catch (e) {
-      errors.push(`Band accounts: ${(e as Error).message}`);
+      errors.push(`Band groups: ${(e as Error).message}`);
     }
   }
   return { summary: found.length ? `Brought in ${found.join(", ")}.` : "Up to date.", errors };

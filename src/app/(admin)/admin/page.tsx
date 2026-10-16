@@ -125,7 +125,7 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
                 <div className="flex flex-wrap items-start gap-3">
                   <form action={approveAccountApplication}>
                     <input type="hidden" name="id" value={app.id} />
-                    <SubmitButton size="sm" confirm={`Approve ${app.name} and set up its account for ${user.name}?`}>
+                    <SubmitButton size="sm" confirm={`Approve ${app.name} and set it up for ${user.name}?`}>
                       Approve
                     </SubmitButton>
                   </form>
@@ -178,7 +178,7 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
                     <input type="checkbox" name="me" defaultChecked={mine ? mine.enabled : true} /> Show it for me
                   </label>
                   <fieldset>
-                    <legend className="mb-1 text-xs font-medium text-muted">Accounts with it ({granted.size})</legend>
+                    <legend className="mb-1 text-xs font-medium text-muted">Groups with it ({granted.size})</legend>
                     <div className="grid gap-x-4 gap-y-1 sm:grid-cols-2 md:grid-cols-3">
                       {accounts.map((a) => (
                         <label key={a.id} className="flex items-center gap-2 text-sm">
@@ -249,7 +249,7 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
                       </td>
                       <td>
                         <Badge tone={STATUS_TONE[status]}>{status === "open" ? "waiting" : status}</Badge>
-                        {status === "used" && i.usedByUserId && <div className="text-xs text-muted">{userName.get(i.usedByUserId) ?? "a deleted login"}</div>}
+                        {status === "used" && i.usedByUserId && <div className="text-xs text-muted">{userName.get(i.usedByUserId) ?? "a deleted account"}</div>}
                       </td>
                       <td className="whitespace-nowrap text-muted">{i.expiresAt.slice(0, 10)}</td>
                       <td className="text-right">
@@ -274,13 +274,13 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
         )}
       </Card>
 
-      <Card title={`Logins (${users.length})`}>
+      <Card title={`Accounts (${users.length})`}>
         <div className="overflow-x-auto">
           <table className="data">
             <thead>
               <tr>
                 <th>Name</th>
-                <th>Accounts</th>
+                <th>Groups</th>
                 <th>Joined</th>
                 <th>Last signed in</th>
                 <th />
@@ -311,13 +311,13 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
         </div>
       </Card>
 
-      <Card title={`Accounts (${accounts.length})`}>
+      <Card title={`Groups (${accounts.length})`}>
         <div className="overflow-x-auto">
           <table className="data">
             <thead>
               <tr>
-                <th>Account</th>
-                <th className="num">Logins</th>
+                <th>Group</th>
+                <th className="num">Accounts</th>
                 <th className="num">Sales</th>
                 <th>Bandcamp</th>
                 <th>Last synced</th>

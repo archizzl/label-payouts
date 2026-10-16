@@ -37,7 +37,7 @@ export async function revokeSignupInvite(fd: FormData) {
 export async function passwordResetLink(_: AdminState, fd: FormData): Promise<AdminState> {
   await requireSiteAdmin();
   const [u] = await db.select({ email: schema.user.email }).from(schema.user).where(eq(schema.user.id, str(fd, "userId")));
-  if (!u) return { error: "No such login." };
+  if (!u) return { error: "No such account." };
   const link = await makeResetLink(u.email);
   return link ? { ok: `Reset link for ${u.email} (works once, for 24 hours):`, link } : { error: "Couldn’t make a reset link." };
 }
@@ -63,5 +63,5 @@ export async function saveFeatureFlag(_: AdminState, fd: FormData): Promise<Admi
     if (known.length) await tx.insert(schema.featureFlagAccounts).values(known.map((orgId) => ({ flag, orgId })));
   });
   revalidatePath("/", "layout");
-  return { ok: `Saved. ${known.length ? `${known.length} account${known.length === 1 ? "" : "s"} ha${known.length === 1 ? "s" : "ve"} it.` : "No accounts have it."}` };
+  return { ok: `Saved. ${known.length ? `${known.length} group${known.length === 1 ? "" : "s"} ha${known.length === 1 ? "s" : "ve"} it.` : "No groups have it."}` };
 }

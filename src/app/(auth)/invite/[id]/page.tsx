@@ -56,7 +56,7 @@ export default async function InvitePage({ params, searchParams }: PageProps<"/i
       <p className="mb-5 text-sm text-muted">
         {fromLabel ? (
           <>
-            {inviter.name} at {fromLabel.labelName} invited {invite.email} to <b>{org.name}</b>’s account, to see your earnings and the
+            {inviter.name} at {fromLabel.labelName} invited {invite.email} to <b>{org.name}</b>, to see your earnings and the
             band’s sales, payouts and statements from {fromLabel.labelName}.
           </>
         ) : (
@@ -69,7 +69,7 @@ export default async function InvitePage({ params, searchParams }: PageProps<"/i
       {!session ? (
         <div className="space-y-3">
           <LinkButton href={q("/signup", `/invite/${id}?joined=1`)} variant="primary" className="w-full">
-            Create a login
+            Create an account
           </LinkButton>
           <p className="text-center text-sm text-muted">
             Already have one? <Link href={q("/login", `/invite/${id}?joined=1`)}>Sign in</Link>

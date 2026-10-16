@@ -57,7 +57,7 @@ export default async function WelcomePage() {
       {/* In no account any more (all left or deleted): Account isn't reachable, so deleting the login is here. */}
       {accounts.length === 0 && (
         <details className="mt-5 border-t border-border pt-4 text-sm">
-          <summary className="cursor-pointer text-muted">Delete my login</summary>
+          <summary className="cursor-pointer text-muted">Delete my account</summary>
           <div className="mt-3">
             <DeleteLogin email={user.email} accounts={0} sole={[]} bare />
           </div>

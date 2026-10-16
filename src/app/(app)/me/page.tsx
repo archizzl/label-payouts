@@ -46,8 +46,8 @@ export default async function MyEarningsPage({ searchParams }: PageProps<"/me">)
         <PageHeader title="My earnings" />
         <Card>
           <p className="text-sm text-muted">
-            Your login isn’t linked to anyone who gets paid in {ctx.org.name} yet.
-            {!ctx.isAdmin && " Ask an admin of this account to invite you as the right person."}
+            Your account isn’t linked to anyone who gets paid in {ctx.org.name} yet.
+            {!ctx.isAdmin && " Ask an admin of this group to invite you as the right person."}
           </p>
           {ctx.isAdmin && unlinked.length > 0 && (
             <form action={linkMyself} className="mt-4 flex flex-wrap items-center gap-2">

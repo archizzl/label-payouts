@@ -80,7 +80,7 @@ export default async function AccountPage() {
         </ActionForm>
       </Card>
 
-      <Card title="Your accounts">
+      <Card title="Your groups">
         <ul className="space-y-2 text-sm">
           {accounts.map((a) => (
             <li key={a.id} className="flex flex-wrap items-center gap-3">
@@ -89,7 +89,7 @@ export default async function AccountPage() {
               {accounts.length > 1 && (
                 <ActionForm action={leaveAccount} className="ml-auto">
                   <input type="hidden" name="orgId" value={a.id} />
-                  <SubmitButton variant="ghost" size="sm" confirm={`Leave ${a.name}? This login won’t be able to sign in to it any more.`}>
+                  <SubmitButton variant="ghost" size="sm" confirm={`Leave ${a.name}? You won’t be able to see it any more.`}>
                     Leave
                   </SubmitButton>
                 </ActionForm>

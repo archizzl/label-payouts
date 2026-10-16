@@ -47,7 +47,7 @@ export function ApplicationForm({ yourName }: { yourName: string }) {
   return (
     <form action={action} className="space-y-5">
       <fieldset className="space-y-2">
-        <legend className="mb-1 text-sm font-medium">This account is for</legend>
+        <legend className="mb-1 text-sm font-medium">This group is</legend>
         <label className="flex items-start gap-2 text-sm">
           <input type="radio" name="kind" value="band" checked={kind === "band"} onChange={() => setKind("band")} className="mt-1" />
           <span>

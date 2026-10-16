@@ -41,7 +41,7 @@ export async function readShipmentCosts(orgId: string, fd: FormData, order: Merc
       .select({ id: schema.people.id })
       .from(schema.people)
       .where(and(eq(schema.people.orgId, orgId), eq(schema.people.id, paidByPersonId)));
-    if (!p) throw new Error("That person isn’t part of this account.");
+    if (!p) throw new Error("That person isn’t part of this group.");
   }
   if (paidBy === "band_fund" && order.bandIds.length !== 1) throw new Error("This order isn’t for a single band, so a band fund can’t pay for it.");
   return {

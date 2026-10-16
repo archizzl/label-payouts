@@ -69,7 +69,7 @@ export function SignUpForm({
         <input name="password" type="password" autoComplete="new-password" minLength={8} required />
       </Field>
       <Result state={state} />
-      <Submit pending={pending}>Create login</Submit>
+      <Submit pending={pending}>Create account</Submit>
     </form>
   );
 }
@@ -79,7 +79,7 @@ export function CreateAccountForm() {
   return (
     <form action={action} className="space-y-4">
       <fieldset className="space-y-2">
-        <legend className="mb-1 text-sm font-medium">This account is for</legend>
+        <legend className="mb-1 text-sm font-medium">This group is</legend>
         <label className="flex items-start gap-2 text-sm">
           <input type="radio" name="kind" value="label" defaultChecked className="mt-1" />
           <span>
@@ -99,7 +99,7 @@ export function CreateAccountForm() {
         <input name="name" required />
       </Field>
       <Result state={state} />
-      <Submit pending={pending}>Create account</Submit>
+      <Submit pending={pending}>Create group</Submit>
     </form>
   );
 }
@@ -193,7 +193,7 @@ export function JoinBandForm({
           </label>
           {!forLabel && !sharedTaken && (
             <label className="flex items-center gap-2 text-sm">
-              <input type="radio" name="as" value="band" checked={as === "band"} onChange={() => setAs("band")} /> The whole band (one shared login)
+              <input type="radio" name="as" value="band" checked={as === "band"} onChange={() => setAs("band")} /> The whole band (one shared account)
             </label>
           )}
         </fieldset>
@@ -275,7 +275,7 @@ export function SetupMeForm({
         </label>
         <label className="flex items-center gap-2 text-sm">
           <input type="radio" name="inIt" value="no" checked={inIt === "no"} onChange={() => setInIt("no")} />
-          {kind === "band" ? "No, I just run the account" : "No"}
+          {kind === "band" ? "No, I just run it" : "No"}
         </label>
       </fieldset>
       {inIt === "yes" && (
@@ -323,7 +323,7 @@ export function ConnectExistingForm({ id, accounts, labelName }: { id: string; a
     >
       <input type="hidden" name="id" value={id} />
       {accounts.length > 1 ? (
-        <Field label="Your band’s account">
+        <Field label="Your band">
           <select name="orgId" value={orgId} onChange={(e) => setOrgId(e.target.value)}>
             {accounts.map((a) => (
               <option key={a.id} value={a.id}>

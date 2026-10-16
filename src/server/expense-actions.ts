@@ -40,7 +40,7 @@ async function inAccount(orgId: string, table: typeof bands | typeof releases | 
     .select({ id: table.id })
     .from(table)
     .where(and(eq(table.orgId, orgId), eq(table.id, id)));
-  if (!row) throw new Error("That item isn't part of this account.");
+  if (!row) throw new Error("That item isn't part of this group.");
 }
 
 function done() {
@@ -168,7 +168,7 @@ export async function submitReceipt(_: ExpenseState, fd: FormData): Promise<Expe
     if (!row) return { error: "Choose who paid." };
     person = row.person;
   }
-  if (!person) return { error: "Your login isn’t linked to anyone who gets paid here yet." };
+  if (!person) return { error: "Your account isn’t linked to anyone who gets paid here yet." };
   try {
     const date = isoDate(str(fd, "date"));
     const description = str(fd, "description");

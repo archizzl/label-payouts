@@ -9,7 +9,7 @@ export function ViewingAsBar({ viewing }: { viewing: ViewingAs }) {
       <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2 md:px-8">
         <span>
           Viewing as <b>{viewing.name}</b>
-          {viewing.kind === "band" ? ", in their band account" : ` in ${viewing.label.name}`}. This is what they see. Nothing can be changed
+          {viewing.kind === "band" ? ", in their band’s group" : ` in ${viewing.label.name}`}. This is what they see. Nothing can be changed
           while you’re viewing.
         </span>
         <form action={stopViewAs} className="ml-auto">

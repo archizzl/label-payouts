@@ -41,7 +41,7 @@ export default async function SettingsPage() {
 
   return (
     <>
-      <PageHeader title="Settings" subtitle={`${ctx.org.name} · ${kind} account`} />
+      <PageHeader title="Settings" subtitle={`${ctx.org.name} · ${kind}`} />
 
       {bandcampApiOff() && (
         <Callout tone="neutral">
@@ -137,7 +137,7 @@ type Settings = typeof schema.accountSettings.$inferSelect;
 /** The account's Bandcamp address and API access (and a label's name, given `labelName`). */
 function BandcampCard({ settings, labelName }: { settings: Settings | undefined; labelName?: string }) {
   return (
-    <Card title={labelName === undefined ? "Links and Bandcamp" : "Account"}>
+    <Card title={labelName === undefined ? "Links and Bandcamp" : "Label"}>
       <ActionForm action={saveAccountSettings} className="grid gap-4 sm:grid-cols-2">
         {labelName !== undefined && (
           <Field label="Label name">

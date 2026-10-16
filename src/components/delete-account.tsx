@@ -14,7 +14,7 @@ export function DeleteAccount({ name, orgId, label }: { name: string; orgId: str
         <SubmitButton
           variant="danger"
           size="sm"
-          confirm={`Delete ${name}? Its books, people, payouts and receipts${label ? ", and its bands’ accounts," : ""} are deleted for good. This can’t be undone.`}
+          confirm={`Delete ${name}? Its books, people, payouts and receipts${label ? ", and its bands’ groups," : ""} are deleted for good. This can’t be undone.`}
         >
           Delete {name}
         </SubmitButton>

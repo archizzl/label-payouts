@@ -95,7 +95,7 @@ async function owned(orgId: string, table: OwnedTable, ...ids: (number | null | 
     .select({ id: table.id })
     .from(table)
     .where(and(eq(table.orgId, orgId), inArray(table.id, wanted)));
-  if (found.length !== wanted.length) throw new Error("That item isn't part of this account.");
+  if (found.length !== wanted.length) throw new Error("That item isn't part of this group.");
 }
 
 function done() {

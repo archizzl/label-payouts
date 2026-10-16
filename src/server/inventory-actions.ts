@@ -60,7 +60,7 @@ export async function saveInventoryItem(_: InventoryState, fd: FormData): Promis
         .select({ bandId: releases.bandId, packages: releases.packages })
         .from(releases)
         .where(and(eq(releases.orgId, orgId), eq(releases.id, releaseId)));
-      if (!r) return { error: "That catalog item isn’t in this account." };
+      if (!r) return { error: "That catalog item isn’t in this group." };
       if (packageId && !r.packages.some((p) => p.bandcampId === packageId)) packageId = null;
       bandId = r.bandId; // stock of a release belongs to its band
     } else {
@@ -69,7 +69,7 @@ export async function saveInventoryItem(_: InventoryState, fd: FormData): Promis
     }
     if (bandId !== null) {
       const [b] = await db.select({ id: bands.id }).from(bands).where(and(eq(bands.orgId, orgId), eq(bands.id, bandId)));
-      if (!b) return { error: "That band isn’t in this account." };
+      if (!b) return { error: "That band isn’t in this group." };
     }
     const scope = scopeOf(ctx);
     if (scope && (bandId === null || !scope.includes(bandId))) return { error: "Choose one of your bands." };

@@ -340,7 +340,7 @@ function ColumnHeads() {
       <span>person</span>
       <span>roles</span>
       <span>how they’re paid</span>
-      <span>login</span>
+      <span>account</span>
       <span className="text-right">owed</span>
       <span className="text-right">paid / kept</span>
       <span />
@@ -363,7 +363,7 @@ function BandAccountLine({
         <Link href={manage}>manage sign-ins</Link>
       ) : (
         <>
-          <span>Linked to their own account, “{a.name}”.</span>
+          <span>Linked to their own group, “{a.name}”.</span>
           <Link href={manage}>manage</Link>
         </>
       )}

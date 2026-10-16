@@ -25,7 +25,7 @@ async function bandAccountFor(fd: FormData) {
   const ctx = await requireAdmin();
   if (ctx.managedBy) return { bandOrgId: ctx.orgId, labelOrgId: ctx.managedBy.labelOrgId, bandId: ctx.managedBy.bandId, userId: ctx.user.id, label: false };
   const sub = await subAccountFor(ctx.orgId, Number(fd.get("bandId")));
-  if (!sub) throw new Error("This band doesn’t have an account from the label.");
+  if (!sub) throw new Error("This band doesn’t have a group from the label.");
   return { bandOrgId: sub.org.id, labelOrgId: ctx.orgId, bandId: sub.link.labelBandId, userId: ctx.user.id, label: true };
 }
 
@@ -66,12 +66,12 @@ export async function joinWithInviteLink(_: InviteLinkState, fd: FormData): Prom
     if (!newName) return { error: "Enter your name." };
   } else if (choice === "band" && !found.forLabel) {
     // One shared login per band.
-    if (await hasSharedLogin(org.id)) return { error: `${org.name} already has its shared login. Choose who you are.` };
+    if (await hasSharedLogin(org.id)) return { error: `${org.name} already has its shared account. Choose who you are.` };
   } else {
     personId = Number(choice) || null;
     // Each person has at most one login of their own.
     const open = found.forLabel ? await unclaimedPeople(labelOrgId) : await unclaimedMembers(org.id, labelOrgId, found.bandId);
-    if (!personId || !open.some((p) => p.id === personId)) return { error: "That person already has a login. Choose who you are." };
+    if (!personId || !open.some((p) => p.id === personId)) return { error: "That person already has an account. Choose who you are." };
   }
   // A link from before standing links was single-use: mark it used. The standing link stays open.
   if (link.expiresAt < "9999") {
@@ -128,7 +128,7 @@ export async function joinWithInviteLink(_: InviteLinkState, fd: FormData): Prom
       .set({ userId })
       .where(and(eq(schema.people.orgId, labelOrgId), eq(schema.people.id, personId), isNull(schema.people.userId)))
       .returning({ id: schema.people.id });
-    if (!linked.length) return { error: "That person already has a login. Choose who you are." };
+    if (!linked.length) return { error: "That person already has an account. Choose who you are." };
   }
   if (personId && !found.forLabel) {
     try {
@@ -138,7 +138,7 @@ export async function joinWithInviteLink(_: InviteLinkState, fd: FormData): Prom
         .onConflictDoUpdate({ target: [schema.bandLoginPeople.orgId, schema.bandLoginPeople.userId], set: { personId } });
     } catch {
       // Someone else just took that member (one login per member).
-      return { error: "That member already has a login. Choose who you are." };
+      return { error: "That member already has an account. Choose who you are." };
     }
   }
   // A band that keeps its own books too: they're in those as well, linked to this login.
@@ -175,9 +175,9 @@ export async function connectExistingAccount(_: InviteLinkState, fd: FormData): 
   const bandOrgId = String(fd.get("orgId") ?? "");
   const mine = await connectableAccounts(session.user.id, found.labelOrgId);
   const account = mine.find((a) => a.id === bandOrgId);
-  if (!account) return { error: "That isn’t a band account you run." };
+  if (!account) return { error: "That isn’t a band you run here." };
   if (!(await unusedBandAccount(found.band.id))) {
-    return { error: `${found.band.name}’s account from ${found.labelName} is already in use. Ask the label to unlink it first.` };
+    return { error: `The group ${found.labelName} made for ${found.band.name} is already in use. Ask the label to unlink it first.` };
   }
   // The link to the label's band moves to the band's own account; then the unused account goes.
   const [link] = await db
@@ -207,12 +207,12 @@ export async function setLoginIdentity(_: InviteLinkState, fd: FormData): Promis
   const userId = String(fd.get("userId") ?? "");
   const as = String(fd.get("as") ?? "");
   // The band's own login changing itself would leave nobody (but the label) to manage logins.
-  if (userId === a.userId && !a.label) return { error: "Change your own login from the label’s side." };
+  if (userId === a.userId && !a.label) return { error: "Change your own account from the label’s side." };
   const [login] = await db
     .select({ id: schema.member.id })
     .from(schema.member)
     .where(and(eq(schema.member.organizationId, a.bandOrgId), eq(schema.member.userId, userId)));
-  if (!login) return { error: "That login isn’t one of the band’s." };
+  if (!login) return { error: "That account isn’t one of the band’s." };
   if (as === "band") {
     // One shared login per band: another login already being the band blocks it.
     const [personal, logins] = await Promise.all([
@@ -220,7 +220,7 @@ export async function setLoginIdentity(_: InviteLinkState, fd: FormData): Promis
       db.select({ userId: schema.member.userId }).from(schema.member).where(eq(schema.member.organizationId, a.bandOrgId)),
     ]);
     if (logins.some((l) => l.userId !== userId && !personal.some((p) => p.userId === l.userId))) {
-      return { error: "Another login already signs in as the band. Change that one first." };
+      return { error: "Another account already signs in as the band. Change that one first." };
     }
     await db.delete(schema.bandLoginPeople).where(and(eq(schema.bandLoginPeople.orgId, a.bandOrgId), eq(schema.bandLoginPeople.userId, userId)));
     const elsewhere = await db
@@ -240,7 +240,7 @@ export async function setLoginIdentity(_: InviteLinkState, fd: FormData): Promis
       .from(schema.bandLoginPeople)
       .where(and(eq(schema.bandLoginPeople.orgId, a.bandOrgId), eq(schema.bandLoginPeople.userId, userId)));
     const open = await unclaimedMembers(a.bandOrgId, a.labelOrgId, a.bandId);
-    if (mine?.personId !== personId && !open.some((p) => p.id === personId)) return { error: "That member already has a login." };
+    if (mine?.personId !== personId && !open.some((p) => p.id === personId)) return { error: "That member already has an account." };
     await db
       .insert(schema.bandLoginPeople)
       .values({ orgId: a.bandOrgId, userId, personId })

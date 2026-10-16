@@ -36,7 +36,7 @@ const INVITE_DAYS = 14;
 export async function inviteToBandAccount(_: LinkState, fd: FormData): Promise<LinkState> {
   const ctx = await requireAdmin();
   const sub = await subAccountFor(ctx.orgId, Number(fd.get("bandId")));
-  if (!sub) return { error: "This band doesn't have an account from the label." };
+  if (!sub) return { error: "This band doesn't have a group from the label." };
   const email = String(fd.get("email") ?? "").trim().toLowerCase();
   if (!email.includes("@")) return { error: "Enter their email address." };
   const [already] = await db
@@ -50,7 +50,7 @@ export async function inviteToBandAccount(_: LinkState, fd: FormData): Promise<L
     .select({ id: schema.invitation.id })
     .from(schema.invitation)
     .where(and(eq(schema.invitation.organizationId, sub.org.id), eq(schema.invitation.status, "pending"), gt(schema.invitation.expiresAt, new Date())));
-  if (login || waiting) return { error: `${sub.org.name} already has its login. The whole band shares it.` };
+  if (login || waiting) return { error: `${sub.org.name} already has its account. The whole band shares it.` };
   await db.insert(schema.invitation).values({
     id: randomUUID(),
     organizationId: sub.org.id,
@@ -69,7 +69,7 @@ export async function inviteToBandAccount(_: LinkState, fd: FormData): Promise<L
 export async function cancelBandAccountInvite(fd: FormData) {
   const ctx = await requireAdmin();
   const sub = await subAccountFor(ctx.orgId, Number(fd.get("bandId")));
-  if (!sub) throw new Error("This band doesn't have an account from the label.");
+  if (!sub) throw new Error("This band doesn't have a group from the label.");
   await db
     .update(schema.invitation)
     .set({ status: "canceled" })

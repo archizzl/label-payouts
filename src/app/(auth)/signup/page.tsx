@@ -36,11 +36,11 @@ export default async function SignupPage({ searchParams }: PageProps<"/signup">)
   }
   return (
     <>
-      <h1 className="mb-1 text-xl font-bold">Create a login</h1>
+      <h1 className="mb-1 text-xl font-bold">Create an account</h1>
       <p className="mb-5 text-sm text-muted">
         {invite || email || next.startsWith("/join/")
           ? "For label owners, band members and anyone who gets paid."
-          : "Then tell us about your label or band. We’ll set your account up once we’ve had a look."}
+          : "Then set up your label or band."}
       </p>
       <SignUpForm
         next={next}

@@ -55,7 +55,7 @@ export async function signUp(_: FormState, fd: FormData): Promise<FormState> {
     if (code) h.set("x-invite-code", code);
     await auth.api.signUpEmail({ body: { name, email, password }, headers: h });
   } catch (e) {
-    return { error: messageOf(e, "Couldn't create your login.") };
+    return { error: messageOf(e, "Couldn't create your account.") };
   }
   redirect(safeNext(str(fd, "next") || "/welcome"));
 }
@@ -107,10 +107,10 @@ export async function createAccount(_: FormState, fd: FormData): Promise<FormSta
   let orgId: string;
   try {
     const org = await auth.api.createOrganization({ body: { name, slug: slugify(name), kind }, headers: await headers() });
-    if (!org) return { error: "Couldn't create the account." };
+    if (!org) return { error: "Couldn't create the group." };
     orgId = org.id;
   } catch (e) {
-    return { error: messageOf(e, "Couldn't create the account.") };
+    return { error: messageOf(e, "Couldn't create the group.") };
   }
   // A band account is its band. Whoever made it isn't assumed to be in it: setup asks.
   if (kind === "band") await db.insert(schema.bands).values({ orgId, name });
@@ -175,7 +175,7 @@ export async function switchAccount(fd: FormData) {
   const session = await getSession();
   if (!session) redirect("/login");
   const orgId = str(fd, "orgId");
-  if (!(await accountsFor(session.user.id)).some((a) => a.id === orgId)) throw new Error("You're not a member of that account.");
+  if (!(await accountsFor(session.user.id)).some((a) => a.id === orgId)) throw new Error("You're not in that group.");
   (await cookies()).delete(VIEW_AS_COOKIE);
   await auth.api.setActiveOrganization({ body: { organizationId: orgId }, headers: await headers() });
   revalidatePath("/", "layout");
@@ -216,7 +216,7 @@ async function writeAccountSettings(orgId: string, managedBy: Context["managedBy
       if (other) {
         return other.orgId === managedBy?.labelOrgId
           ? `That’s ${managedBy.labelName}’s Bandcamp API access. Your own books need the band’s own client ID from Bandcamp.`
-          : "That Bandcamp API access is already used by another account.";
+          : "That Bandcamp API access is already used by another group.";
       }
     }
     const secret = str(fd, "bandcampClientSecret");
@@ -245,14 +245,14 @@ async function writeAccountSettings(orgId: string, managedBy: Context["managedBy
  */
 export async function saveBandSettings(_: FormState, fd: FormData): Promise<FormState> {
   const ctx = await requireAdmin();
-  if (ctx.org.kind !== "band") return { error: "This is for a band’s account." };
+  if (ctx.org.kind !== "band") return { error: "This is for a band." };
   const m = ctx.managedBy;
   // The books its band is in, and which band.
   const booksId = m ? m.labelOrgId : ctx.orgId;
   const bandId = m ? m.bandId : (await ownBand(ctx.orgId))?.id;
-  if (!bandId) return { error: "This account has no band." };
+  if (!bandId) return { error: "This group has no band." };
   const [band] = await db.select().from(schema.bands).where(and(eq(schema.bands.orgId, booksId), eq(schema.bands.id, bandId)));
-  if (!band) return { error: "This account has no band." };
+  if (!band) return { error: "This group has no band." };
   const name = str(fd, "name").slice(0, 200);
   if (!name) return { error: "Enter the band’s name." };
   const aliases = str(fd, "aliases").split(",").map((a) => a.trim()).filter(Boolean);
@@ -315,8 +315,8 @@ export async function inviteMember(_: FormState, fd: FormData): Promise<FormStat
       .select()
       .from(schema.people)
       .where(and(eq(schema.people.orgId, orgId), eq(schema.people.id, personId)));
-    if (!p) return { error: "That person isn't in this account." };
-    if (p.userId) return { error: `${p.name} already has a login linked.` };
+    if (!p) return { error: "That person isn't in this group." };
+    if (p.userId) return { error: `${p.name} already has an account linked.` };
   }
   try {
     const invite = await auth.api.createInvitation({ body: { email, role, organizationId: orgId, personId }, headers: await headers() });
@@ -491,7 +491,7 @@ export async function leaveAccount(_: FormState, fd: FormData): Promise<FormStat
   const { user } = session;
   const orgId = str(fd, "orgId");
   const account = (await accountsFor(user.id)).find((a) => a.id === orgId);
-  if (!account) return { error: "You’re not in that account any more. Reload this page." };
+  if (!account) return { error: "You’re not in that group any more. Reload this page." };
   const [link] = await db
     .select({ id: schema.accountLinks.id })
     .from(schema.accountLinks)
@@ -533,7 +533,7 @@ export async function deleteMyLogin(_: FormState, fd: FormData): Promise<FormSta
   const sole = await soleAccounts(user.id);
   const named = str(fd, "alsoDelete").split(",").filter(Boolean).sort();
   if (named.join(",") !== sole.map((a) => a.id).sort().join(",")) {
-    return { error: "Your accounts have changed since this page opened. Reload it and try again." };
+    return { error: "Your groups have changed since this page opened. Reload it and try again." };
   }
   await deleteAccountsWithBooks(sole.map((a) => a.id));
   // Signed out first (so the browser's sign-in cookies go too), then the login itself: its sessions
@@ -553,8 +553,8 @@ export async function deleteMyLogin(_: FormState, fd: FormData): Promise<FormSta
 export async function deleteAccount(_: FormState, fd: FormData): Promise<FormState> {
   const ctx = await accountContext();
   const { orgId, user } = ctx;
-  if (str(fd, "orgId") !== orgId) return { error: "You’ve switched accounts since. Reload this page and try again." };
-  if (ctx.managedBy || !ctx.isAdmin) return { error: "Only an admin of this account can delete it." };
+  if (str(fd, "orgId") !== orgId) return { error: "You’ve switched groups since. Reload this page and try again." };
+  if (ctx.managedBy || !ctx.isAdmin) return { error: "Only an admin of this group can delete it." };
   if (str(fd, "name").toLowerCase() !== ctx.org.name.trim().toLowerCase()) return { error: `Type ${ctx.org.name} exactly to confirm.` };
   await deleteAccountsWithBooks([orgId]);
   (await cookies()).delete(VIEW_AS_COOKIE);
@@ -608,7 +608,7 @@ export async function changeMyPassword(_: FormState, fd: FormData): Promise<Form
 /** Settings: a band account the label made turns its own books on or off (off hides them; nothing is deleted). */
 export async function setOwnBooksAction(fd: FormData) {
   const ctx = await requireAdmin();
-  if (!ctx.managedBy) throw new Error("Only a band account a label made can turn on its own books.");
+  if (!ctx.managedBy) throw new Error("Only a band group a label made can turn on its own books.");
   const on = fd.get("on") === "1";
   await setOwnBooks(ctx.orgId, on);
   const jar = await cookies();

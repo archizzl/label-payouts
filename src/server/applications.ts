@@ -40,11 +40,11 @@ export async function approveApplication(id: number, reviewerId: string): Promis
   const [app] = await db.select().from(accountApplications).where(and(eq(accountApplications.id, id), eq(accountApplications.status, "pending")));
   if (!app) throw new Error("That application isn't waiting any more.");
   const [applicant] = await db.select().from(schema.user).where(eq(schema.user.id, app.userId));
-  if (!applicant) throw new Error("The applicant's login is gone.");
+  if (!applicant) throw new Error("The applicant's account is gone.");
 
   // As the system, on their behalf: they become its owner.
   const org = await auth.api.createOrganization({ body: { name: app.name, slug: slugify(app.name), kind: app.kind, userId: app.userId } });
-  if (!org) throw new Error("Couldn't create the account.");
+  if (!org) throw new Error("Couldn't create the group.");
   const orgId = org.id;
   const expiresAt = new Date(Date.now() + INVITE_DAYS * 86_400_000);
   const same = (a: string | null | undefined, b: string | null | undefined) => !!a && !!b && a.trim().toLowerCase() === b.trim().toLowerCase();
