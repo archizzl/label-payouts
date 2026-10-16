@@ -34,7 +34,7 @@ export default async function JoinPage({ params, searchParams }: PageProps<"/joi
       <p className="mb-5 text-sm text-muted">
         {personName
           ? `Sign in as ${personName}`
-          : `${session ? "Say" : "Sign in or create a login, then say"} who you are ${found.forLabel ? `at ${band.name}` : "in the band"}`}
+          : `${session ? "Say" : "Sign in or create a login, then say"} who you are ${found.forLabel && band.kind === "label" ? `at ${band.name}` : "in the band"}`}
         {labelName ? `, to see what ${labelName} has for ${personName ? "the band" : "you"}.` : "."}
       </p>
       {session && (

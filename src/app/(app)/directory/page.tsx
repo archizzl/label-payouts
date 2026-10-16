@@ -7,7 +7,8 @@ import { ActionForm, OpenLinkedSection, SaveWhenChanged, SubmitButton } from "@/
 import { SyncFooter } from "@/components/sync-status";
 import { Badge, Card, Disclosure, Empty, Field, MoneyList, PageHeader, RolesList } from "@/components/ui";
 import { ViewAsButton } from "@/components/viewing-as";
-import { WhoCanSignIn } from "@/components/who-can-sign-in";
+import { type AccountLogin, LoginControls } from "@/components/login-controls";
+import { listMemberTypes, memberTypeOf } from "@/server/member-types";
 import { StandingInviteLink } from "@/components/band-invite-links";
 import { db, schema } from "@/db";
 import { payHandlesSummary } from "@/lib/paypal-export";
@@ -87,6 +88,42 @@ export default async function DirectoryPage() {
   const money = new Map(people.map((p) => [p.id, { owed: sumBy(pending, p.id), paid: sumBy(paid, p.id) }]));
   const contactFor = (personId: number) => outsideRows.filter((a) => a.contactPersonId === personId).map((a) => a.name);
 
+  // A band that runs its own account (its admins): who signs in is part of the list, with what they
+  // can do, rather than a list of its own.
+  const runsLogins = ctx.isAdmin && ctx.org.kind === "band" && !ctx.lens && !ctx.managedBy;
+  const [logins, types, typeOf] = runsLogins
+    ? await Promise.all([
+        db
+          .select({ member: { id: schema.member.id, role: schema.member.role }, user: { id: schema.user.id, name: schema.user.name, email: schema.user.email } })
+          .from(schema.member)
+          .innerJoin(schema.user, eq(schema.user.id, schema.member.userId))
+          .where(eq(schema.member.organizationId, orgId))
+          .orderBy(asc(schema.user.name)),
+        listMemberTypes(orgId),
+        memberTypeOf(orgId),
+      ])
+    : [[] as AccountLogin[], [] as Awaited<ReturnType<typeof listMemberTypes>>, new Map<string, number>()];
+  const typeName = (id: number | undefined) => types.find((t) => t.id === id)?.name;
+  const roleOptions = (
+    <>
+      <option value="member">Member: their own earnings</option>
+      {types.map((t) => (
+        <option key={t.id} value={`type:${t.id}`}>
+          {t.name}
+        </option>
+      ))}
+      <option value="admin">Admin: manages everything</option>
+    </>
+  );
+  const controlsFor = (l: AccountLogin) => {
+    const typeId = typeOf.get(l.user.id);
+    const saved = l.member.role === "member" ? (typeId && typeName(typeId) ? `type:${typeId}` : "member") : "admin";
+    const label = l.member.role === "member" ? (typeName(typeId) ?? "member") : l.member.role;
+    return <LoginControls login={l} you={l.user.id === ctx.user.id} saved={saved} label={label} options={roleOptions} />;
+  };
+  // Logins that aren't anyone in the band's books (someone who runs the account): listed after its people.
+  const loginOnly = logins.filter((l) => !everyone.some((p) => p.userId === l.user.id));
+
   const labelHosts = new Map(await Promise.all(bands.filter((b) => b.isLabel).map(async (b) => [b.id, await labelHost(orgId, b.id)] as const)));
   /** The band's Bandcamp page, from a bare subdomain pattern or a custom host. */
   const bandcampHost = (b: Band) => {
@@ -109,6 +146,10 @@ export default async function DirectoryPage() {
       bandsOf={memberships.filter((m) => m.personId === p.id)}
       contactFor={contactFor(p.id)}
       login={loginOf(p.id, membership?.band.id ?? null)}
+      signIn={(() => {
+        const l = logins.find((x) => x.user.id === p.userId);
+        return l ? controlsFor(l) : undefined;
+      })()}
       money={money.get(p.id)!}
       everyone={people}
       bands={bands}
@@ -163,7 +204,7 @@ export default async function DirectoryPage() {
       )}
 
       {bands.length === 0 && <Empty>No bands yet.</Empty>}
-      <div className={scope && bands.length === 1 ? "" : "divide-y divide-border border-y border-border"}>
+      <div className={(scope || ctx.org.kind === "band") && bands.length === 1 ? "" : "divide-y divide-border border-y border-border"}>
         {bands.map((b) => {
           const nameOf = (m: Membership) => people.find((p) => p.id === m.personId)?.name ?? "";
           // Current members first, then by name.
@@ -178,6 +219,28 @@ export default async function DirectoryPage() {
                   <div className="text-sm">
                     <ColumnHeads />
                     {members.map((m) => row(people.find((p) => p.id === m.personId)!, m))}
+                  </div>
+                )}
+                {members.length === 0 && loginOnly.length > 0 && (
+                  <div className="text-sm">
+                    <ColumnHeads />
+                  </div>
+                )}
+                {loginOnly.map((l) => (
+                  <div key={l.user.id} className={`${COLUMNS} items-center border-b border-border px-2.5 py-2 text-sm`}>
+                    <span className="font-medium">
+                      {l.user.name} {l.user.id === ctx.user.id && <span className="text-xs font-normal text-muted">(you)</span>}
+                    </span>
+                    <span className="col-span-2">{controlsFor(l)}</span>
+                    <span className="truncate text-xs">{l.user.email}</span>
+                    <span />
+                    <span />
+                    <span />
+                  </div>
+                ))}
+                {runsLogins && (
+                  <div className="mt-3">
+                    <StandingInviteLink bandOrgId={orgId} createdBy={ctx.user.id} />
                   </div>
                 )}
                 {/* A band's own login brings people in with its invite link. */}
@@ -195,7 +258,7 @@ export default async function DirectoryPage() {
             </>
           );
           // Just one band (a band's own account): its people, without a band to open.
-          if (scope && bands.length === 1) {
+          if ((scope || ctx.org.kind === "band") && bands.length === 1) {
             return (
               <div key={b.id} id={`band-${b.id}`} className="pb-4">
                 {body}
@@ -259,10 +322,9 @@ export default async function DirectoryPage() {
         </div>
       )}
 
-      {/* Logins, invites and member types: admins only (it's who can see and change the books). A label's are in Settings. */}
-      {ctx.isAdmin && ctx.org.kind !== "label" && (
-        <div id="who-can-sign-in" className="mt-10 scroll-mt-4">
-          <WhoCanSignIn ctx={ctx} />
+      {/* Member types, for what a member's login can see and change (a label's are in Settings). */}
+      {runsLogins && (
+        <div id="member-types" className="mt-10 scroll-mt-4">
           <MemberTypesCard orgId={orgId} />
         </div>
       )}
@@ -317,6 +379,7 @@ function PersonRow({
   bandsOf,
   contactFor,
   login,
+  signIn,
   money,
   everyone,
   bands,
@@ -331,6 +394,8 @@ function PersonRow({
   contactFor: string[];
   /** The email they sign in with (none: no login yet). */
   login: string | null;
+  /** A band that runs its own account: what their login can do here, and removing it. */
+  signIn?: React.ReactNode;
   money: { owed: Totals; paid: Totals };
   everyone: Person[];
   /** The bands they can be added to (the ones on this page). */
@@ -397,8 +462,14 @@ function PersonRow({
       </summary>
       <div className="mb-3 space-y-4 border border-border bg-surface-2 p-4">
         <PersonFields person={p} labelNotes={!ctx.lens} />
+        {signIn && login && (
+          <div className="flex flex-wrap items-center gap-3 border-t border-border pt-4 text-sm">
+            <span className="text-muted">Signs in with {login}</span>
+            {signIn}
+          </div>
+        )}
         {/* A band's own account: just their roles in it (it's the only band there). */}
-        {ctx.lens ? (
+        {ctx.lens || ctx.org.kind === "band" ? (
           membership && <BandRoles person={p} membership={membership} canRemove />
         ) : (
           <PersonBands person={p} bandsOf={bandsOf} bands={bands} limited={limited} />
