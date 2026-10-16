@@ -1,4 +1,4 @@
-import { desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { headers } from "next/headers";
 import { connection } from "next/server";
 import { ActionForm, CopyButton, SaveWhenChanged, SubmitButton } from "@/components/client";
@@ -25,7 +25,7 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
   const link = (code: string) => `${base}/signup?code=${code}`;
 
   const session = await requireSiteAdmin();
-  const [invites, users, memberships, accounts, lastSeen, flagAccounts, flagPrefs, applications] = await Promise.all([
+  const [invites, users, memberships, accounts, lastSeen, flagAccounts, flagPrefs, applications, madeByLabels, personalLogins] = await Promise.all([
     listInvites(),
     db.select().from(schema.user).orderBy(desc(schema.user.createdAt)),
     db
@@ -54,7 +54,26 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
     db.select().from(schema.featureFlagAccounts),
     db.select().from(schema.featureFlagPrefs).where(eq(schema.featureFlagPrefs.userId, session.user.id)),
     listApplications(),
+    db
+      .select({ orgId: schema.accountLinks.bandOrgId })
+      .from(schema.accountLinks)
+      .where(and(eq(schema.accountLinks.managed, true), eq(schema.accountLinks.status, "active"))),
+    db.select({ orgId: schema.bandLoginPeople.orgId, userId: schema.bandLoginPeople.userId }).from(schema.bandLoginPeople),
   ]);
+  // A band's shared account (in a group a label made, signing in as the band, not as one member):
+  // it's the group's, not a person's, so it's listed with the group.
+  const groupLogin = (m: { userId: string; orgId: string; role: string }) =>
+    m.role !== "member" && madeByLabels.some((l) => l.orgId === m.orgId) && !personalLogins.some((p) => p.orgId === m.orgId && p.userId === m.userId);
+  const groupAccountIds = new Set(
+    users
+      .filter((u) => {
+        const mine = memberships.filter((m) => m.userId === u.id);
+        return mine.length > 0 && mine.every(groupLogin);
+      })
+      .map((u) => u.id),
+  );
+  const people = users.filter((u) => !groupAccountIds.has(u.id));
+  const groupAccountsOf = (orgId: string) => users.filter((u) => groupAccountIds.has(u.id) && memberships.some((m) => m.userId === u.id && m.orgId === orgId));
   const waiting = applications.filter((a) => a.app.status === "pending");
   const decided = applications.filter((a) => a.app.status !== "pending").slice(0, 15);
   const seen = new Map(lastSeen.map((s) => [s.userId, s.at]));
@@ -274,7 +293,7 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
         )}
       </Card>
 
-      <Card title={`Accounts (${users.length})`}>
+      <Card title={`Accounts (${people.length})`}>
         <div className="overflow-x-auto">
           <table className="data">
             <thead>
@@ -287,7 +306,7 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
               </tr>
             </thead>
             <tbody>
-              {users.map((u) => (
+              {people.map((u) => (
                 <tr key={u.id} className="align-top">
                   <td>
                     {u.name}
@@ -318,6 +337,7 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
               <tr>
                 <th>Group</th>
                 <th className="num">Accounts</th>
+                <th>Group account</th>
                 <th className="num">Sales</th>
                 <th>Bandcamp</th>
                 <th>Last synced</th>
@@ -330,7 +350,16 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
                     {a.name} <span className="text-xs text-muted">({a.kind})</span>
                     <div className="text-xs text-muted">since {day(a.createdAt)}</div>
                   </td>
-                  <td className="num">{a.members}</td>
+                  <td className="num">{a.members - groupAccountsOf(a.id).length}</td>
+                  <td className="text-sm">
+                    {groupAccountsOf(a.id).map((u) => (
+                      <div key={u.id} className="flex flex-wrap items-center gap-2">
+                        <span className="break-all">{u.email}</span>
+                        <span className="text-xs text-muted">last signed in {day(seen.get(u.id))}</span>
+                        <ResetLinkButton userId={u.id} />
+                      </div>
+                    ))}
+                  </td>
                   <td className="num">{a.sales.toLocaleString("en-US")}</td>
                   <td className="text-sm">{a.bandcamp ?? a.bandcampUrl ?? <span className="text-muted">not connected</span>}</td>
                   <td className="whitespace-nowrap text-muted">{a.lastSync ? a.lastSync.slice(0, 10) : "–"}</td>
