@@ -1,4 +1,5 @@
 import "server-only";
+import { MANUAL_VIA } from "@/lib/manual-sales";
 import { and, asc, eq, isNull, lte, type SQL } from "drizzle-orm";
 import { cache } from "react";
 import { db, schema } from "@/db";
@@ -56,6 +57,8 @@ export async function reRouteAll(orgId: string) {
   const catalog = await loadCatalog(orgId);
   const rows = await db.select().from(sales).where(eq(sales.orgId, orgId));
   const changed = rows.flatMap((s) => {
+    // Added by hand: its band was chosen, not matched.
+    if (s.routedVia === MANUAL_VIA) return [];
     const r = routeSale({ ...s, catalogNumber: s.raw["catalog number"], upc: s.raw["upc"], isrc: s.raw["isrc"] }, catalog);
     return r.bandId !== s.bandId || r.releaseId !== s.releaseId || r.trackId !== s.trackId || r.via !== s.routedVia ? [{ id: s.id, r }] : [];
   });

@@ -191,6 +191,7 @@ export async function browseSales(orgId: string, f: SalesFilter) {
         transactionId: sales.transactionId,
         bandId: sales.bandId,
         bandName: bands.name,
+        routedVia: sales.routedVia,
         releaseId: sales.releaseId,
         releaseTitle: releases.title,
         country,
@@ -372,4 +373,13 @@ export async function salesFilterOptions(orgId: string, onlyBands?: number[]) {
     sources: sources.map((s) => s.v),
     currencies: currencies.map((c) => c.v).sort(),
   };
+}
+
+/** Whether a sale is part of a payout already (so it can't be taken back out). */
+export async function saleInPayout(orgId: string, saleId: number): Promise<boolean> {
+  const [row] = await db
+    .select({ period: coveringPeriod.mapWith(Number) })
+    .from(sales)
+    .where(and(eq(sales.orgId, orgId), eq(sales.id, saleId)));
+  return !!row?.period;
 }

@@ -11,6 +11,8 @@ import { loadLayout } from "@/server/chart-layouts";
 import { bandScope, can } from "@/lib/permissions";
 import { requireAccess } from "@/server/context";
 import { BooksSwitch } from "@/components/books-switch";
+import { DeleteManualSale } from "@/components/manual-sale";
+import { MANUAL_VIA } from "@/lib/manual-sales";
 import { markSeen } from "@/server/nav-badges";
 import {
   browseSales,
@@ -37,6 +39,7 @@ export default async function SalesPage({ searchParams }: PageProps<"/sales">) {
   await markSeen(ctx, "sales");
   // A member type can limit this to their own bands' sales.
   const scope = bandScope(access, "sales");
+  const canEdit = can(access, "sales", "edit");
   const f = { ...parseSalesFilter(await searchParams), onlyBands: scope ?? undefined };
   const [page, summary, options, [{ unrouted }]] = await Promise.all([
     browseSales(orgId, f),
@@ -100,7 +103,7 @@ export default async function SalesPage({ searchParams }: PageProps<"/sales">) {
         }
       />
       <BooksSwitch ctx={ctx} back="/sales" />
-      <SalesTabs active="browse" unrouted={unrouted} canImport={can(access, "sales", "edit")} />
+      <SalesTabs active="browse" unrouted={unrouted} canImport={canEdit} />
 
       <Card title={main ? `${page.count.toLocaleString("en-US")} sale${page.count === 1 ? "" : "s"}` : "Sales"}>
         <Filters f={f} options={options} filtered={filtered} />
@@ -175,6 +178,7 @@ export default async function SalesPage({ searchParams }: PageProps<"/sales">) {
                               {s.releaseTitle ?? "Release"} in the catalog →
                             </Link>
                           )}
+                          {s.routedVia === MANUAL_VIA && canEdit && s.payoutState === "none" && <DeleteManualSale id={s.id} />}
                         </details>
                       </td>
                       <td className="text-sm">
@@ -191,7 +195,7 @@ export default async function SalesPage({ searchParams }: PageProps<"/sales">) {
                       </td>
                       <td className="text-sm">
                         <Link href={filterQuery(f, { type: s.category, page: 1 })} className="text-text hover:underline">
-                          {TYPE_LABEL[s.category] ?? s.category}
+                          {s.itemType === "show" ? "Show" : (TYPE_LABEL[s.category] ?? s.category)}
                         </Link>
                       </td>
                       <td className="text-sm">
