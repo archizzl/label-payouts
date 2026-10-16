@@ -7,7 +7,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db, schema } from "@/db";
 import { subAccountFor } from "./band-accounts";
-import { hasSharedLogin, resetStandingLink, stamp, unclaimedMembers, unclaimedPeople, usableInviteLink } from "./band-invite-links";
+import { connectableAccounts, hasSharedLogin, resetStandingLink, stamp, unclaimedMembers, unclaimedPeople, unusedBandAccount, usableInviteLink } from "./band-invite-links";
 import { applyMyDetails } from "./people";
 import { syncOwnPeople } from "./own-books";
 import { ownBand } from "./data";
@@ -159,6 +159,37 @@ export async function joinWithInviteLink(_: InviteLinkState, fd: FormData): Prom
   await auth.api.setActiveOrganization({ body: { organizationId: org.id }, headers: await headers() });
   revalidatePath("/", "layout");
   redirect("/");
+}
+
+/**
+ * Use a label's invite link for one of its bands to connect the band's own account (one it already
+ * runs) instead: the band keeps its account and books, and sees what the label has for it there.
+ * The account the label made for the band goes, if nobody uses it yet.
+ */
+export async function connectExistingAccount(_: InviteLinkState, fd: FormData): Promise<InviteLinkState> {
+  const id = String(fd.get("id") ?? "");
+  const session = await getSession();
+  if (!session) redirect(`/login?next=${encodeURIComponent(`/join/${id}`)}`);
+  const found = await usableInviteLink(id);
+  if (!found || found.forLabel) return { error: "This invite link has been used, cancelled or has expired. Ask for a new one." };
+  const bandOrgId = String(fd.get("orgId") ?? "");
+  const mine = await connectableAccounts(session.user.id, found.labelOrgId);
+  const account = mine.find((a) => a.id === bandOrgId);
+  if (!account) return { error: "That isn’t a band account you run." };
+  if (!(await unusedBandAccount(found.band.id))) {
+    return { error: `${found.band.name}’s account from ${found.labelName} is already in use. Ask the label to unlink it first.` };
+  }
+  // The link to the label's band moves to the band's own account; then the unused account goes.
+  const [link] = await db
+    .update(schema.accountLinks)
+    .set({ bandOrgId, managed: false, status: "active", acceptedAt: stamp(new Date()) })
+    .where(and(eq(schema.accountLinks.bandOrgId, found.band.id), eq(schema.accountLinks.managed, true)))
+    .returning({ id: schema.accountLinks.id });
+  if (!link) return { error: "This invite link has been used, cancelled or has expired. Ask for a new one." };
+  await db.delete(schema.organization).where(eq(schema.organization.id, found.band.id));
+  await auth.api.setActiveOrganization({ body: { organizationId: bandOrgId }, headers: await headers() });
+  revalidatePath("/", "layout");
+  redirect(`/from-label/${link.id}`);
 }
 
 /**

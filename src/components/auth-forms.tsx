@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useRef, useState } from "react";
 import { acceptInvite, createAccount, type FormState, resetPassword, saveSetupLinks, saveSetupMe, signIn, signUp } from "@/server/account-actions";
-import { joinWithInviteLink } from "@/server/band-invite-actions";
+import { connectExistingAccount, joinWithInviteLink } from "@/server/band-invite-actions";
 import { buttonClass, Field } from "./ui";
 
 function Result({ state }: { state: FormState }) {
@@ -304,6 +304,41 @@ export function SetupMeForm({
       )}
       <Result state={state} />
       <Submit pending={pending}>Done</Submit>
+    </form>
+  );
+}
+
+/** On a label's invite link for one of its bands: connect the band account you already run instead of joining a new one. */
+export function ConnectExistingForm({ id, accounts, labelName }: { id: string; accounts: { id: string; name: string }[]; labelName: string }) {
+  const [state, action, pending] = useActionState(connectExistingAccount, null);
+  const [orgId, setOrgId] = useState(accounts[0]?.id ?? "");
+  const name = accounts.find((a) => a.id === orgId)?.name ?? "";
+  return (
+    <form
+      action={action}
+      onSubmit={(e) => {
+        if (!confirm(`Connect ${name} to ${labelName}? It keeps its own books, and shows what ${labelName} has for it.`)) e.preventDefault();
+      }}
+      className="space-y-3"
+    >
+      <input type="hidden" name="id" value={id} />
+      {accounts.length > 1 ? (
+        <Field label="Your band’s account">
+          <select name="orgId" value={orgId} onChange={(e) => setOrgId(e.target.value)}>
+            {accounts.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.name}
+              </option>
+            ))}
+          </select>
+        </Field>
+      ) : (
+        <input type="hidden" name="orgId" value={orgId} />
+      )}
+      <Result state={state} />
+      <button type="submit" disabled={pending} className={`${buttonClass("secondary")} w-full justify-center`}>
+        {pending ? "…" : `Connect ${name}`}
+      </button>
     </form>
   );
 }

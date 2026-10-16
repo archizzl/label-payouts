@@ -148,19 +148,26 @@ export async function bothBooksWarning(bandOrgId: string): Promise<string | null
 
 /**
  * Of these sales (by dedupe key, which is made from the Bandcamp transaction), the ones already in
- * the label's books, for a band account's own books to leave out: otherwise they'd be paid twice.
- * Empty for any other account.
+ * the books of a label this band account is with (one that made it, or one it connected its own
+ * account to), for its own books to leave out: otherwise they'd be paid twice. Empty for any other
+ * account.
  */
 export async function alreadyInLabelBooks(bandOrgId: string, dedupeKeys: string[]) {
   const found = new Set<string>();
-  const managed = await managingLabel(bandOrgId);
-  if (!managed) return { found, labelName: null };
+  const labels = await db
+    .select({ labelOrgId: schema.accountLinks.labelOrgId, labelName: schema.organization.name })
+    .from(schema.accountLinks)
+    .innerJoin(schema.organization, eq(schema.organization.id, schema.accountLinks.labelOrgId))
+    .where(and(eq(schema.accountLinks.bandOrgId, bandOrgId), eq(schema.accountLinks.status, "active")));
+  if (!labels.length) return { found, labelName: null };
+  const labelIds = labels.map((l) => l.labelOrgId);
   for (let i = 0; i < dedupeKeys.length; i += 500) {
     const rows = await db
       .select({ k: sales.dedupeKey })
       .from(sales)
-      .where(and(eq(sales.orgId, managed.labelOrgId), inArray(sales.dedupeKey, dedupeKeys.slice(i, i + 500))));
+      .where(and(inArray(sales.orgId, labelIds), inArray(sales.dedupeKey, dedupeKeys.slice(i, i + 500))));
     for (const r of rows) found.add(r.k);
   }
-  return { found, labelName: managed.labelName };
+  const names = labels.map((l) => l.labelName);
+  return { found, labelName: names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` };
 }

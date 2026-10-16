@@ -1,6 +1,6 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import { and, asc, desc, eq, gt, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNull } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { bandMembers } from "./band-member";
 
@@ -124,4 +124,32 @@ export async function bandLoginNames(bandOrgId: string): Promise<Map<string, str
     .innerJoin(schema.people, eq(schema.people.id, schema.bandLoginPeople.personId))
     .where(eq(schema.bandLoginPeople.orgId, bandOrgId));
   return new Map(rows.map((r) => [r.userId, r.name]));
+}
+
+/**
+ * The band accounts a login runs that it could connect to a label in place of the account the
+ * label made for one of its bands: bands that run their own account (not one a label made), where
+ * it's an owner or admin, not already connected to this label.
+ */
+export async function connectableAccounts(userId: string, labelOrgId: string) {
+  const mine = await db
+    .select({ id: schema.organization.id, name: schema.organization.name })
+    .from(schema.member)
+    .innerJoin(schema.organization, eq(schema.organization.id, schema.member.organizationId))
+    .where(and(eq(schema.member.userId, userId), eq(schema.organization.kind, "band"), inArray(schema.member.role, ["owner", "admin"])));
+  if (!mine.length) return [];
+  const links = await db
+    .select({ bandOrgId: schema.accountLinks.bandOrgId, labelOrgId: schema.accountLinks.labelOrgId, managed: schema.accountLinks.managed })
+    .from(schema.accountLinks)
+    .where(inArray(schema.accountLinks.bandOrgId, mine.map((m) => m.id)));
+  return mine.filter((m) => !links.some((l) => l.bandOrgId === m.id && (l.managed || l.labelOrgId === labelOrgId)));
+}
+
+/** Whether nobody uses a label-made band account yet (no logins, no books of its own): it can make way for the band's own account. */
+export async function unusedBandAccount(bandOrgId: string) {
+  const [[login], [settings]] = await Promise.all([
+    db.select({ id: schema.member.id }).from(schema.member).where(eq(schema.member.organizationId, bandOrgId)).limit(1),
+    db.select({ ownBooks: schema.accountSettings.ownBooks }).from(schema.accountSettings).where(eq(schema.accountSettings.orgId, bandOrgId)),
+  ]);
+  return !login && !settings?.ownBooks;
 }

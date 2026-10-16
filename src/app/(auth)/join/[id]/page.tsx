@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { JoinBandForm } from "@/components/auth-forms";
+import { ConnectExistingForm, JoinBandForm } from "@/components/auth-forms";
 import { LinkButton } from "@/components/ui";
-import { hasSharedLogin, unclaimedMembers, unclaimedPeople, usableInviteLink } from "@/server/band-invite-links";
+import { connectableAccounts, hasSharedLogin, unclaimedMembers, unclaimedPeople, unusedBandAccount, usableInviteLink } from "@/server/band-invite-links";
 import { myDetails } from "@/server/people";
 import { getSession } from "@/server/context";
 import { signOut } from "@/server/account-actions";
@@ -24,6 +24,11 @@ export default async function JoinPage({ params, searchParams }: PageProps<"/joi
     );
   }
   const { band, personName, labelName } = found;
+  // Someone who runs a band account of their own, while nobody uses the one the label made for it.
+  const connectable =
+    session && !found.forLabel && !found.link.personId && (await unusedBandAccount(band.id))
+      ? await connectableAccounts(session.user.id, found.labelOrgId)
+      : [];
   // Back here after signing up or in, joining by itself.
   const after = `/join/${id}?go=1`;
   // A new login is named for the member the link names, else the band (they say who they are next).
@@ -50,6 +55,14 @@ export default async function JoinPage({ params, searchParams }: PageProps<"/joi
               Use a different login
             </button>
           </form>
+        </div>
+      )}
+      {connectable.length > 0 && (
+        // A band that already runs its own account here: connect that instead of joining a new one.
+        <div className="mb-6 border-b border-border pb-6">
+          <h2 className="mb-1 text-sm font-medium">Already run {band.name} here?</h2>
+          <p className="mb-3 text-sm text-muted">Connect that account instead: it keeps its books, and shows what {labelName} has for the band.</p>
+          <ConnectExistingForm id={id} accounts={connectable} labelName={labelName ?? ""} />
         </div>
       )}
       {session ? (
