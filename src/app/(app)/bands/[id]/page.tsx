@@ -60,6 +60,10 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
   // A band account (its own books, or a band that runs its own account): the band's settings are its Settings.
   const settingsElsewhere = ownBooks || ctx.org.kind === "band";
   if (settingsElsewhere && tab === "settings") redirect("/settings");
+  // A band that runs its own account: this page is just its splits (its "splits" tab); the rest of it
+  // is what the dashboard, Directory and Catalog already show.
+  const splitsOnly = ctx.org.kind === "band" && !ctx.managedBy;
+  if (splitsOnly && tab !== "money") redirect({ overview: "/", people: "/directory", catalog: "/catalog", settings: "/settings" }[tab]);
   const [band] = await db
     .select()
     .from(schema.bands)
@@ -229,39 +233,45 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
           ← Directory
         </Link>
       )}
-      <PageHeader
-        title={
-          <span className="flex items-center gap-4">
-            {band.imageUrl && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={band.imageUrl} alt="" className="h-16 w-16 shrink-0 bg-surface-2 object-cover" />
-            )}
-            <span>{band.name}</span>
-          </span>
-        }
-        subtitle={
-          <>
-            {band.location && <>{band.location} · </>}
-            {earned.size ? (
+      {splitsOnly ? (
+        <PageHeader title="Splits" />
+      ) : (
+        <>
+          <PageHeader
+            title={
+              <span className="flex items-center gap-4">
+                {band.imageUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={band.imageUrl} alt="" className="h-16 w-16 shrink-0 bg-surface-2 object-cover" />
+                )}
+                <span>{band.name}</span>
+              </span>
+            }
+            subtitle={
               <>
-                all-time net sales: <MoneyList totals={earned} />
+                {band.location && <>{band.location} · </>}
+                {earned.size ? (
+                  <>
+                    all-time net sales: <MoneyList totals={earned} />
+                  </>
+                ) : (
+                  "no sales yet"
+                )}
+                {bandcampHost && (
+                  <>
+                    {" · "}
+                    <a href={`https://${bandcampHost}`} target="_blank" rel="noreferrer">
+                      Bandcamp ↗
+                    </a>
+                  </>
+                )}
               </>
-            ) : (
-              "no sales yet"
-            )}
-            {bandcampHost && (
-              <>
-                {" · "}
-                <a href={`https://${bandcampHost}`} target="_blank" rel="noreferrer">
-                  Bandcamp ↗
-                </a>
-              </>
-            )}
-          </>
-        }
-      />
+            }
+          />
 
-      <BandTabs bandId={id} active={tab} needsSplit={needsSplit} members={members.filter((m) => m.active).length} noSettings={settingsElsewhere} />
+          <BandTabs bandId={id} active={tab} needsSplit={needsSplit} members={members.filter((m) => m.active).length} noSettings={settingsElsewhere} />
+        </>
+      )}
 
       {band.isLabel && (
         <Callout tone="neutral">

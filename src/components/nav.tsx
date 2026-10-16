@@ -58,9 +58,9 @@ function itemsFor(
     { href: "/periods", label: "payouts", area: "payouts" },
     ...(account.kind === "label" ? [{ href: "/funds", label: "funds", area: "funds" as const }] : []),
     { href: "/receipts", label: "receipts", area: "receipts" },
-    // A band account has one band: straight to it. Its money rules are there too, so no Rules tab.
-    // A band account's own band, then everyone (bands and people) in the directory.
-    ...(account.kind === "band" && bandHref ? [{ href: bandHref, label: "band", area: "roster" as const }] : []),
+    // A band account: its splits (the money part of its band's page; everything else there is in
+    // the other tabs). A label's are under Rules.
+    ...(account.kind === "band" && bandHref ? [{ href: `${bandHref}?tab=money`, label: "splits", area: "rules" as const }] : []),
     // A band account the label made, in its own books: its people are the label's band's, so they're in the Directory there.
     ...(ownBooks ? [] : [{ href: "/directory", label: "directory", area: "roster" as const }]),
     // { href: "/fans", label: "fans", area: "fans" },
@@ -191,10 +191,12 @@ export function Nav({
         <ul className="-mb-px flex gap-x-5 overflow-x-auto md:flex-wrap md:overflow-visible">
           {items.map((it) => {
             // A band's own page sits under the directory (unless the nav has a tab for that band).
+            const base = (href: string) => href.split("?")[0];
             const active =
               it.href === "/"
                 ? path === "/"
-                : path.startsWith(it.href) || (it.href === "/directory" && path.startsWith("/bands/") && !items.some((x) => path.startsWith(x.href) && x.href.startsWith("/bands/")));
+                : path.startsWith(base(it.href)) ||
+                  (it.href === "/directory" && path.startsWith("/bands/") && !items.some((x) => path.startsWith(base(x.href)) && x.href.startsWith("/bands/")));
             const n = countFor(it.href);
             const what = { "/orders": "to ship or hand over", "/sales": "new", "/receipts": "to approve" }[it.href] ?? "";
             return (
