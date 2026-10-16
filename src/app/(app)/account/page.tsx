@@ -4,6 +4,7 @@ import { db, schema } from "@/db";
 import { ActionForm, SaveWhenChanged, SubmitButton } from "@/components/client";
 import { Card, Field, PageHeader } from "@/components/ui";
 import { DeleteLogin } from "@/components/delete-login";
+import { soleAccounts } from "@/server/account-deletion";
 import { changeMyPassword, leaveAccount, saveMyDetails } from "@/server/account-actions";
 import { accountsFor, realContext } from "@/server/context";
 import { myPeople } from "@/server/people";
@@ -98,7 +99,7 @@ export default async function AccountPage() {
         </ul>
       </Card>
 
-      <DeleteLogin email={user.email} accounts={accounts.length} />
+      <DeleteLogin email={user.email} accounts={accounts.length} sole={await soleAccounts(user.id)} />
     </>
   );
 }

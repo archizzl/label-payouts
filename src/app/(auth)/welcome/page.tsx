@@ -3,6 +3,7 @@ import Link from "next/link";
 import { signOut } from "@/server/account-actions";
 import { redirect } from "next/navigation";
 import { CreateAccountForm } from "@/components/auth-forms";
+import { DeleteLogin } from "@/components/delete-login";
 import { db, schema } from "@/db";
 import { accountsFor, getSession } from "@/server/context";
 
@@ -52,6 +53,16 @@ export default async function WelcomePage() {
           </button>
         </form>
       </div>
+
+      {/* In no account any more (all left or deleted): Account isn't reachable, so deleting the login is here. */}
+      {accounts.length === 0 && (
+        <details className="mt-5 border-t border-border pt-4 text-sm">
+          <summary className="cursor-pointer text-muted">Delete my login</summary>
+          <div className="mt-3">
+            <DeleteLogin email={user.email} accounts={0} sole={[]} bare />
+          </div>
+        </details>
+      )}
     </div>
   );
 }

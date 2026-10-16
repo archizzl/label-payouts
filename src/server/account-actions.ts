@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq, inArray, isNull, ne } from "drizzle-orm";
+import { and, eq, isNull, ne } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
@@ -12,11 +12,11 @@ import { bothBooksWarning, setOwnBooks, syncOwnPeople } from "./own-books";
 import { AREAS, type Area, normalizeBandAreas, normalizePermissions } from "@/lib/permissions";
 import { assignMemberType, memberTypeForInvite, parseRoleChoice, setInviteMemberType, setManagedBands } from "./member-types";
 import { applyMyDetails, normalizeEmail } from "./people";
+import { deleteAccountsWithBooks, soleAccounts } from "./account-deletion";
 import { ownBand } from "./data";
 import { cleanCashtag, cleanVenmoHandle } from "@/lib/paypal-export";
 import { bandcampCredentials, forgetBandcampSignIn, myBands } from "./bandcamp-api";
 import { encryptSecret } from "./secrets";
-import { discardStoredFiles } from "./receipt-store";
 
 /*
  * Logins and accounts: signing up and in, creating a label or band account, switching between
@@ -482,26 +482,13 @@ export async function deleteMyLogin(_: FormState, fd: FormData): Promise<FormSta
   if (!session) redirect("/login");
   const { user } = session;
   if (normalizeEmail(str(fd, "email")) !== normalizeEmail(user.email)) return { error: "Type your email exactly to confirm." };
-  const accounts = await accountsFor(user.id);
-  // Band accounts a label made are the label's to run.
-  const managed = new Set(
-    (
-      await db
-        .select({ orgId: schema.accountLinks.bandOrgId })
-        .from(schema.accountLinks)
-        .where(and(eq(schema.accountLinks.managed, true), eq(schema.accountLinks.status, "active")))
-    ).map((r) => r.orgId),
-  );
-  for (const a of accounts) {
-    if (managed.has(a.id) || a.role === "member") continue;
-    const others = await db
-      .select({ role: schema.member.role })
-      .from(schema.member)
-      .where(and(eq(schema.member.organizationId, a.id), ne(schema.member.userId, user.id)));
-    if (!others.some((m) => m.role === "owner" || m.role === "admin")) {
-      return { error: `You’re the only admin of ${a.name}. Make someone else an admin there first.` };
-    }
+  // The accounts only you run go with your login: the same ones the page named, or nothing happens.
+  const sole = await soleAccounts(user.id);
+  const named = str(fd, "alsoDelete").split(",").filter(Boolean).sort();
+  if (named.join(",") !== sole.map((a) => a.id).sort().join(",")) {
+    return { error: "Your accounts have changed since this page opened. Reload it and try again." };
   }
+  await deleteAccountsWithBooks(sole.map((a) => a.id));
   // Signed out first (so the browser's sign-in cookies go too), then the login itself: its sessions
   // and own preferences go with it, and links from the books are cleared.
   (await cookies()).delete(VIEW_AS_COOKIE);
@@ -522,24 +509,7 @@ export async function deleteAccount(_: FormState, fd: FormData): Promise<FormSta
   if (str(fd, "orgId") !== orgId) return { error: "You’ve switched accounts since. Reload this page and try again." };
   if (ctx.managedBy || !ctx.isAdmin) return { error: "Only an admin of this account can delete it." };
   if (str(fd, "name").toLowerCase() !== ctx.org.name.trim().toLowerCase()) return { error: `Type ${ctx.org.name} exactly to confirm.` };
-  // The band accounts it made go with it (they only show its books).
-  const made = (
-    await db
-      .select({ orgId: schema.accountLinks.bandOrgId })
-      .from(schema.accountLinks)
-      .where(and(eq(schema.accountLinks.labelOrgId, orgId), eq(schema.accountLinks.managed, true)))
-  )
-    .map((r) => r.orgId)
-    .filter((id): id is string => !!id);
-  const orgIds = [orgId, ...made];
-  const files = await db
-    .select({ storageKey: schema.expenseFiles.storageKey })
-    .from(schema.expenseFiles)
-    .innerJoin(schema.expenses, eq(schema.expenses.id, schema.expenseFiles.expenseId))
-    .where(inArray(schema.expenses.orgId, orgIds));
-  // Everything in an account goes with it (every table's account reference cascades).
-  await db.delete(schema.organization).where(inArray(schema.organization.id, orgIds));
-  await discardStoredFiles(files);
+  await deleteAccountsWithBooks([orgId]);
   (await cookies()).delete(VIEW_AS_COOKIE);
   const [next] = await accountsFor(user.id);
   if (next) await auth.api.setActiveOrganization({ body: { organizationId: next.id }, headers: await headers() });
