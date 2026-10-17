@@ -65,6 +65,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
         // here; locally it's at /admin.
         showAdminLink={!process.env.ADMIN_URL}
         syncing={due || !!sync?.running}
+        syncedAt={sync?.finishedAt ?? null}
         labels={labels.map(({ link, label }) => ({ href: `/from-label/${link.id}`, label: `from ${label.name}` }))}
       />
       <main className="min-w-0 flex-1 px-4 py-8 md:px-8">

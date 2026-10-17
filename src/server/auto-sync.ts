@@ -79,6 +79,9 @@ export async function claimSync(orgId: string, force: boolean): Promise<boolean>
 /** `warning`: something about to go wrong with money (a band's own books overlapping the label's). */
 export type SyncResult = { ran: boolean; summary: string; errors: string[]; warning?: string | null };
 
+/** A sync's summary when it found nothing new. */
+export const UP_TO_DATE = "Up to date.";
+
 import { plural } from "@/lib/plural";
 
 /**
@@ -219,7 +222,7 @@ export async function syncAccount(orgId: string, { force = false } = {}): Promis
   if (org?.kind === "label") await step("Band groups", () => ensureBandAccounts(orgId).then(() => undefined));
   // A band's own books: its members, as the label has them now.
   if (managed) await step("Members", () => syncOwnPeople(orgId));
-  const summary = found.length ? `Brought in ${found.join(", ")}.` : "Up to date.";
+  const summary = found.length ? `Brought in ${found.join(", ")}.` : UP_TO_DATE;
   await db
     .update(accountSettings)
     .set({ syncFinishedAt: iso(Date.now()), syncSummary: summary, syncError: [warning, ...errors].filter(Boolean).join(" ") || null })
@@ -266,7 +269,7 @@ export async function syncCatalog(orgId: string): Promise<{ summary: string; err
       errors.push(`Band groups: ${(e as Error).message}`);
     }
   }
-  return { summary: found.length ? `Brought in ${found.join(", ")}.` : "Up to date.", errors };
+  return { summary: found.length ? `Brought in ${found.join(", ")}.` : UP_TO_DATE, errors };
 }
 
 /** The account's last sync, for showing on the page. (Once per request: the layout and the footer both ask.) */
