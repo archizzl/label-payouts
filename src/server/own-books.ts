@@ -1,8 +1,10 @@
 import "server-only";
-import { and, asc, eq, inArray, or } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, or } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { possessive } from "@/lib/plural";
 import { managingLabel, subAccountFor } from "./band-accounts";
+import { computeAllTime } from "./data";
+import { summarize } from "@/lib/splits";
 
 /*
  * A band account the label made can keep its own books as well: sales that don't go through the
@@ -170,4 +172,59 @@ export async function alreadyInLabelBooks(bandOrgId: string, dedupeKeys: string[
   }
   const names = labels.map((l) => l.labelName);
   return { found, labelName: names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` };
+}
+
+/**
+ * The label's payouts that paid a band's members, with just the band's part of each (a whole-label
+ * payout pays other bands too): for a band account the label made, beside its own payouts.
+ */
+export async function labelPayoutsFor(labelOrgId: string, bandId: number) {
+  const periodRows = await db
+    .select()
+    .from(schema.periods)
+    .where(and(eq(schema.periods.orgId, labelOrgId), or(eq(schema.periods.bandId, bandId), isNull(schema.periods.bandId))))
+    .orderBy(desc(schema.periods.startDate));
+  const payoutRows = periodRows.length
+    ? await db
+        .select()
+        .from(schema.payouts)
+        .where(and(eq(schema.payouts.orgId, labelOrgId), inArray(schema.payouts.periodId, periodRows.map((p) => p.id))))
+    : [];
+  return periodRows
+    .map((period) => {
+      const byCurrency = new Map<string, { total: number; paid: number }>();
+      for (const p of payoutRows) {
+        const cents = p.periodId === period.id ? (p.byBand[String(bandId)] ?? 0) : 0;
+        if (!cents) continue;
+        const e = byCurrency.get(p.currency) ?? { total: 0, paid: 0 };
+        e.total += cents;
+        if (p.status !== "pending") e.paid += cents;
+        byCurrency.set(p.currency, e);
+      }
+      return { period, byCurrency };
+    })
+    .filter((r) => r.byCurrency.size > 0);
+}
+
+/**
+ * What the label has for one of its bands, all-time: its sales' split (this band's only), what its
+ * band fund paid for, and the payouts that paid its members. For the band account's dashboard.
+ */
+export async function labelPartFor(labelOrgId: string, bandId: number) {
+  const [{ results }, fundsSpent, payouts] = await Promise.all([
+    computeAllTime(labelOrgId),
+    db
+      .select({ currency: schema.expenses.currency, amountCents: schema.expenses.amountCents })
+      .from(schema.expenses)
+      .where(
+        and(
+          eq(schema.expenses.orgId, labelOrgId),
+          eq(schema.expenses.bandId, bandId),
+          eq(schema.expenses.status, "approved"),
+          eq(schema.expenses.paidBy, "band_fund"),
+        ),
+      ),
+    labelPayoutsFor(labelOrgId, bandId),
+  ]);
+  return { summary: summarize(results.filter((r) => r.bandId === bandId)), fundsSpent, payouts };
 }

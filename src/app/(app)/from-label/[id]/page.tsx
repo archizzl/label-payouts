@@ -1,17 +1,14 @@
 import { and, eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
-import { BooksSwitch } from "@/components/books-switch";
-import { getContext } from "@/server/context";
 import { ExpenseTable, expenseTotals } from "@/components/receipts";
 import { SalesSection } from "@/components/sales-section";
-import { BandPayouts, BandPayoutTotals } from "@/components/band-payouts";
-import { Callout, Card, Money, MoneyList, PageHeader } from "@/components/ui";
+import { BandPayouts } from "@/components/band-payouts";
+import { Card, Money, MoneyList, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
 import { computePayoutPeriod, nameMaps } from "@/server/data";
 import { accountExpenses, expenseFileList } from "@/server/expenses";
 import { requireLinkedView } from "@/server/links";
-import { bandMemberChoice } from "@/server/band-member";
 import { projectsEnabled } from "@/server/features";
 import { accountProjects, projectNumbers } from "@/server/projects";
 
@@ -26,9 +23,8 @@ export default async function FromLabelPage({ params, searchParams }: PageProps<
   const linkId = Number((await params).id);
   const v = await requireLinkedView(linkId);
   const { labelOrgId, bandId } = v;
-  // Looking at its own books: their dashboard instead.
-  const ctx = v.link.managed ? await getContext() : null;
-  if (ctx?.books === "own") redirect("/");
+  // A band account the label made: its dashboard has both its own books and the label's for it.
+  if (v.link.managed) redirect("/");
   const showProjects = await projectsEnabled();
   const [names, expenses, files, labelProjects, projectTotals] = await Promise.all([
     nameMaps(labelOrgId),
@@ -38,22 +34,19 @@ export default async function FromLabelPage({ params, searchParams }: PageProps<
     showProjects ? projectNumbers(labelOrgId) : new Map<number, never>(),
   ]);
   const bandProjects = labelProjects.filter((p) => p.bandId === bandId);
-  // The label's own account for the band: one login, and whoever's using it says which member they
-  // are. A band's own account, linked: matched by its login's email.
-  const members = v.link.managed ? await bandMemberChoice() : null;
-  const mine = await myEarnings(labelOrgId, bandId, members ? { id: members.chosen?.id ?? 0 } : { email: v.ctx.user.email });
+  // A band's own account, linked: its login's earnings, matched by email.
+  const mine = await myEarnings(labelOrgId, bandId, { email: v.ctx.user.email });
   const approved = expenses.filter((e) => e.status === "approved");
 
   return (
     <>
       <PageHeader title={v.bandName} />
-      {ctx && <BooksSwitch ctx={ctx} back={{ label: `/from-label/${linkId}`, own: "/" }} />}
       {/* <Callout tone="neutral">
         This is what {v.labelName} records for {v.bandName}. Only the label can change it; ask them if something looks wrong.
       </Callout> */}
 
       {mine && (
-        <Card title={members ? `${mine.person.name}’s earnings` : "Your earnings"}>
+        <Card title="Your earnings">
           <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
             <Stat label="Waiting to be paid" totals={mine.owed} emphasis />
             <Stat label="Received so far" totals={mine.received} />
@@ -73,12 +66,7 @@ export default async function FromLabelPage({ params, searchParams }: PageProps<
         title="Sales through the label"
       />
 
-      {v.link.managed ? (
-        // A band account the label made: each member's total here; every payout is under Payouts.
-        <BandPayoutTotals labelOrgId={labelOrgId} bandId={bandId} allHref="/periods" />
-      ) : (
-        <BandPayouts labelOrgId={labelOrgId} bandId={bandId} bandName={v.bandName} statementHref={(id) => `/from-label/${linkId}/statement/${id}`} />
-      )}
+      <BandPayouts labelOrgId={labelOrgId} bandId={bandId} bandName={v.bandName} statementHref={(id) => `/from-label/${linkId}/statement/${id}`} />
 
       {bandProjects.length > 0 && (
         <Card title="Projects">
@@ -117,8 +105,6 @@ export default async function FromLabelPage({ params, searchParams }: PageProps<
         </Card>
       )}
 
-      {/* A band account the label made has its own Receipts tab. */}
-      {!v.link.managed && (
       <Card title="Receipts">
         {approved.length > 0 && (
           <p className="mb-3 text-sm text-muted">
@@ -134,7 +120,6 @@ export default async function FromLabelPage({ params, searchParams }: PageProps<
           mode="readonly"
         />
       </Card>
-      )}
     </>
   );
 }

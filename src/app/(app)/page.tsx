@@ -1,6 +1,5 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { connection } from "next/server";
 import { ChartBoard } from "@/components/chart-board";
@@ -16,19 +15,19 @@ import { STATUS_LABEL, STATUS_TONE } from "@/lib/status";
 import { outsideArtistRows } from "@/components/outside-artists";
 import { SyncFooter } from "@/components/sync-status";
 import { setSetupHidden } from "@/server/actions";
-import { getContext, requireAccess } from "@/server/context";
-import { BooksSwitch } from "@/components/books-switch";
+import { requireAccess } from "@/server/context";
 import { computeAllTime } from "@/server/data";
+import { labelPartFor } from "@/server/own-books";
+import type { PeriodSummary } from "@/lib/splits";
 
 export const metadata = { title: "dashboard" };
 
 export default async function Dashboard() {
   await connection();
-  // A band's account from its label: its home is the label's books for it (unless it's looking at its own).
-  const own = await getContext();
-  if (own.lens) redirect(`/from-label/${own.managedBy!.linkId}`);
   const ctx = await requireAccess("dashboard");
   const { orgId, isAdmin } = ctx;
+  // A band account the label made: its own books, with what the label has for its band added in.
+  const m = ctx.managedBy;
   const [bands, memberships, defaults, saleRows, periods, outside, { summary }, people, releaseRows, fundExpenses] = await Promise.all([
     db.select().from(schema.bands).where(eq(schema.bands.orgId, orgId)),
     db.select().from(schema.bandMemberships).where(eq(schema.bandMemberships.orgId, orgId)),
@@ -120,7 +119,12 @@ export default async function Dashboard() {
   const stepsLeft = steps.filter((s) => !s.done).length;
 
   // The customizable charts: net sales by band and who's owed what, with more to add.
-  const [all, owed, saved] = await Promise.all([summarizeSales(orgId, parseSalesFilter({})), owedChart(orgId), loadLayout("dashboard")]);
+  const [all, owed, saved, fromLabel] = await Promise.all([
+    summarizeSales(m ? { own: orgId, label: { orgId: m.labelOrgId, bandId: m.bandId } } : orgId, parseSalesFilter({})),
+    owedChart(orgId),
+    loadLayout("dashboard"),
+    m ? labelPartFor(m.labelOrgId, m.bandId) : null,
+  ]);
   const net = all.totals[0]?.net ?? 0;
   const typeLabel = (k: string) => ({ album: "Album", track: "Track", merch: "Merch", other: "Other" })[k] ?? k;
   const charts: BoardChart[] = [
@@ -135,6 +139,36 @@ export default async function Dashboard() {
     breakdownChart("item", "Top items", all.byItem, { currency: all.main, total: net, trend: all.trends.item }),
     breakdownChart("country", "By country", all.byCountry, { currency: all.main, total: net, trend: all.trends.country }),
   ];
+
+  // All-time, per currency: this account's own, plus (a band account the label made) the label's for its band.
+  const figures = new Map<string, { net: number; label: number; funds: number; people: number }>();
+  const addUp = (s: PeriodSummary, fundsSpent: { currency: string; amountCents: number }[]) => {
+    for (const cur of s.currencies) {
+      const c = s.byCurrency[cur];
+      const dest = (k: string) => [...c.byDestination].filter(([key]) => key === k || key.startsWith(`${k}:`)).reduce((a, [, v]) => a + v, 0);
+      const f = figures.get(cur) ?? { net: 0, label: 0, funds: 0, people: 0 };
+      f.net += c.grossCents;
+      f.label += dest("label");
+      // Band funds pay for some expenses; what's held is what went in, less what they paid for.
+      f.funds += dest("band_fund") - fundsSpent.filter((e) => e.currency === cur).reduce((a, e) => a + e.amountCents, 0);
+      f.people += [...c.byPerson.values()].reduce((a, p) => a + p.total, 0);
+      figures.set(cur, f);
+    }
+  };
+  addUp(summary, fundExpenses);
+  if (fromLabel) addUp(fromLabel.summary, fromLabel.fundsSpent);
+  // The latest payouts, the label's that paid the band's members among them.
+  const recent = [
+    ...periods.map((p) => ({ key: `own-${p.id}`, href: `/periods/${p.id}`, period: p, through: null as string | null })),
+    ...(fromLabel?.payouts ?? []).map(({ period }) => ({
+      key: `label-${period.id}`,
+      href: `/from-label/${m!.linkId}/statement/${period.id}`,
+      period,
+      through: m!.labelName,
+    })),
+  ]
+    .sort((a, b) => b.period.startDate.localeCompare(a.period.startDate))
+    .slice(0, 5);
 
   return (
     <>
@@ -152,7 +186,6 @@ export default async function Dashboard() {
         }
       />
 
-      {ctx.managedBy && <BooksSwitch ctx={ctx} back={{ label: `/from-label/${ctx.managedBy.linkId}`, own: "/" }} />}
 
       <Suspense fallback={null}>
         <OrdersNotice ctx={ctx} />
@@ -207,38 +240,33 @@ export default async function Dashboard() {
         </Card>
       )}
 
-      {summary.currencies.map((cur) => {
-        const s = summary.byCurrency[cur];
-        const dest = (k: string) => [...s.byDestination].filter(([key]) => key === k || key.startsWith(`${k}:`)).reduce((a, [, v]) => a + v, 0);
-        return (
-          <Card key={cur} title={`All-time${summary.currencies.length > 1 ? ` (${cur})` : ""}`}>
-            <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
-              <Figure label="Net sales" cents={s.grossCents} currency={cur} />
-              <Figure label="Label income" cents={dest("label")} currency={cur} />
-              <Figure
-                label="Held in band funds"
-                cents={dest("band_fund") - fundExpenses.filter((e) => e.currency === cur).reduce((a, e) => a + e.amountCents, 0)}
-                currency={cur}
-              />
-              <Figure label="Earned by people" cents={[...s.byPerson.values()].reduce((a, p) => a + p.total, 0)} currency={cur} />
-            </div>
-          </Card>
-        );
-      })}
+      {[...figures].map(([cur, f]) => (
+        <Card key={cur} title={`All-time${figures.size > 1 ? ` (${cur})` : ""}`}>
+          <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <Figure label="Net sales" cents={f.net} currency={cur} />
+            <Figure label="Label income" cents={f.label} currency={cur} />
+            <Figure label="Held in band funds" cents={f.funds} currency={cur} />
+            <Figure label="Earned by people" cents={f.people} currency={cur} />
+          </div>
+        </Card>
+      ))}
 
       <ChartBoard boardId="dashboard" charts={charts} saved={saved} />
 
       <div>
         <Card title="Recent payouts" actions={<LinkButton href="/periods" size="sm">All</LinkButton>}>
-          {periods.length === 0 ? (
+          {recent.length === 0 ? (
             <p className="text-sm text-muted">None yet.</p>
           ) : (
             <ul className="space-y-2">
-              {periods.map((p) => (
-                <li key={p.id} className="flex items-center justify-between gap-2 text-sm">
-                  <Link href={`/periods/${p.id}`} className="hover:underline">
-                    {p.name}
-                  </Link>
+              {recent.map(({ key, href, period: p, through }) => (
+                <li key={key} className="flex items-center justify-between gap-2 text-sm">
+                  <span>
+                    <Link href={href} className="hover:underline">
+                      {p.name}
+                    </Link>
+                    {through && <span className="text-muted"> · through {through}</span>}
+                  </span>
                   <Badge tone={STATUS_TONE[p.status]}>{STATUS_LABEL[p.status]}</Badge>
                 </li>
               ))}

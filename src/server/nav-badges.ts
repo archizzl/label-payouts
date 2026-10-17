@@ -3,7 +3,7 @@ import { and, count, eq, gt, inArray, sql } from "drizzle-orm";
 import { cache } from "react";
 import { db, schema } from "@/db";
 import { bandScope, can, inBandScope } from "@/lib/permissions";
-import type { Context } from "./context";
+import { type Context, ownBooksOf } from "./context";
 
 /*
  * The little numbers on the header's tabs. Orders: waiting to ship, plus pickups not handed over.
@@ -17,10 +17,12 @@ const { accountSettings, pickupOrders, sales, imports, expenses, navSeen } = sch
 
 export const navBadges = cache(async (ctx: Context): Promise<NavBadges> => {
   const { orgId, access } = ctx;
+  // A band account the label made: its sales and receipts are its own books' (its orders the label's).
+  const books = ctx.lens ? await ownBooksOf(ctx) : ctx;
   const [orders, newSales, pendingReceipts] = await Promise.all([
     can(access, "orders") ? ordersWaiting(orgId, bandScope(access, "orders")) : 0,
-    can(access, "sales") ? salesSinceSeen(ctx, bandScope(access, "sales")) : 0,
-    can(access, "receipts", "edit") ? db.$count(expenses, and(eq(expenses.orgId, orgId), eq(expenses.status, "pending"))) : 0,
+    can(books.access, "sales") ? salesSinceSeen(books, bandScope(books.access, "sales")) : 0,
+    can(books.access, "receipts", "edit") ? db.$count(expenses, and(eq(expenses.orgId, books.orgId), eq(expenses.status, "pending"))) : 0,
   ]);
   const out: NavBadges = {};
   if (orders) out.orders = orders;

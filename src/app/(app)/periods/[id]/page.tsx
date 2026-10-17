@@ -1,4 +1,4 @@
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { PayoutView } from "@/components/payout-view";
 import { requireAccess } from "@/server/context";
@@ -10,8 +10,6 @@ export const metadata = { title: "payout" };
 export default async function PeriodPage({ params }: PageProps<"/periods/[id]">) {
   await connection();
   const ctx = await requireAccess("payouts");
-  // A band's own account sees only its statement, never the whole payout.
-  if (ctx.lens) redirect(`/from-label/${ctx.managedBy!.linkId}/statement/${(await params).id}`);
   const view = await periodView(ctx.orgId, Number((await params).id));
   if (!view) notFound();
   return <PayoutView view={view} name={view.period.name} />;

@@ -256,4 +256,24 @@ describe("a label-made band account's own books", () => {
     expect((await sync.runSalesSync(labelOrgId)).inLabelBooks.count).toBe(0);
     vi.unstubAllGlobals();
   });
+
+  it("lists the label's payouts that paid the band, with just the band's part of each", async () => {
+    const { labelOrgId, band, ana, ben } = await setup();
+    const [other] = await db.insert(schema.bands).values({ orgId: labelOrgId, name: "Other Band" }).returning();
+    const [whole, otherOnly] = await db
+      .insert(schema.periods)
+      .values([
+        { orgId: labelOrgId, name: "Whole label", startDate: "2026-01-01", endDate: "2026-01-31" },
+        { orgId: labelOrgId, name: "Other band only", startDate: "2026-02-01", endDate: "2026-02-28", bandId: other.id },
+      ])
+      .returning();
+    await db.insert(schema.payouts).values([
+      { orgId: labelOrgId, periodId: whole.id, personId: ana.id, currency: "USD", amountCents: 900, byBand: { [band.id]: 500, [other.id]: 400 }, status: "paid" },
+      { orgId: labelOrgId, periodId: whole.id, personId: ben.id, currency: "USD", amountCents: 300, byBand: { [band.id]: 300 } },
+      { orgId: labelOrgId, periodId: otherOnly.id, personId: ana.id, currency: "USD", amountCents: 200, byBand: { [other.id]: 200 } },
+    ]);
+    const rows = await own.labelPayoutsFor(labelOrgId, band.id);
+    expect(rows.map((r) => r.period.name)).toEqual(["Whole label"]);
+    expect(rows[0].byCurrency.get("USD")).toEqual({ total: 800, paid: 500 });
+  });
 });

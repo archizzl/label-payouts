@@ -25,7 +25,7 @@ import { LabelFunds } from "@/components/label-funds";
 import { ExpenseForm, ExpenseTable } from "@/components/receipts";
 import { deleteBand, removeMember, saveRelease, updateMembership } from "@/server/actions";
 import { bandScope, can } from "@/lib/permissions";
-import { getContext, requireAccess } from "@/server/context";
+import { getContext, ownBooksOf, requireAccess } from "@/server/context";
 import { projectsEnabled } from "@/server/features";
 import { accountExpenses, expenseFileList } from "@/server/expenses";
 import { accountProjects, projectNumbers } from "@/server/projects";
@@ -34,7 +34,9 @@ import { bandAssociatedPeople, bandMembers, computeAllTime, labelHost, nameMaps,
 
 /** The tab's title: the band's name. */
 export async function generateMetadata({ params }: PageProps<"/bands/[id]">) {
-  const { orgId, access } = await getContext();
+  // (A band account the label made: its splits, in its own books.)
+  const lens = await getContext();
+  const { orgId, access } = lens.lens ? await ownBooksOf(lens) : lens;
   const id = Number((await params).id);
   const scope = bandScope(access, "roster");
   if (!can(access, "roster") || (scope && !scope.includes(id))) return { title: "band" };
@@ -47,9 +49,11 @@ export async function generateMetadata({ params }: PageProps<"/bands/[id]">) {
 
 export default async function BandPage({ params, searchParams }: PageProps<"/bands/[id]">) {
   await connection();
-  const ctx = await requireAccess("roster");
-  // A band's own account has its people in the Directory; the band page is the label's.
-  if (ctx.lens) redirect("/directory");
+  let ctx = await requireAccess("roster");
+  // A band account the label made: its band's page in its own books is its splits (its people are
+  // in the Directory, the label's).
+  const lens = ctx.lens;
+  if (lens) ctx = await requireAccess("rules");
   const { orgId } = ctx;
   const id = Number((await params).id);
   const sp = await searchParams;
@@ -60,14 +64,16 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
   // A band account (its own books, or a band that runs its own account): the band's settings are its Settings.
   const settingsElsewhere = ownBooks || ctx.org.kind === "band";
   if (settingsElsewhere && tab === "settings") redirect("/settings");
-  // A band that runs its own account: this page is just its splits (its "splits" tab); the rest of it
-  // is what the dashboard, Directory and Catalog already show.
-  const splitsOnly = ctx.org.kind === "band" && !ctx.managedBy;
+  // A band account: this page is just its splits (its "splits" tab); the rest of it is what the
+  // dashboard, Directory and Catalog already show.
+  const splitsOnly = ctx.org.kind === "band";
   if (splitsOnly && tab !== "money") redirect({ overview: "/", people: "/directory", catalog: "/catalog", settings: "/settings" }[tab]);
   const [band] = await db
     .select()
     .from(schema.bands)
     .where(and(eq(schema.bands.orgId, orgId), eq(schema.bands.id, id)));
+  // (One of the label's bands, from a band account the label made: its people are in the Directory.)
+  if (!band && lens) redirect("/directory");
   if (!band) notFound();
   // A band manager sees only their own bands.
   const rosterScope = bandScope(ctx.access, "roster");

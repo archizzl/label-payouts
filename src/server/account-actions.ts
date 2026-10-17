@@ -7,8 +7,8 @@ import { redirect } from "next/navigation";
 import { db, schema } from "@/db";
 import { slugify } from "@/lib/slug";
 import { auth } from "./auth";
-import { accountContext, accountsFor, BOOKS_COOKIE, type Context, getSession, ownBooksValue, realContext, requireAdmin, VIEW_AS_COOKIE } from "./context";
-import { bothBooksWarning, syncOwnPeople } from "./own-books";
+import { accountContext, accountsFor, type Context, getSession, requireAdmin, VIEW_AS_COOKIE } from "./context";
+import { bothBooksWarning } from "./own-books";
 import { AREAS, type Area, normalizeBandAreas, normalizePermissions } from "@/lib/permissions";
 import { assignMemberType, memberTypeForInvite, parseRoleChoice, setInviteMemberType, setManagedBands } from "./member-types";
 import { applyMyDetails, normalizeEmail } from "./people";
@@ -602,25 +602,3 @@ export async function changeMyPassword(_: FormState, fd: FormData): Promise<Form
   return { ok: "Password changed." };
 }
 
-// ---------- a label-made band account's own books ----------
-
-const BOOKS_COOKIE_OPTIONS = { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 400 * 24 * 60 * 60 } as const;
-
-/**
- * The switch at the top of Sales, Payouts, Receipts and the dashboard: the label's books for the band,
- * or the band's own. The cookie only counts for the account it names, with own books on (getContext),
- * so it also works for a label admin viewing as the band.
- */
-export async function switchBooks(fd: FormData) {
-  const orgId = str(fd, "orgId");
-  const own = fd.get("books") === "own";
-  const jar = await cookies();
-  if (own && orgId) {
-    jar.set(BOOKS_COOKIE, ownBooksValue(orgId), BOOKS_COOKIE_OPTIONS);
-    // Whoever joined the band in the label's books since: in its own books too.
-    const real = await realContext();
-    if (real.orgId === orgId && real.managedBy) await syncOwnPeople(orgId);
-  } else jar.delete(BOOKS_COOKIE);
-  revalidatePath("/", "layout");
-  redirect(safeNext(str(fd, own ? "back_own" : "back_label")));
-}

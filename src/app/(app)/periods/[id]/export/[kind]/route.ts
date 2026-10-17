@@ -18,8 +18,6 @@ function csvResponse(body: string, filename: string) {
 export async function GET(_req: NextRequest, ctx: RouteContext<"/periods/[id]/export/[kind]">) {
   const { id, kind } = await ctx.params;
   const access = await requireAccess("payouts");
-  // Payout files list everyone: not for a band's own account.
-  if (access.lens) return new Response("Not found", { status: 404 });
   const { orgId } = access;
   const view = await periodView(orgId, Number(id));
   if (!view) return new Response("Not found", { status: 404 });

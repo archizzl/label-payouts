@@ -197,14 +197,18 @@ export function SubmitReceiptForm({
   bands,
   projects = [],
   payers,
+  toLabel = false,
 }: {
   bands: Band[];
   projects?: ProjectOption[];
   /** A band's shared login: which of its members paid. */
   payers?: { id: number; name: string }[];
+  /** A band account the label made: sent to the label (in its books), not the band's own. */
+  toLabel?: boolean;
 }) {
   return (
     <ActionForm action={submitReceipt} className="grid gap-4 sm:grid-cols-3">
+      {toLabel && <input type="hidden" name="books" value="label" />}
       {payers && (
         <Field label="Who paid">
           <select name="paidByPersonId" required defaultValue="">
@@ -293,10 +297,11 @@ export function ExpenseTable({
   personName,
   bandName,
   projectName,
-  mode,
+  mode: tableMode,
   edit,
   userId,
   payees,
+  through,
 }: {
   rows: Expense[];
   files: Map<number, ReceiptFile[]>;
@@ -310,109 +315,119 @@ export function ExpenseTable({
   userId?: string;
   /** Admin: how each person can be paid, for one-click reimbursing. */
   payees?: Map<number, Payee>;
+  /**
+   * A band account the label made: the label's name for receipts in the label's books (sent to the
+   * label), which are the label's to approve and pay back. Its own one sent in can still be withdrawn.
+   */
+  through?: (e: Expense) => string | undefined;
 }) {
   if (!rows.length) return <Empty>No expenses yet.</Empty>;
   return (
     <ul className="divide-y divide-border border-b border-border">
-      {rows.map((e) => (
-        <li key={e.id} className="grid gap-2 py-3 sm:grid-cols-[6rem_minmax(0,1fr)_auto]">
-          <span className="text-sm text-muted">{e.date}</span>
-          <div className="min-w-0 space-y-1">
-            <div className="flex flex-wrap items-baseline gap-x-2">
-              <span className="font-medium">{e.description}</span>
-              {e.vendor && <span className="text-sm text-muted">· {e.vendor}</span>}
-              {e.category && <span className="text-sm text-muted">· {e.category}</span>}
-              {e.projectId && projectName?.(e.projectId) && (
-                <span className="text-sm text-muted">
-                  · {mode === "admin" ? <Link href={`/projects/${e.projectId}`}>{projectName(e.projectId)}</Link> : projectName(e.projectId)}
-                </span>
-              )}
-              {e.bandId && <span className="text-sm text-muted">· {bandName(e.bandId)}</span>}
-            </div>
-            <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
-              <Badge tone={STATUS[e.status].tone}>{STATUS[e.status].label}</Badge>
-              <span>{coverageText(e, personName)}</span>
-              {owedReimbursement(e) && <Badge tone="warn">not reimbursed yet</Badge>}
-              {e.reimbursedAt && (
-                <Badge tone="good">
-                  reimbursed {e.reimbursedAt.slice(0, 10)}
-                  {e.reimbursedMethod ? ` via ${e.reimbursedMethod}` : ""}
-                </Badge>
-              )}
-              {e.reviewNote && <span>“{e.reviewNote}”</span>}
-            </div>
-            <Files files={files.get(e.id) ?? []} admin={mode === "admin"} removedAt={e.filesRemovedAt} />
-
-            {mode === "admin" && e.status === "pending" && (
-              <form action={reviewExpense} className="flex flex-wrap items-center gap-2 pt-1">
-                <input type="hidden" name="id" value={e.id} />
-                <label className="flex items-center gap-1.5 text-sm">
-                  <input type="checkbox" name="recoup" disabled={!e.bandId} />{" "}
-                  {e.bandId ? `pay it back from ${bandName(e.bandId)}’s sales` : "pay it back from sales (needs a band: edit it to choose one)"}
-                </label>
-                <input name="note" placeholder="Note (optional)" className="!w-48 !py-1 !text-xs" />
-                <SubmitButton size="sm" name="decision" value="approve">
-                  Approve
-                </SubmitButton>
-                <SubmitButton size="sm" variant="ghost" name="decision" value="reject" confirm={`Reject “${e.description}”? Add a note first if you want to say why.`}>
-                  Reject
-                </SubmitButton>
-              </form>
-            )}
-            {mode === "admin" && e.status === "approved" && e.paidBy === "person" && !e.recoup && (
-              <form action={setReimbursed} className="flex flex-wrap items-center gap-2 pt-1">
-                <input type="hidden" name="id" value={e.id} />
-                <input type="hidden" name="reimbursed" value={e.reimbursedAt ? "false" : "true"} />
-                {e.reimbursedAt ? (
-                  <SubmitButton size="sm" variant="ghost">
-                    Undo reimbursed
-                  </SubmitButton>
-                ) : (
-                  <>
-                    <ReimburseButtons
-                      payee={
-                        (e.paidByPersonId && payees?.get(e.paidByPersonId)) || {
-                          id: e.paidByPersonId ?? 0,
-                          name: personName(e.paidByPersonId ?? 0) ?? "them",
-                          paypalMe: null,
-                          venmo: null,
-                          cashtag: null,
-                        }
-                      }
-                      amountCents={e.amountCents}
-                      currency={e.currency}
-                      note={`Reimbursement: ${e.description}`}
-                    />
-                    <input name="reference" placeholder="Transaction ID (optional)" className="!w-44 !py-1 !text-xs" />
-                  </>
+      {rows.map((e) => {
+        const label = through?.(e);
+        const mode = label ? "member" : tableMode;
+        return (
+          <li key={e.id} className="grid gap-2 py-3 sm:grid-cols-[6rem_minmax(0,1fr)_auto]">
+            <span className="text-sm text-muted">{e.date}</span>
+            <div className="min-w-0 space-y-1">
+              <div className="flex flex-wrap items-baseline gap-x-2">
+                <span className="font-medium">{e.description}</span>
+                {e.vendor && <span className="text-sm text-muted">· {e.vendor}</span>}
+                {e.category && <span className="text-sm text-muted">· {e.category}</span>}
+                {e.projectId && projectName?.(e.projectId) && (
+                  <span className="text-sm text-muted">
+                    · {mode === "admin" ? <Link href={`/projects/${e.projectId}`}>{projectName(e.projectId)}</Link> : projectName(e.projectId)}
+                  </span>
                 )}
-              </form>
-            )}
-            {mode === "admin" && edit && (
-              <div className="flex flex-wrap items-start gap-2 pt-1">
-                <Disclosure summary="Edit">{edit(e)}</Disclosure>
-                <form action={deleteExpense}>
+                {e.bandId && <span className="text-sm text-muted">· {bandName(e.bandId)}</span>}
+                {label && <span className="text-sm text-muted">· through {label}</span>}
+              </div>
+              <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
+                <Badge tone={STATUS[e.status].tone}>{STATUS[e.status].label}</Badge>
+                <span>{coverageText(e, personName)}</span>
+                {owedReimbursement(e) && <Badge tone="warn">not reimbursed yet</Badge>}
+                {e.reimbursedAt && (
+                  <Badge tone="good">
+                    reimbursed {e.reimbursedAt.slice(0, 10)}
+                    {e.reimbursedMethod ? ` via ${e.reimbursedMethod}` : ""}
+                  </Badge>
+                )}
+                {e.reviewNote && <span>“{e.reviewNote}”</span>}
+              </div>
+              <Files files={files.get(e.id) ?? []} admin={mode === "admin"} removedAt={e.filesRemovedAt} />
+
+              {mode === "admin" && e.status === "pending" && (
+                <form action={reviewExpense} className="flex flex-wrap items-center gap-2 pt-1">
                   <input type="hidden" name="id" value={e.id} />
-                  <SubmitButton size="sm" variant="ghost" confirm={`Delete “${e.description}” and its receipts?`}>
-                    Delete
+                  <label className="flex items-center gap-1.5 text-sm">
+                    <input type="checkbox" name="recoup" disabled={!e.bandId} />{" "}
+                    {e.bandId ? `pay it back from ${bandName(e.bandId)}’s sales` : "pay it back from sales (needs a band: edit it to choose one)"}
+                  </label>
+                  <input name="note" placeholder="Note (optional)" className="!w-48 !py-1 !text-xs" />
+                  <SubmitButton size="sm" name="decision" value="approve">
+                    Approve
+                  </SubmitButton>
+                  <SubmitButton size="sm" variant="ghost" name="decision" value="reject" confirm={`Reject “${e.description}”? Add a note first if you want to say why.`}>
+                    Reject
                   </SubmitButton>
                 </form>
-              </div>
-            )}
-            {mode === "member" && e.status === "pending" && e.submittedByUserId === userId && (
-              <form action={deleteExpense}>
-                <input type="hidden" name="id" value={e.id} />
-                <SubmitButton size="sm" variant="ghost" confirm="Withdraw this receipt?">
-                  Withdraw
-                </SubmitButton>
-              </form>
-            )}
-          </div>
-          <span className="text-right font-medium tabular-nums">
-            <Money cents={e.amountCents} currency={e.currency} />
-          </span>
-        </li>
-      ))}
+              )}
+              {mode === "admin" && e.status === "approved" && e.paidBy === "person" && !e.recoup && (
+                <form action={setReimbursed} className="flex flex-wrap items-center gap-2 pt-1">
+                  <input type="hidden" name="id" value={e.id} />
+                  <input type="hidden" name="reimbursed" value={e.reimbursedAt ? "false" : "true"} />
+                  {e.reimbursedAt ? (
+                    <SubmitButton size="sm" variant="ghost">
+                      Undo reimbursed
+                    </SubmitButton>
+                  ) : (
+                    <>
+                      <ReimburseButtons
+                        payee={
+                          (e.paidByPersonId && payees?.get(e.paidByPersonId)) || {
+                            id: e.paidByPersonId ?? 0,
+                            name: personName(e.paidByPersonId ?? 0) ?? "them",
+                            paypalMe: null,
+                            venmo: null,
+                            cashtag: null,
+                          }
+                        }
+                        amountCents={e.amountCents}
+                        currency={e.currency}
+                        note={`Reimbursement: ${e.description}`}
+                      />
+                      <input name="reference" placeholder="Transaction ID (optional)" className="!w-44 !py-1 !text-xs" />
+                    </>
+                  )}
+                </form>
+              )}
+              {mode === "admin" && edit && (
+                <div className="flex flex-wrap items-start gap-2 pt-1">
+                  <Disclosure summary="Edit">{edit(e)}</Disclosure>
+                  <form action={deleteExpense}>
+                    <input type="hidden" name="id" value={e.id} />
+                    <SubmitButton size="sm" variant="ghost" confirm={`Delete “${e.description}” and its receipts?`}>
+                      Delete
+                    </SubmitButton>
+                  </form>
+                </div>
+              )}
+              {mode === "member" && e.status === "pending" && e.submittedByUserId === userId && (
+                <form action={deleteExpense}>
+                  <input type="hidden" name="id" value={e.id} />
+                  <SubmitButton size="sm" variant="ghost" confirm="Withdraw this receipt?">
+                    Withdraw
+                  </SubmitButton>
+                </form>
+              )}
+            </div>
+            <span className="text-right font-medium tabular-nums">
+              <Money cents={e.amountCents} currency={e.currency} />
+            </span>
+          </li>
+        );
+      })}
     </ul>
   );
 }

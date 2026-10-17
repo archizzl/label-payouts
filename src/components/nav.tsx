@@ -31,18 +31,20 @@ function itemsFor(
   managed: string | null,
   bandHref: string | null,
   hideOrders: boolean,
-  ownBooks: boolean,
 ): Item[] {
-  // A label's sub-account for one of its bands: the label's books, just for the band, and its settings.
+  // A band account the label made: its own books with the label's part for it (dashboard, sales,
+  // payouts, receipts, splits), its part of the label's (orders, inventory, funds, catalog,
+  // Directory), and its settings.
   if (managed) {
     return [
-      { href: managed, label: "dashboard" },
+      isAdmin ? { href: "/", label: "dashboard" } : { href: "/me", label: "my earnings" },
       { href: "/sales", label: "sales" },
       ...(hideOrders ? [] : [{ href: "/orders", label: "orders" }]),
       { href: "/inventory", label: "inventory" },
       { href: "/periods", label: "payouts" },
       { href: "/funds", label: "funds" },
       { href: "/receipts", label: "receipts" },
+      ...(isAdmin && bandHref ? [{ href: `${bandHref}?tab=money`, label: "splits" }] : []),
       { href: "/catalog", label: "catalog" },
       { href: "/directory", label: "directory" },
       // The band's own login runs it (who signs in); everyone has their own account.
@@ -61,8 +63,7 @@ function itemsFor(
     // A band account: its splits (the money part of its band's page; everything else there is in
     // the other tabs). A label's are under Rules.
     ...(account.kind === "band" && bandHref ? [{ href: `${bandHref}?tab=money`, label: "splits", area: "rules" as const }] : []),
-    // A band account the label made, in its own books: its people are the label's band's, so they're in the Directory there.
-    ...(ownBooks ? [] : [{ href: "/directory", label: "directory", area: "roster" as const }]),
+    { href: "/directory", label: "directory", area: "roster" },
     // { href: "/fans", label: "fans", area: "fans" },
     { href: "/catalog", label: "catalog", area: "catalog" },
     ...(account.kind === "band" ? [] : [{ href: "/rules", label: "rules", area: "rules" as const }]),
@@ -124,7 +125,6 @@ export function Nav({
   viewing = false,
   bandHref = null,
   hideOrders = false,
-  ownBooks = false,
 }: {
   user: { name: string; email: string };
   account: Account;
@@ -144,14 +144,12 @@ export function Nav({
   projects?: boolean;
   /** Link to the admin dashboard (site admins; not on the live site, where it has its own address). */
   showAdminLink?: boolean;
-  /** A band account a label made for one of its bands: its home page (the label's books for it). */
+  /** A band account a label made for one of its bands: its home page. */
   managed?: string | null;
   /** A label admin viewing as someone else: no switching accounts or signing out from here. */
   viewing?: boolean;
   /** A band account's own band page. */
   bandHref?: string | null;
-  /** A band account the label made, looking at its own books. */
-  ownBooks?: boolean;
   /** No Bandcamp API access or pickups yet: the Orders tab would only say how to connect. */
   hideOrders?: boolean;
 }) {
@@ -165,7 +163,7 @@ export function Nav({
     if (key === "sales" && seenSales) return 0;
     return badges[key] ?? 0;
   };
-  const items = [...itemsFor(account, isAdmin, areas, labels, projects, managed, bandHref, hideOrders, ownBooks), ...(siteAdmin && showAdminLink && !viewing ? [{ href: "/admin", label: "admin" }] : [])];
+  const items = [...itemsFor(account, isAdmin, areas, labels, projects, managed, bandHref, hideOrders), ...(siteAdmin && showAdminLink && !viewing ? [{ href: "/admin", label: "admin" }] : [])];
   return (
     <header className="no-print border-b border-border bg-surface">
       <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 pt-4 pb-3 md:px-8">

@@ -4,7 +4,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db, schema } from "@/db";
 import { parseCents } from "@/lib/money";
-import { getContext, requireAccess } from "./context";
+import { getContext, ownBooksOf, requireAccess } from "./context";
 import { bandScope, can, inBandScope } from "@/lib/permissions";
 import type { Context } from "./context";
 import { readReceiptFiles as readFiles, recoupBands, recoupStartFor } from "./expenses";
@@ -152,7 +152,9 @@ export async function saveExpense(_: ExpenseState, fd: FormData): Promise<Expens
 
 /** Member: submit a receipt for something you paid for. An admin approves it before it counts. */
 export async function submitReceipt(_: ExpenseState, fd: FormData): Promise<ExpenseState> {
-  const ctx = await getContext();
+  // A band account the label made: to the label (its part of the label's books), or its own books.
+  const lens = await getContext();
+  const ctx = lens.lens && fd.get("books") !== "label" ? await ownBooksOf(lens) : lens;
   const { orgId } = ctx;
   // Who paid: whoever's signed in; on a band's shared login, the member they pick (in that band).
   let person = ctx.person;
@@ -289,11 +291,20 @@ export async function setReimbursed(fd: FormData) {
 
 /** Admins (and members who can change receipts) can delete any expense; members can withdraw their own while it's still pending. */
 export async function deleteExpense(fd: FormData) {
-  const ctx = await getContext();
-  const [e] = await db
-    .select()
-    .from(expenses)
-    .where(and(eq(expenses.orgId, ctx.orgId), eq(expenses.id, Number(str(fd, "id")))));
+  // A band account the label made: one in its own books, or one it sent the label.
+  const lens = await getContext();
+  let ctx = lens;
+  let e: typeof expenses.$inferSelect | undefined;
+  for (const c of lens.lens ? [await ownBooksOf(lens), lens] : [lens]) {
+    [e] = await db
+      .select()
+      .from(expenses)
+      .where(and(eq(expenses.orgId, c.orgId), eq(expenses.id, Number(str(fd, "id")))));
+    if (e) {
+      ctx = c;
+      break;
+    }
+  }
   if (!e) return;
   const ownPending = e.status === "pending" && e.submittedByUserId === ctx.user.id;
   if (!can(ctx.access, "receipts", "edit") && !ownPending) throw new Error("Only admins can delete this.");

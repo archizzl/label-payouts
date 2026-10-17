@@ -12,27 +12,18 @@ import { STATUS_LABEL, STATUS_TONE } from "@/lib/status";
 import { previewPayout } from "@/server/actions";
 import { bandcampCredentials } from "@/server/bandcamp-api";
 import { requireAccess } from "@/server/context";
-import { BooksSwitch } from "@/components/books-switch";
-import { BandPayouts } from "@/components/band-payouts";
+import { labelPayoutsFor, syncOwnPeople } from "@/server/own-books";
 
 export const metadata = { title: "payouts" };
 
 export default async function PeriodsPage({ searchParams }: PageProps<"/periods">) {
   await connection();
   const ctx = await requireAccess("payouts");
-  // A band's own account: just its part of the label's payouts.
-  if (ctx.lens) {
-    const m = ctx.managedBy!;
-    return (
-      <>
-        <PageHeader title="Payouts" />
-        <BooksSwitch ctx={ctx} back="/periods" />
-        <BandPayouts labelOrgId={ctx.orgId} bandId={m.bandId} bandName={ctx.org.name} statementHref={(id) => `/from-label/${m.linkId}/statement/${id}`} />
-      </>
-    );
-  }
   const { orgId } = ctx;
-  const [periods, payouts, bands, [salesRange], creds] = await Promise.all([
+  // A band account the label made: its own payouts, and the label's that paid its members.
+  const m = ctx.managedBy;
+  if (m) await syncOwnPeople(orgId);
+  const [periods, payouts, bands, [salesRange], creds, fromLabel] = await Promise.all([
     db.select().from(schema.periods).where(eq(schema.periods.orgId, orgId)).orderBy(desc(schema.periods.startDate)),
     db.select().from(schema.payouts).where(eq(schema.payouts.orgId, orgId)),
     db.select().from(schema.bands).where(eq(schema.bands.orgId, orgId)).orderBy(asc(schema.bands.name)),
@@ -41,6 +32,7 @@ export default async function PeriodsPage({ searchParams }: PageProps<"/periods"
       .from(schema.sales)
       .where(eq(schema.sales.orgId, orgId)),
     bandcampCredentials(orgId),
+    m ? labelPayoutsFor(m.labelOrgId, m.bandId) : [],
   ]);
   const [owed, owedLayout] = await Promise.all([owedChart(orgId), loadLayout("payouts")]);
   const bandName = new Map(bands.map((b) => [b.id, b.name]));
@@ -87,10 +79,31 @@ export default async function PeriodsPage({ searchParams }: PageProps<"/periods"
   // (If the last payout already runs past today, start and end on its last day.)
   const defaultEnd = defaultStart > today ? defaultStart : today;
 
+  // Every finalized payout, newest first: this account's own, and (a band account the label made) the label's that paid its members.
+  const totalsOf = (periodId: number) => {
+    const byCurrency = new Map<string, { total: number; paid: number }>();
+    for (const x of payouts.filter((x) => x.periodId === periodId)) {
+      const e = byCurrency.get(x.currency) ?? { total: 0, paid: 0 };
+      e.total += x.amountCents;
+      if (x.status !== "pending") e.paid += x.amountCents;
+      byCurrency.set(x.currency, e);
+    }
+    return byCurrency;
+  };
+  const rows = [
+    ...periods.map((p) => ({ key: `own-${p.id}`, href: `/periods/${p.id}`, period: p, byCurrency: totalsOf(p.id), through: null as string | null })),
+    ...fromLabel.map(({ period, byCurrency }) => ({
+      key: `label-${period.id}`,
+      href: `/from-label/${m!.linkId}/statement/${period.id}`,
+      period,
+      byCurrency,
+      through: m!.labelName,
+    })),
+  ].sort((a, b) => b.period.startDate.localeCompare(a.period.startDate));
+
   return (
     <>
       <PageHeader title="Payouts" />
-      <BooksSwitch ctx={ctx} back="/periods" />
       {!salesRange?.first && (
         <Callout tone="neutral">
           No sales imported yet. <Link href="/sales/import">Import a Bandcamp sales report</Link> first, then create a payout for it.
@@ -99,22 +112,25 @@ export default async function PeriodsPage({ searchParams }: PageProps<"/periods"
       <ChartBoard boardId="payouts" charts={[owed]} saved={owedLayout} />
 
       <Card title="New payout">
-        <nav className="mb-4 flex flex-wrap gap-x-5 gap-y-2 text-sm" aria-label="Who to pay">
-          <span className="text-muted">pay:</span>
-          {[{ id: null as number | null, name: "whole label" }, ...bands.map((b) => ({ id: b.id as number | null, name: b.name }))].map((o) => {
-            const on = (forBand?.id ?? null) === o.id;
-            return (
-              <Link
-                key={o.id ?? "all"}
-                href={o.id ? `/periods?band=${o.id}` : "/periods"}
-                scroll={false}
-                className={`border-b-2 pb-0.5 hover:no-underline ${on ? "border-accent font-bold text-text" : "border-transparent text-muted hover:text-text"}`}
-              >
-                {o.name}
-              </Link>
-            );
-          })}
-        </nav>
+        {/* A band account has one band: nothing to choose. */}
+        {ctx.org.kind === "label" && (
+          <nav className="mb-4 flex flex-wrap gap-x-5 gap-y-2 text-sm" aria-label="Who to pay">
+            <span className="text-muted">pay:</span>
+            {[{ id: null as number | null, name: "whole label" }, ...bands.map((b) => ({ id: b.id as number | null, name: b.name }))].map((o) => {
+              const on = (forBand?.id ?? null) === o.id;
+              return (
+                <Link
+                  key={o.id ?? "all"}
+                  href={o.id ? `/periods?band=${o.id}` : "/periods"}
+                  scroll={false}
+                  className={`border-b-2 pb-0.5 hover:no-underline ${on ? "border-accent font-bold text-text" : "border-transparent text-muted hover:text-text"}`}
+                >
+                  {o.name}
+                </Link>
+              );
+            })}
+          </nav>
+        )}
         <ActionForm action={previewPayout} className="grid gap-4 sm:grid-cols-4">
           {forBand && <input type="hidden" name="bandId" value={forBand.id} />}
           <Field label="Name (optional)">
@@ -146,7 +162,7 @@ export default async function PeriodsPage({ searchParams }: PageProps<"/periods"
 
 
       <Card title="Finalized payouts">
-        {periods.length === 0 ? (
+        {rows.length === 0 ? (
           <Empty>No finalized payouts yet.</Empty>
         ) : (
           <table className="data">
@@ -161,46 +177,46 @@ export default async function PeriodsPage({ searchParams }: PageProps<"/periods"
               </tr>
             </thead>
             <tbody>
-              {periods.map((p) => {
-                const mine = payouts.filter((x) => x.periodId === p.id);
-                const byCur = new Map<string, { total: number; paid: number }>();
-                for (const x of mine) {
-                  const e = byCur.get(x.currency) ?? { total: 0, paid: 0 };
-                  e.total += x.amountCents;
-                  if (x.status !== "pending") e.paid += x.amountCents;
-                  byCur.set(x.currency, e);
-                }
-                return (
-                  <tr key={p.id}>
-                    <td>
-                      <Link href={`/periods/${p.id}`} className="font-medium hover:underline">
-                        {p.name}
-                      </Link>
-                    </td>
-                    <td className="text-sm">{p.bandId ? bandName.get(p.bandId) : <span className="text-muted">whole label</span>}</td>
-                    <td className="text-muted">
-                      {p.startDate} → {p.endDate}
-                    </td>
-                    <td>
-                      <Badge tone={STATUS_TONE[p.status]}>{STATUS_LABEL[p.status]}</Badge>
-                    </td>
-                    <td className="num">
-                      {[...byCur].map(([c, v]) => (
-                        <div key={c}>
-                          <Money cents={v.total} currency={c} />
-                        </div>
-                      ))}
-                    </td>
-                    <td className="num">
-                      {[...byCur].map(([c, v]) => (
-                        <div key={c}>
-                          <Money cents={v.paid} currency={c} />
-                        </div>
-                      ))}
-                    </td>
-                  </tr>
-                );
-              })}
+              {rows.map(({ key, href, period: p, byCurrency, through }) => (
+                <tr key={key}>
+                  <td>
+                    <Link href={href} className="font-medium hover:underline">
+                      {p.name}
+                    </Link>
+                  </td>
+                  <td className="text-sm">
+                    {through ? (
+                      <span className="text-muted">through {through}</span>
+                    ) : p.bandId ? (
+                      bandName.get(p.bandId)
+                    ) : ctx.org.kind === "band" ? (
+                      ctx.org.name
+                    ) : (
+                      <span className="text-muted">whole label</span>
+                    )}
+                  </td>
+                  <td className="text-muted">
+                    {p.startDate} → {p.endDate}
+                  </td>
+                  <td>
+                    <Badge tone={STATUS_TONE[p.status]}>{STATUS_LABEL[p.status]}</Badge>
+                  </td>
+                  <td className="num">
+                    {[...byCurrency].map(([c, v]) => (
+                      <div key={c}>
+                        <Money cents={v.total} currency={c} />
+                      </div>
+                    ))}
+                  </td>
+                  <td className="num">
+                    {[...byCurrency].map(([c, v]) => (
+                      <div key={c}>
+                        <Money cents={v.paid} currency={c} />
+                      </div>
+                    ))}
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         )}

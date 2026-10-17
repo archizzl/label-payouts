@@ -6,11 +6,10 @@ import { ExpenseTable, SubmitReceiptForm } from "@/components/receipts";
 import { Badge, Callout, Card, Disclosure, Empty, Money, MoneyList, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
 import { linkMyself } from "@/server/account-actions";
-import { redirect } from "next/navigation";
-import { getContext } from "@/server/context";
-import { BooksSwitch } from "@/components/books-switch";
+import { type Context, getContext, ownBooksOf } from "@/server/context";
 import { projectsEnabled } from "@/server/features";
-import { computePayoutPeriod, nameMaps } from "@/server/data";
+import { computePayoutPeriod, nameMaps, ownBand } from "@/server/data";
+import { addTotals, earningsIn } from "@/server/earnings";
 import { expenseFileList } from "@/server/expenses";
 import { accountProjects } from "@/server/projects";
 
@@ -29,8 +28,8 @@ const STATUS = {
 export default async function MyEarningsPage({ searchParams }: PageProps<"/me">) {
   await connection();
   const ctx = await getContext();
-  // A band's own account: its home shows the member's earnings.
-  if (ctx.lens) redirect(`/from-label/${ctx.managedBy!.linkId}`);
+  // A band account the label made: from the label and from the band's own books, together.
+  if (ctx.managedBy) return <BandAccountEarnings ctx={ctx} range={(await searchParams).range as string | undefined} />;
   const { orgId, person } = ctx;
 
   if (!person) {
@@ -104,7 +103,6 @@ export default async function MyEarningsPage({ searchParams }: PageProps<"/me">)
   return (
     <>
       <PageHeader title="My earnings" subtitle={`${person.name} · ${ctx.org.name}`} />
-      {ctx.managedBy && <BooksSwitch ctx={ctx} back={{ label: `/from-label/${ctx.managedBy.linkId}`, own: "/me" }} />}
 
       <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Stat label="Waiting to be paid" totals={owed} emphasis />
@@ -198,6 +196,138 @@ export default async function MyEarningsPage({ searchParams }: PageProps<"/me">)
       {myBands.map(({ band }) => (
         <SalesSection key={band.id} boardId="member-sales" scope={{ bandId: band.id }} range={range} basePath="/me" readOnly hideMoneyWent title={`${band.name} sales`} />
       ))}
+    </>
+  );
+}
+
+/**
+ * A member of a band account the label made: their earnings from the label (just this band's part)
+ * and from the band's own books, in one place, with the label's marked "through {label}".
+ */
+async function BandAccountEarnings({ ctx, range }: { ctx: Context; range?: string }) {
+  const m = ctx.managedBy!;
+  const own = await ownBooksOf(ctx);
+  // Who they are in each set of books (a member's own account; the band's shared one is nobody).
+  const labelPerson = ctx.person;
+  const ownPerson = own.person;
+  if (!labelPerson && !ownPerson) {
+    return (
+      <>
+        <PageHeader title="My earnings" />
+        <Card>
+          <p className="text-sm text-muted">Your account isn’t linked to anyone who gets paid in {ctx.org.name} yet.</p>
+        </Card>
+      </>
+    );
+  }
+  const projectsOn = await projectsEnabled();
+  const [fromLabel, fromOwn, labelNames, ownNames, labelExpenses, ownExpenses, labelFiles, ownFiles, labelProjects, ownProjects, band] = await Promise.all([
+    labelPerson ? earningsIn(m.labelOrgId, labelPerson.id, m.bandId) : null,
+    ownPerson ? earningsIn(own.orgId, ownPerson.id) : null,
+    nameMaps(m.labelOrgId),
+    nameMaps(own.orgId),
+    db.select().from(schema.expenses).where(and(eq(schema.expenses.orgId, m.labelOrgId), eq(schema.expenses.bandId, m.bandId))).orderBy(desc(schema.expenses.date)),
+    db.select().from(schema.expenses).where(eq(schema.expenses.orgId, own.orgId)).orderBy(desc(schema.expenses.date)),
+    expenseFileList(m.labelOrgId),
+    expenseFileList(own.orgId),
+    projectsOn ? accountProjects(m.labelOrgId) : [],
+    projectsOn ? accountProjects(own.orgId) : [],
+    ownBand(own.orgId),
+  ]);
+  const none = { lines: [], owed: new Map(), received: new Map(), upcoming: [] };
+  const l = fromLabel ?? none;
+  const o = fromOwn ?? none;
+  const upcoming = addTotals(new Map(l.upcoming.map((u) => [u.cur, u.line.total])), new Map(o.upcoming.map((u) => [u.cur, u.line.total])));
+  const payouts = [
+    ...l.lines.map((x) => ({ ...x, through: m.labelName as string | null })),
+    ...o.lines.map((x) => ({ ...x, through: null as string | null })),
+  ].sort((a, b) => b.period.endDate.localeCompare(a.period.endDate));
+  // Their receipts: ones they sent in, or paid for.
+  const mine = (e: typeof ownExpenses[number], person: typeof ownPerson) => e.submittedByUserId === ctx.user.id || (!!person && e.paidByPersonId === person.id);
+  const receipts = [...ownExpenses.filter((e) => mine(e, ownPerson)), ...labelExpenses.filter((e) => mine(e, labelPerson))].sort(
+    (a, b) => b.date.localeCompare(a.date) || b.id - a.id,
+  );
+  const name = (labelPerson ?? ownPerson)!.name;
+
+  return (
+    <>
+      <PageHeader title="My earnings" subtitle={`${name} · ${ctx.org.name}`} />
+
+      <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <Stat label="Waiting to be paid" totals={addTotals(l.owed, o.owed)} emphasis />
+        <Stat label="Received so far" totals={addTotals(l.received, o.received)} />
+        <Stat label="Earned since the last payout" totals={upcoming} />
+      </div>
+
+      <Card title="Payouts">
+        {payouts.length === 0 ? (
+          <Empty>No payouts yet.</Empty>
+        ) : (
+          <table className="data">
+            <thead>
+              <tr>
+                <th>Payout</th>
+                <th>From</th>
+                <th className="num">Amount</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {payouts.map(({ payout, period, cents, through }) => (
+                <tr key={payout.id}>
+                  <td>
+                    <div className="font-medium">{period.name}</div>
+                    <div className="text-xs text-muted">
+                      {period.startDate} → {period.endDate}
+                    </div>
+                  </td>
+                  <td className="text-xs">{through ? `through ${through}` : ctx.org.name}</td>
+                  <td className="num font-medium">
+                    <Money cents={cents} currency={payout.currency} />
+                  </td>
+                  <td>
+                    <Badge tone={STATUS[payout.status].tone}>{STATUS[payout.status].label}</Badge>
+                    {payout.paidAt && payout.status === "paid" && <div className="mt-1 text-xs text-muted">{payout.paidAt.slice(0, 10)}</div>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </Card>
+
+      <Card title="My receipts">
+        {ownPerson && band && (
+          <div className="mb-4">
+            <Disclosure summary="+ Submit a receipt">
+              <SubmitReceiptForm bands={[band]} projects={ownProjects.filter((p) => p.status !== "done")} />
+            </Disclosure>
+          </div>
+        )}
+        {labelPerson && (
+          <div className="mb-4">
+            <Disclosure summary={`+ Send a receipt to ${m.labelName}`}>
+              <SubmitReceiptForm
+                toLabel
+                bands={[{ id: m.bandId, name: ctx.org.name }]}
+                projects={labelProjects.filter((p) => p.bandId === m.bandId && p.status !== "done")}
+              />
+            </Disclosure>
+          </div>
+        )}
+        <ExpenseTable
+          rows={receipts}
+          files={new Map([...ownFiles, ...labelFiles])}
+          personName={(id) => (id === labelPerson?.id || id === ownPerson?.id ? "you" : (labelNames.person.get(id) ?? ownNames.person.get(id)))}
+          bandName={() => ctx.org.name}
+          mode="member"
+          userId={ctx.user.id}
+          through={(e) => (e.orgId === m.labelOrgId ? m.labelName : undefined)}
+        />
+      </Card>
+
+      {band && <SalesSection boardId="member-sales" orgId={own.orgId} scope={{ bandId: band.id }} range={range} basePath="/me" readOnly hideMoneyWent title={`${ctx.org.name} sales`} />}
+      <SalesSection boardId="label-sales" orgId={m.labelOrgId} scope={{ bandId: m.bandId }} range={range} basePath="/me" readOnly hideMoneyWent title={`Sales through ${m.labelName}`} />
     </>
   );
 }

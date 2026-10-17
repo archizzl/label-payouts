@@ -18,13 +18,15 @@ import { isSiteAdminEmail } from "@/server/site-admin";
 /** Everything you see once signed in: the nav (with your accounts), then the page. */
 export default async function AppLayout({ children }: LayoutProps<"/">) {
   const ctx = await getContext();
+  // What syncs with Bandcamp: the account's own books (for a band account the label made too).
+  const syncOrgId = ctx.managedBy ? ctx.org.id : ctx.orgId;
   const [labels, sync, badges, projects, band, orders] = await Promise.all([
-    // A band account's admins see each label it's linked to (one the label made has the books switch instead).
+    // A band account's admins see each label it's linked to (one the label made has it all on its own pages).
     ctx.isAdmin && ctx.org.kind === "band" && !ctx.managedBy ? labelsForBandAccount(ctx.orgId) : [],
-    syncStatus(ctx.orgId),
+    syncStatus(syncOrgId),
     ctx.viewingAs ? {} : navBadges(ctx),
     projectsEnabled(),
-    ctx.org.kind === "band" && !ctx.lens ? ownBand(ctx.orgId) : null,
+    ctx.org.kind === "band" ? ownBand(ctx.org.id) : null,
     ordersInUse(ctx.orgId),
   ]);
 
@@ -33,7 +35,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
   // background work about 30 seconds after the response, which cut these syncs off halfway.
   const due = !onCloudflare && !!sync?.due && !ctx.viewingAs;
   if (due) {
-    const orgId = ctx.orgId;
+    const orgId = syncOrgId;
     after(() =>
       syncAccount(orgId).catch((e) => {
         console.error(`Background Bandcamp sync failed for ${orgId}:`, e);
@@ -47,8 +49,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
       {ctx.viewingAs && <ViewingAsBar viewing={ctx.viewingAs} />}
       <Nav
         user={{ name: ctx.user.name, email: ctx.user.email }}
-        managed={ctx.lens ? `/from-label/${ctx.managedBy!.linkId}` : null}
-        ownBooks={ctx.books === "own"}
+        managed={ctx.lens ? "/" : null}
         bandHref={band ? `/bands/${band.id}` : null}
         hideOrders={!orders.inUse}
         viewing={!!ctx.viewingAs}
