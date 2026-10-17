@@ -8,7 +8,7 @@ import { db, schema } from "@/db";
 import { slugify } from "@/lib/slug";
 import { auth } from "./auth";
 import { accountContext, accountsFor, BOOKS_COOKIE, type Context, getSession, ownBooksValue, realContext, requireAdmin, VIEW_AS_COOKIE } from "./context";
-import { bothBooksWarning, setOwnBooks, syncOwnPeople } from "./own-books";
+import { bothBooksWarning, syncOwnPeople } from "./own-books";
 import { AREAS, type Area, normalizeBandAreas, normalizePermissions } from "@/lib/permissions";
 import { assignMemberType, memberTypeForInvite, parseRoleChoice, setInviteMemberType, setManagedBands } from "./member-types";
 import { applyMyDetails, normalizeEmail } from "./people";
@@ -185,7 +185,6 @@ export async function switchAccount(fd: FormData) {
 export async function saveAccountSettings(_: FormState, fd: FormData): Promise<FormState> {
   const { orgId, managedBy } = await requireAdmin();
   // A band account the label made: its name is the label's to change, and Bandcamp is only for its own books.
-  if (managedBy && !managedBy.ownBooks) return { error: "Turn on own books first." };
   const name = managedBy ? "" : str(fd, "name");
   if (name) await db.update(schema.organization).set({ name }).where(eq(schema.organization.id, orgId));
   const error = await writeAccountSettings(orgId, managedBy, fd);
@@ -605,18 +604,6 @@ export async function changeMyPassword(_: FormState, fd: FormData): Promise<Form
 
 // ---------- a label-made band account's own books ----------
 
-/** Settings: a band account the label made turns its own books on or off (off hides them; nothing is deleted). */
-export async function setOwnBooksAction(fd: FormData) {
-  const ctx = await requireAdmin();
-  if (!ctx.managedBy) throw new Error("Only a band group a label made can turn on its own books.");
-  const on = fd.get("on") === "1";
-  await setOwnBooks(ctx.orgId, on);
-  const jar = await cookies();
-  if (on) jar.set(BOOKS_COOKIE, ownBooksValue(ctx.orgId), BOOKS_COOKIE_OPTIONS);
-  else jar.delete(BOOKS_COOKIE);
-  revalidatePath("/", "layout");
-}
-
 const BOOKS_COOKIE_OPTIONS = { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 400 * 24 * 60 * 60 } as const;
 
 /**
@@ -632,7 +619,7 @@ export async function switchBooks(fd: FormData) {
     jar.set(BOOKS_COOKIE, ownBooksValue(orgId), BOOKS_COOKIE_OPTIONS);
     // Whoever joined the band in the label's books since: in its own books too.
     const real = await realContext();
-    if (real.orgId === orgId && real.managedBy?.ownBooks) await syncOwnPeople(orgId);
+    if (real.orgId === orgId && real.managedBy) await syncOwnPeople(orgId);
   } else jar.delete(BOOKS_COOKIE);
   revalidatePath("/", "layout");
   redirect(safeNext(str(fd, own ? "back_own" : "back_label")));

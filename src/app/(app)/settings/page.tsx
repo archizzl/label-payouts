@@ -5,7 +5,7 @@ import { connection } from "next/server";
 import { ActionForm, SaveWhenChanged, SubmitButton } from "@/components/client";
 import { Callout, Card, Field, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
-import { saveAccountSettings, saveBandSettings, setOwnBooksAction, testBandcampConnection } from "@/server/account-actions";
+import { saveAccountSettings, saveBandSettings, testBandcampConnection } from "@/server/account-actions";
 import { WhoCanSignIn } from "@/components/who-can-sign-in";
 import { ownBand } from "@/server/data";
 import { MemberTypesCard } from "@/components/member-types";
@@ -178,8 +178,8 @@ function BandcampCard({ settings, labelName }: { settings: Settings | undefined;
 }
 
 /**
- * A band account the label made: the band's details (the label's form for it), and its own books,
- * for sales that don't go through the label, with their Bandcamp access.
+ * A band account the label made: the band's details (the label's form for it), with the Bandcamp
+ * access for its own books (sales that don't go through the label).
  */
 async function SubAccountSettings({ ctx }: { ctx: Context }) {
   const m = ctx.managedBy!;
@@ -191,26 +191,13 @@ async function SubAccountSettings({ ctx }: { ctx: Context }) {
     <>
       <PageHeader title="Settings" subtitle={ctx.org.name} />
       {/* The same form the label has for the band, without the label's own notes. Who signs in is in the Directory. */}
-      {band && <BandSettingsCard band={band} settings={settings} api={m.ownBooks} />}
-      <Card title="Own books">
-        <form action={setOwnBooksAction} className="flex flex-wrap items-center gap-3 text-sm">
-          <input type="hidden" name="on" value={m.ownBooks ? "0" : "1"} />
-          <span>{m.ownBooks ? "On." : "Off."}</span>
-          <SubmitButton variant="secondary" size="sm">
-            {m.ownBooks ? "Turn off" : "Turn on"}
-          </SubmitButton>
-        </form>
-      </Card>
-      {m.ownBooks && (
-        <>
-          {bandcampApiOff() && (
-            <Callout tone="neutral">
-              The Bandcamp API is switched off on this copy (<code>BANDCAMP_API=off</code>), so it never takes the live site’s Bandcamp sign-in.
-            </Callout>
-          )}
-          <SyncFooter orgId={ctx.orgId} onSettings />
-        </>
+      {band && <BandSettingsCard band={band} settings={settings} api />}
+      {bandcampApiOff() && (
+        <Callout tone="neutral">
+          The Bandcamp API is switched off on this copy (<code>BANDCAMP_API=off</code>), so it never takes the live site’s Bandcamp sign-in.
+        </Callout>
       )}
+      <SyncFooter orgId={ctx.orgId} onSettings />
     </>
   );
 }

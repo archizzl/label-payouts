@@ -8,6 +8,7 @@ import { type Access, type Area, can, normalizeBandAreas, normalizePermissions }
 import { auth } from "./auth";
 import { cookieValues, SESSION_TOKEN } from "@/lib/auth-cookies";
 import { managingLabel } from "./band-accounts";
+import { setOwnBooks } from "./own-books";
 
 /*
  * Who's asking, and for which account. Every page and action gets its data through this: it checks
@@ -113,13 +114,18 @@ export async function accountsFor(userId: string): Promise<Account[]> {
  * A label-made band account sees the label's books narrowed to its band (bandLens), in pages and
  * in actions alike (an action re-draws the page it came from). The lens only lets it change its
  * orders, and stock counts through requireAccess's bandMay; its own settings and logins go through
- * accountContext / requireAdmin. If it keeps its own books too and switched to them (BOOKS_COOKIE),
- * it's its own account instead, like a band that runs its own (ownBooksContext).
+ * accountContext / requireAdmin. It keeps its own books too (made on its first visit): switched to
+ * them (BOOKS_COOKIE), it's its own account instead, like a band that runs its own (ownBooksContext).
+ * Its sales are always added and imported there (requireAccess).
  */
 export const getContext = cache(async (): Promise<Context> => {
-  const ctx = await accountContext();
+  let ctx = await accountContext();
   if (!ctx.managedBy) return ctx;
-  if (ctx.managedBy.ownBooks && (await cookies()).get(BOOKS_COOKIE)?.value === ownBooksValue(ctx.orgId)) return ownBooksContext(ctx);
+  if (!ctx.managedBy.ownBooks && !ctx.viewingAs) {
+    await setOwnBooks(ctx.orgId, true);
+    ctx = { ...ctx, managedBy: { ...ctx.managedBy, ownBooks: true } };
+  }
+  if (ctx.managedBy!.ownBooks && (await cookies()).get(BOOKS_COOKIE)?.value === ownBooksValue(ctx.orgId)) return ownBooksContext(ctx);
   return bandLens(ctx);
 });
 
@@ -150,6 +156,11 @@ async function ownBooksContext(ctx: Context): Promise<Context> {
     books: "own",
     ownLogin: fixed,
   };
+}
+
+/** A label-made band account's own books, whichever books it's looking at. */
+export async function ownBooksOf(ctx: Context): Promise<Context> {
+  return ctx.books === "own" ? ctx : ownBooksContext(await accountContext());
 }
 
 /**
@@ -415,6 +426,8 @@ export async function requireAccess(
   let ctx = await getContext();
   // A band login may do this one thing to its band's part of the label's books.
   if (ctx.lens && bandMay) ctx = { ...ctx, access: { ...ctx.access, permissions: { ...ctx.access.permissions, [area]: level } } };
+  // A band account the label made adds and imports sales in its own books, whichever it's looking at.
+  if (ctx.lens && area === "sales" && level === "edit") ctx = await ownBooksOf(ctx);
   if (!can(ctx.access, area, level)) redirect("/me");
   return ctx;
 }

@@ -32,6 +32,24 @@ async function setup() {
 const f = (sp: Record<string, string> = {}) => browse.parseSalesFilter(sp);
 
 describe("browsing sales", () => {
+  it("shows a label-made band account its own sales and the label's for its band only, together", async () => {
+    const { orgId: labelOrgId, flagDay } = await setup();
+    const [other] = await db.insert(schema.bands).values({ orgId: labelOrgId, name: "Someone Else" }).returning();
+    const [imp] = await db.insert(schema.imports).values({ orgId: labelOrgId, filename: "t", rowCount: 1, addedCount: 1, duplicateCount: 0 }).returning();
+    await db.insert(schema.sales).values({
+      orgId: labelOrgId, importId: imp.id, dedupeKey: "theirs", date: "2026-03-01", itemType: "album", category: "album", itemName: "Theirs",
+      artist: "Someone Else", itemUrl: "", packageName: "", currency: "USD", netCents: 100, transactionId: "theirs", routingKey: "theirs", bandId: other.id, raw: {},
+    });
+    const { orgId: own } = await setup();
+    const books = { own, label: { orgId: labelOrgId, bandId: flagDay.id } };
+    const page = await browse.browseSales(books, f({ per: "100" }));
+    // Four of the band's through the label (not the unmatched one, nor another band's), and all five of its own.
+    expect(page.count).toBe(9);
+    expect(page.rows.filter((r) => r.orgId === labelOrgId)).toHaveLength(4);
+    expect(page.rows.some((r) => r.itemName === "Theirs")).toBe(false);
+    expect((await browse.summarizeSales(books, f())).totals[0].net).toBe(2 * (900 + 90 + 1800 - 900) + 500);
+  });
+
   it("filters by band, type, country, source, dates, search and refunds", async () => {
     const { orgId, flagDay } = await setup();
     const names = async (sp: Record<string, string>) => (await browse.browseSales(orgId, f(sp))).rows.map((r) => r.itemName).sort();

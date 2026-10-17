@@ -122,8 +122,19 @@ const payoutState = sql<PayoutState>`case
 
 const like = (s: string) => `%${s.replace(/[%_\\]/g, (c) => `\\${c}`)}%`;
 
-function where(orgId: string, f: SalesFilter): SQL {
-  const c: (SQL | undefined)[] = [eq(sales.orgId, orgId)];
+/**
+ * Whose sales: one account's, or a label-made band account's own together with what its label has
+ * for its band (the label's part read-only).
+ */
+export type SalesBooks = string | { own: string; label: { orgId: string; bandId: number } };
+
+function inBooks(books: SalesBooks): SQL {
+  if (typeof books === "string") return eq(sales.orgId, books);
+  return or(eq(sales.orgId, books.own), and(eq(sales.orgId, books.label.orgId), eq(sales.bandId, books.label.bandId)))!;
+}
+
+function where(books: SalesBooks, f: SalesFilter): SQL {
+  const c: (SQL | undefined)[] = [inBooks(books)];
   if (f.q) {
     const l = like(f.q);
     // A whole email address finds that buyer's sales (by fingerprint: emails aren't stored).
@@ -171,13 +182,14 @@ const ORDER: Record<SortKey, SQL | AnyPgColumn> = {
 export type SaleRow = Awaited<ReturnType<typeof browseSales>>["rows"][number];
 
 /** One page of sales, sorted. */
-export async function browseSales(orgId: string, f: SalesFilter) {
-  const w = where(orgId, f);
+export async function browseSales(books: SalesBooks, f: SalesFilter) {
+  const w = where(books, f);
   const by = f.dir === "asc" ? asc : desc;
   const [rows, [{ n }]] = await Promise.all([
     db
       .select({
         id: sales.id,
+        orgId: sales.orgId,
         date: sales.date,
         itemName: sales.itemName,
         itemType: sales.itemType,
@@ -219,21 +231,21 @@ export async function browseSales(orgId: string, f: SalesFilter) {
 }
 
 /** Every matching sale (for the CSV export). */
-export async function allMatchingSales(orgId: string, f: SalesFilter) {
+export async function allMatchingSales(books: SalesBooks, f: SalesFilter) {
   return db
     .select({ sale: sales, bandName: bands.name, releaseTitle: releases.title })
     .from(sales)
     .leftJoin(bands, eq(bands.id, sales.bandId))
     .leftJoin(releases, eq(releases.id, sales.releaseId))
-    .where(where(orgId, f))
+    .where(where(books, f))
     .orderBy(desc(sales.date), desc(sales.id));
 }
 
 type Breakdown = { key: string; net: number; units: number };
 
 /** Totals and breakdowns of everything matching (in each currency; nothing is converted). */
-export async function summarizeSales(orgId: string, f: SalesFilter) {
-  const w = where(orgId, f);
+export async function summarizeSales(books: SalesBooks, f: SalesFilter) {
+  const w = where(books, f);
   const units = sql<number>`sum(greatest(1, ${sales.quantity}) * sign(${sales.netCents}))::int`;
   const net = sql<number>`sum(${sales.netCents})::int`;
   const group = (key: SQL<string>, limit = 8) =>
@@ -343,7 +355,8 @@ function fillMonths(rows: { month: string; net: number; units: number }[]) {
 }
 
 /** Choices for the filter dropdowns. */
-export async function salesFilterOptions(orgId: string, onlyBands?: number[]) {
+export async function salesFilterOptions(books: SalesBooks, onlyBands?: number[]) {
+  const orgId = typeof books === "string" ? books : books.own;
   const [bandRows, countries, sources, currencies] = await Promise.all([
     db
       .select({ id: bands.id, name: bands.name })
@@ -353,19 +366,19 @@ export async function salesFilterOptions(orgId: string, onlyBands?: number[]) {
     db
       .selectDistinct({ v: country })
       .from(sales)
-      .where(eq(sales.orgId, orgId))
+      .where(inBooks(books))
       .orderBy(sql`1`),
     db
       .select({ v: source, n: sql<number>`count(*)::int` })
       .from(sales)
-      .where(eq(sales.orgId, orgId))
+      .where(inBooks(books))
       .groupBy(sql`1`)
       .orderBy(sql`2 desc`)
       .limit(40),
     db
       .selectDistinct({ v: sales.currency })
       .from(sales)
-      .where(eq(sales.orgId, orgId)),
+      .where(inBooks(books)),
   ]);
   return {
     bands: bandRows,

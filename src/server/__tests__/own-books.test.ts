@@ -145,7 +145,7 @@ describe("a label-made band account's own books", () => {
     expect(await sync.syncAccount(bandOrgId, { force: true })).toMatchObject({ ran: false, summary: "Own books are off." });
   });
 
-  it("can't use the label's Bandcamp API access, or save Bandcamp settings before own books are on", async () => {
+  it("can't use the label's Bandcamp API access", async () => {
     const { labelOrgId, bandOrgId } = await setup();
     await db.insert(schema.accountSettings).values({ orgId: labelOrgId, bandcampClientId: "label-client" });
     const actions = await import("../account-actions");
@@ -155,9 +155,6 @@ describe("a label-made band account's own books", () => {
       fd.set("bandcampClientId", clientId);
       return fd;
     };
-
-    signedIn = { orgId: bandOrgId, managedBy: { labelOrgId, labelName: "Label", ownBooks: false } };
-    expect(await actions.saveAccountSettings(null, form("band-client"))).toEqual({ error: "Turn on own books first." });
 
     signedIn = { orgId: bandOrgId, managedBy: { labelOrgId, labelName: "Label", ownBooks: true } };
     expect((await actions.saveAccountSettings(null, form("label-client")))?.error).toMatch(/Label’s Bandcamp API access/);

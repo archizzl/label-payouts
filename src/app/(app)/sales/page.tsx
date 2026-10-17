@@ -9,8 +9,7 @@ import { type BoardChart, breakdownChart, seriesChart } from "@/lib/chart-data";
 import { formatCents } from "@/lib/money";
 import { loadLayout } from "@/server/chart-layouts";
 import { bandScope, can } from "@/lib/permissions";
-import { requireAccess } from "@/server/context";
-import { BooksSwitch } from "@/components/books-switch";
+import { ownBooksOf, requireAccess } from "@/server/context";
 import { DeleteManualSale } from "@/components/manual-sale";
 import { MANUAL_VIA } from "@/lib/manual-sales";
 import { markSeen } from "@/server/nav-badges";
@@ -22,6 +21,7 @@ import {
   parseSalesFilter,
   type SalesFilter,
   type SortKey,
+  type SalesBooks,
   salesFilterOptions,
   summarizeSales,
 } from "@/server/sales-browse";
@@ -34,17 +34,23 @@ const TYPE_LABEL: Record<string, string> = { album: "Album", track: "Track", mer
 export default async function SalesPage({ searchParams }: PageProps<"/sales">) {
   await connection();
   const ctx = await requireAccess("sales");
-  const { orgId, access } = ctx;
+  const { access } = ctx;
   // Opening Sales clears its "new sales" number.
   await markSeen(ctx, "sales");
+  // A band account the label made: its own sales and what the label has for it, in one list. It adds
+  // and imports its own (the label's are the label's to change).
+  const m = ctx.managedBy;
+  const own = m ? await ownBooksOf(ctx) : ctx;
+  const orgId = own.orgId;
+  const books: SalesBooks = m ? { own: orgId, label: { orgId: m.labelOrgId, bandId: m.bandId } } : orgId;
   // A member type can limit this to their own bands' sales.
-  const scope = bandScope(access, "sales");
-  const canEdit = can(access, "sales", "edit");
-  const f = { ...parseSalesFilter(await searchParams), onlyBands: scope ?? undefined };
+  const scope = m ? null : bandScope(access, "sales");
+  const canEdit = can(own.access, "sales", "edit");
+  const f = { ...parseSalesFilter(await searchParams), onlyBands: scope ?? undefined, ...(m ? { band: undefined } : {}) };
   const [page, summary, options, [{ unrouted }]] = await Promise.all([
-    browseSales(orgId, f),
-    summarizeSales(orgId, f),
-    salesFilterOptions(orgId, scope ?? undefined),
+    browseSales(books, f),
+    summarizeSales(books, f),
+    salesFilterOptions(books, scope ?? undefined),
     db
       .select({ unrouted: db.$count(schema.sales, and(eq(schema.sales.orgId, orgId), isNull(schema.sales.bandId))) })
       .from(schema.organization)
@@ -102,11 +108,10 @@ export default async function SalesPage({ searchParams }: PageProps<"/sales">) {
           )
         }
       />
-      <BooksSwitch ctx={ctx} back="/sales" />
       <SalesTabs active="browse" unrouted={unrouted} canImport={canEdit} />
 
       <Card title={main ? `${page.count.toLocaleString("en-US")} sale${page.count === 1 ? "" : "s"}` : "Sales"}>
-        <Filters f={f} options={options} filtered={filtered} />
+        <Filters f={f} options={options} filtered={filtered} oneBand={!!m} />
         {f.buyer && (
           <p className="mb-3 text-sm">
             Showing one buyer’s sales. <Link href={filterQuery(f, { buyer: undefined, page: 1 }) || "/sales"}>Show everyone’s</Link>
@@ -178,11 +183,16 @@ export default async function SalesPage({ searchParams }: PageProps<"/sales">) {
                               {s.releaseTitle ?? "Release"} in the catalog →
                             </Link>
                           )}
-                          {s.routedVia === MANUAL_VIA && canEdit && s.payoutState === "none" && <DeleteManualSale id={s.id} />}
+                          {s.routedVia === MANUAL_VIA && canEdit && s.orgId === orgId && s.payoutState === "none" && <DeleteManualSale id={s.id} />}
                         </details>
                       </td>
                       <td className="text-sm">
-                        {s.bandId ? (
+                        {m && s.bandId ? (
+                          <>
+                            {s.bandName}
+                            {s.orgId !== orgId && <div className="text-xs text-muted">through {m.labelName}</div>}
+                          </>
+                        ) : s.bandId ? (
                           <Link href={filterQuery(f, { band: s.bandId, page: 1 }) || "?"} className="hover:underline">
                             {s.bandName}
                           </Link>
@@ -286,7 +296,18 @@ function PayoutCell({ state, periodId }: { state: "paid" | "pending" | "none"; p
   );
 }
 
-function Filters({ f, options, filtered }: { f: SalesFilter; options: Awaited<ReturnType<typeof salesFilterOptions>>; filtered: boolean }) {
+function Filters({
+  f,
+  options,
+  filtered,
+  oneBand = false,
+}: {
+  f: SalesFilter;
+  options: Awaited<ReturnType<typeof salesFilterOptions>>;
+  filtered: boolean;
+  /** A band account: every sale is its band's, so no band to pick. */
+  oneBand?: boolean;
+}) {
   const narrowed = !!(f.from || f.to || f.band || f.type || f.country !== undefined || f.source !== undefined || f.currency || f.refunds || f.payout);
   return (
     <form action="/sales" className="mb-4">
@@ -319,18 +340,20 @@ function Filters({ f, options, filtered }: { f: SalesFilter; options: Awaited<Re
             <span className="mb-1 block text-xs text-muted">To</span>
             <input name="to" type="date" defaultValue={f.to} />
           </label>
-          <label>
-            <span className="mb-1 block text-xs text-muted">Band</span>
-            <select name="band" defaultValue={f.band ? String(f.band) : ""}>
-              <option value="">All</option>
-              {options.bands.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
-              ))}
-              {!f.onlyBands && <option value="none">Not matched to a band</option>}
-            </select>
-          </label>
+          {!oneBand && (
+            <label>
+              <span className="mb-1 block text-xs text-muted">Band</span>
+              <select name="band" defaultValue={f.band ? String(f.band) : ""}>
+                <option value="">All</option>
+                {options.bands.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
+                {!f.onlyBands && <option value="none">Not matched to a band</option>}
+              </select>
+            </label>
+          )}
           <label>
             <span className="mb-1 block text-xs text-muted">Type</span>
             <select name="type" defaultValue={f.type ?? ""}>

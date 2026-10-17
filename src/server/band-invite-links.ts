@@ -145,11 +145,14 @@ export async function connectableAccounts(userId: string, labelOrgId: string) {
   return mine.filter((m) => !links.some((l) => l.bandOrgId === m.id && (l.managed || l.labelOrgId === labelOrgId)));
 }
 
-/** Whether nobody uses a label-made band account yet (no logins, no books of its own): it can make way for the band's own account. */
+/** Whether nobody uses a label-made band account yet (no logins, nothing in its own books): it can make way for the band's own account. */
 export async function unusedBandAccount(bandOrgId: string) {
-  const [[login], [settings]] = await Promise.all([
-    db.select({ id: schema.member.id }).from(schema.member).where(eq(schema.member.organizationId, bandOrgId)).limit(1),
-    db.select({ ownBooks: schema.accountSettings.ownBooks }).from(schema.accountSettings).where(eq(schema.accountSettings.orgId, bandOrgId)),
+  const { sales, periods, expenses, member } = schema;
+  const [[login], [sale], [payout], [receipt]] = await Promise.all([
+    db.select({ id: member.id }).from(member).where(eq(member.organizationId, bandOrgId)).limit(1),
+    db.select({ id: sales.id }).from(sales).where(eq(sales.orgId, bandOrgId)).limit(1),
+    db.select({ id: periods.id }).from(periods).where(eq(periods.orgId, bandOrgId)).limit(1),
+    db.select({ id: expenses.id }).from(expenses).where(eq(expenses.orgId, bandOrgId)).limit(1),
   ]);
-  return !login && !settings?.ownBooks;
+  return !login && !sale && !payout && !receipt;
 }
