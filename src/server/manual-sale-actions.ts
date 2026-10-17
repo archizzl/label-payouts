@@ -41,7 +41,20 @@ export async function addManualSale(_: ManualSaleState, fd: FormData): Promise<M
   if (!band) return { error: "Choose the band." };
   const kind = MANUAL_KINDS.find((k) => k.value === str(fd, "kind"));
   if (!kind) return { error: "Choose what it was." };
-  const itemName = str(fd, "itemName").slice(0, 200);
+  // Merch: which item, if they picked one (a merch item, or one of a release's formats).
+  const [releaseId, packageId] = kind.value === "merch" ? str(fd, "item").split(":").map((n) => Number(n) || null) : [null, null];
+  const [release] = releaseId
+    ? await db
+        .select({ id: schema.releases.id, title: schema.releases.title, kind: schema.releases.kind, bandId: schema.releases.bandId, packages: schema.releases.packages })
+        .from(schema.releases)
+        .where(and(eq(schema.releases.orgId, orgId), eq(schema.releases.id, releaseId)))
+    : [];
+  if (releaseId && (!release || (release.bandId !== null && release.bandId !== bandId))) return { error: "That item isn’t the band’s." };
+  const pkg = release && packageId ? release.packages.find((p) => p.bandcampId === packageId) : undefined;
+  if (packageId && !pkg) return { error: "That item isn’t the band’s." };
+  // Named like Bandcamp's own rows: the release, and the format beside it (unless it's the item itself).
+  const format = pkg && pkg.title !== release?.title ? pkg.title : "";
+  const itemName = (str(fd, "itemName") || release?.title || "").slice(0, 200);
   if (!itemName) return { error: "Say what it was." };
   const netCents = parseCents(str(fd, "amount"));
   if (!netCents) return { error: "Enter the amount." };
@@ -58,18 +71,19 @@ export async function addManualSale(_: ManualSaleState, fd: FormData): Promise<M
     itemName,
     artist: band.name,
     itemUrl: "",
-    packageName: "",
+    packageName: format,
     currency,
     netCents,
     quantity,
     transactionId: key,
     routingKey: key,
     bandId,
+    releaseId: release?.id ?? null,
     routedVia: MANUAL_VIA,
     raw: { source: MANUAL_SOURCE, kind: kind.label, "added by": user.name },
   });
   revalidatePath("/", "layout");
-  return { ok: `Added ${itemName}.` };
+  return { ok: `Added ${format ? `${itemName}, ${format}` : itemName}.` };
 }
 
 /** Take back a sale that was added by hand, while it isn't part of a payout yet. */
