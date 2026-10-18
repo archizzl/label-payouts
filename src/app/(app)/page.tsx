@@ -10,7 +10,7 @@ import { loadLayout } from "@/server/chart-layouts";
 import { parseSalesFilter, summarizeSales } from "@/server/sales-browse";
 import { Badge, Callout, Card, LinkButton, Money, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
-import { plural } from "@/lib/plural";
+import { plural, someNames } from "@/lib/plural";
 import { STATUS_LABEL, STATUS_TONE } from "@/lib/status";
 import { outsideArtistRows } from "@/components/outside-artists";
 import { SyncFooter } from "@/components/sync-status";
@@ -57,8 +57,8 @@ export default async function Dashboard() {
   const bandsWithoutMembers = bands.filter((b) => !active.some((m) => m.bandId === b.id));
   const unpayable = people.filter((p) => active.some((m) => m.personId === p.id) && !p.holdsLabelAccount && !p.email && !p.paypalMe && !p.venmo && !p.cashtag);
   const memberHint = [
-    bandsWithoutMembers.length ? `No members yet: ${bandsWithoutMembers.map((b) => b.name).join(", ")}.` : "",
-    unpayable.length ? `No payment details: ${unpayable.map((p) => p.name).join(", ")}.` : "",
+    bandsWithoutMembers.length ? `No members yet: ${someNames(bandsWithoutMembers.map((b) => b.name))}.` : "",
+    unpayable.length ? `No payment details: ${someNames(unpayable.map((p) => p.name))}.` : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -206,7 +206,7 @@ export default async function Dashboard() {
         <Callout>
           {needContacts.length} artist{needContacts.length === 1 ? " who isn’t" : "s who aren’t"} on the label{" "}
           {needContacts.length === 1 ? "appears" : "appear"} on your releases and {needContacts.length === 1 ? "needs" : "need"} a
-          contact to be paid: {needContacts.map((r) => r.artist.name).join(", ")}.{" "}
+          contact to be paid: {someNames(needContacts.map((r) => r.artist.name))}.{" "}
           <Link href="/catalog#outside-artists">Add contacts</Link>
         </Callout>
       )}

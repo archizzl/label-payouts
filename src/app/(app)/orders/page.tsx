@@ -1,4 +1,5 @@
 import { asc, eq } from "drizzle-orm";
+import { BandFilter } from "@/components/band-filter";
 import Link from "next/link";
 import { connection } from "next/server";
 import { ActionForm, Fading, SaveWhenChanged, SubmitButton } from "@/components/client";
@@ -129,18 +130,7 @@ export default async function OrdersPage({ searchParams }: PageProps<"/orders">)
         <Callout tone="bad">The order was marked shipped, but its shipping costs couldn’t be saved ({sp.costError}). Add them on Receipts.</Callout>
       )}
 
-      {bandsWithOrders.length > 1 && (
-        <nav className="mb-6 flex flex-wrap gap-2 text-sm">
-          <Link href="/orders" className={`rounded-full px-3 py-1 ${!band ? "bg-text text-bg" : "bg-surface-2 text-muted"}`}>
-            everyone
-          </Link>
-          {bandsWithOrders.map((b) => (
-            <Link key={b.id} href={`/orders?band=${b.id}`} className={`rounded-full px-3 py-1 ${band === b.id ? "bg-text text-bg" : "bg-surface-2 text-muted"}`}>
-              {b.name}
-            </Link>
-          ))}
-        </nav>
-      )}
+      {bandsWithOrders.length > 1 && <BandFilter path="/orders" bands={bandsWithOrders} current={band} all="everyone" />}
 
       <div className="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
         <Tile label="Orders to ship" value={String(ready.length)} />

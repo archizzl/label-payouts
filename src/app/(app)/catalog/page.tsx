@@ -1,4 +1,5 @@
 import { asc, count, desc, eq } from "drizzle-orm";
+import { BandFilter } from "@/components/band-filter";
 import Link from "next/link";
 import { connection } from "next/server";
 import { SubmitButton } from "@/components/client";
@@ -56,18 +57,7 @@ export default async function CatalogPage({ searchParams }: PageProps<"/catalog"
   return (
     <>
       <PageHeader title="Catalog" />
-      {!oneBand && (
-        <div className="mb-4 flex flex-wrap gap-2 text-sm">
-          <Link href="/catalog" className={`rounded-full px-3 py-1 ${!bandFilter ? "bg-text text-bg" : "bg-surface-2 text-muted"}`}>
-            all bands
-          </Link>
-          {bands.map((b) => (
-            <Link key={b.id} href={`/catalog?band=${b.id}`} className={`rounded-full px-3 py-1 ${bandFilter === b.id ? "bg-text text-bg" : "bg-surface-2 text-muted"}`}>
-              {b.name}
-            </Link>
-          ))}
-        </div>
-      )}
+      {!oneBand && <BandFilter path="/catalog" bands={bands} current={bandFilter} all="all bands" />}
       {bands.length === 0 && (
         <Card>
           <Empty>

@@ -1,4 +1,5 @@
 import { and, asc, desc, eq, isNotNull, max, min, notExists, sql } from "drizzle-orm";
+import { BandFilter } from "@/components/band-filter";
 import Link from "next/link";
 import { connection } from "next/server";
 import { ActionForm, SubmitButton } from "@/components/client";
@@ -113,24 +114,7 @@ export default async function PeriodsPage({ searchParams }: PageProps<"/periods"
 
       <Card title="New payout">
         {/* A band account has one band: nothing to choose. */}
-        {ctx.org.kind === "label" && (
-          <nav className="mb-4 flex flex-wrap gap-x-5 gap-y-2 text-sm" aria-label="Who to pay">
-            <span className="text-muted">pay:</span>
-            {[{ id: null as number | null, name: "whole label" }, ...bands.map((b) => ({ id: b.id as number | null, name: b.name }))].map((o) => {
-              const on = (forBand?.id ?? null) === o.id;
-              return (
-                <Link
-                  key={o.id ?? "all"}
-                  href={o.id ? `/periods?band=${o.id}` : "/periods"}
-                  scroll={false}
-                  className={`border-b-2 pb-0.5 hover:no-underline ${on ? "border-accent font-bold text-text" : "border-transparent text-muted hover:text-text"}`}
-                >
-                  {o.name}
-                </Link>
-              );
-            })}
-          </nav>
-        )}
+        {ctx.org.kind === "label" && <BandFilter path="/periods" bands={bands} current={forBand?.id} all="whole label" look="tabs" label="pay:" />}
         <ActionForm action={previewPayout} className="grid gap-4 sm:grid-cols-4">
           {forBand && <input type="hidden" name="bandId" value={forBand.id} />}
           <Field label="Name (optional)">

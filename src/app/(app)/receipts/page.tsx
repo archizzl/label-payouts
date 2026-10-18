@@ -1,5 +1,5 @@
 import { asc, eq } from "drizzle-orm";
-import Link from "next/link";
+import { BandFilter } from "@/components/band-filter";
 import { connection } from "next/server";
 import { ExpenseForm, ExpenseTable, expenseTotals, SubmitReceiptForm } from "@/components/receipts";
 import { bandMembers } from "@/server/band-member";
@@ -88,21 +88,13 @@ export default async function ReceiptsPage({ searchParams }: PageProps<"/receipt
       />
       {/* (Nothing to pick between for a band account's shared login: just everything.) */}
       {(!m || person || lens?.person) && (
-        <nav className="mb-6 flex flex-wrap gap-2 text-sm">
-          <Link href="/receipts" className={`rounded-full px-3 py-1 ${!bandFilter && !mineOnly ? "bg-text text-bg" : "bg-surface-2 text-muted"}`}>
-            everything
-          </Link>
-          {(m ? person || lens?.person : person) && (
-            <Link href="/receipts?mine=1" className={`rounded-full px-3 py-1 ${mineOnly ? "bg-text text-bg" : "bg-surface-2 text-muted"}`}>
-              mine
-            </Link>
-          )}
-          {!m && bandsShown.map((b) => (
-            <Link key={b.id} href={`/receipts?band=${b.id}`} className={`rounded-full px-3 py-1 ${bandFilter === b.id ? "bg-text text-bg" : "bg-surface-2 text-muted"}`}>
-              {b.name}
-            </Link>
-          ))}
-        </nav>
+        <BandFilter
+          path="/receipts"
+          bands={m ? [] : bandsShown}
+          current={bandFilter}
+          all="everything"
+          extras={person || lens?.person ? [{ href: "/receipts?mine=1", label: "mine", on: mineOnly }] : []}
+        />
       )}
 
       <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3">

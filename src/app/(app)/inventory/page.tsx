@@ -1,5 +1,5 @@
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
-import Link from "next/link";
+import { BandFilter } from "@/components/band-filter";
 import { connection } from "next/server";
 import { ActionForm, SaveWhenChanged, SubmitButton } from "@/components/client";
 import { Badge, Callout, Card, Disclosure, Empty, Field, PageHeader } from "@/components/ui";
@@ -76,18 +76,7 @@ export default async function InventoryPage({ searchParams }: PageProps<"/invent
     <>
       <PageHeader title="Inventory" />
 
-      {bandsWithItems.length > 1 && (
-        <nav className="mb-6 flex flex-wrap gap-2 text-sm">
-          <Link href="/inventory" className={`rounded-full px-3 py-1 ${!band ? "bg-text text-bg" : "bg-surface-2 text-muted"}`}>
-            everything
-          </Link>
-          {bandsWithItems.map((b) => (
-            <Link key={b.id} href={`/inventory?band=${b.id}`} className={`rounded-full px-3 py-1 ${band === b.id ? "bg-text text-bg" : "bg-surface-2 text-muted"}`}>
-              {b.name}
-            </Link>
-          ))}
-        </nav>
-      )}
+      {bandsWithItems.length > 1 && <BandFilter path="/inventory" bands={bandsWithItems} current={band} all="everything" />}
 
       <div className="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
         <Tile label="Items" value={String(items.length)} />

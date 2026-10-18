@@ -9,7 +9,7 @@ import { formatCents } from "@/lib/money";
 import { payHandlesSummary, payMethods } from "@/lib/paypal-export";
 import { STATUS_LABEL, STATUS_TONE } from "@/lib/status";
 import { finalizePayout, markAllPaid, releaseUnpaidSales, resyncPreview, setPayoutStatus, undoFinalize } from "@/server/actions";
-import { plural, possessive } from "@/lib/plural";
+import { plural, possessive, someNames } from "@/lib/plural";
 import { bandcampCredentials } from "@/server/bandcamp-api";
 import { getContext } from "@/server/context";
 import { type PayoutScope, payoutNote, type periodView, type previewView } from "@/server/period-view";
@@ -265,7 +265,7 @@ export async function PayoutView({
       )}
       {missingPaypal.length > 0 && (
         <Callout>
-          No payment details for {missingPaypal.map((l) => l.name).join(", ")}.{" "}
+          No payment details for {someNames(missingPaypal.map((l) => l.name))}.{" "}
           <Link href="/directory" className="underline">
             Add them in the Directory
           </Link>
