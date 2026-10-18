@@ -3,8 +3,9 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 import { newAccount, testDb } from "../../../test/helpers/db";
 
 let orgId = "";
+let managedBy: { labelOrgId: string; bandId: number } | null = null;
 vi.mock("../context", () => ({
-  requireAccess: async () => ({ orgId, access: { admin: true, permissions: {}, bandAreas: [], bandIds: [] }, user: { name: "Tester" } }),
+  requireAccess: async () => ({ orgId, managedBy, access: { admin: true, permissions: {}, bandAreas: [], bandIds: [] }, user: { name: "Tester" } }),
 }));
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 
@@ -20,6 +21,7 @@ beforeAll(async () => {
 const pkg = (bandcampId: number, title: string) => ({ bandcampId, title, typeName: null, sku: null, upc: null, price: null, currency: null });
 
 async function setup() {
+  managedBy = null;
   orgId = await newAccount("Band", "band");
   const [band] = await db.insert(schema.bands).values({ orgId, name: "Glass Harbor" }).returning();
   const [other] = await db.insert(schema.bands).values({ orgId, name: "Someone Else" }).returning();
@@ -77,5 +79,45 @@ describe("adding a sale by hand", () => {
     const { band } = await setup();
     await actions.addManualSale(null, form({ bandId: band.id, kind: "show", itemName: "Door money", amount: "300" }));
     expect(await lastSale()).toMatchObject({ releaseId: null, itemName: "Door money", itemType: "show", netCents: 30000, quantity: 1 });
+  });
+
+  it("for a band account the label made, lists and takes the label's merch for its band, sold out or not, and stock outside the catalog", async () => {
+    // The label: the band's CDs in its catalog (one out of stock), and a tote in stock that isn't in the catalog.
+    const labelOrgId = await newAccount("Label");
+    const [labelBand] = await db.insert(schema.bands).values({ orgId: labelOrgId, name: "Flag Day" }).returning();
+    const [otherBand] = await db.insert(schema.bands).values({ orgId: labelOrgId, name: "Someone Else" }).returning();
+    const [cd] = await db
+      .insert(schema.releases)
+      .values({ orgId: labelOrgId, bandId: labelBand.id, title: "Flags of the World", kind: "album", packages: [pkg(31, "CD")] })
+      .returning();
+    await db.insert(schema.releases).values({ orgId: labelOrgId, bandId: otherBand.id, title: "Not Theirs", kind: "album", packages: [pkg(41, "LP")] });
+    await db.insert(schema.inventoryItems).values({ orgId: labelOrgId, bandId: labelBand.id, name: "Flags of the World — CD", releaseId: cd.id, packageId: 31, onHand: 0 });
+    const [tote] = await db.insert(schema.inventoryItems).values({ orgId: labelOrgId, bandId: labelBand.id, name: "Tote bag", onHand: 4 }).returning();
+    // The band's own books: its band, and nothing in its catalog.
+    orgId = await newAccount("Flag Day", "band");
+    const [band] = await db.insert(schema.bands).values({ orgId, name: "Flag Day" }).returning();
+    managedBy = { labelOrgId, bandId: labelBand.id };
+
+    const { merchChoices, merchSources } = await import("../manual-sales");
+    const choices = merchChoices(await merchSources({ orgId, managed: managedBy }));
+    expect(choices.map((c) => c.label)).toEqual(["Flags of the World — CD", "Tote bag"]);
+
+    const result = await actions.addManualSale(
+      null,
+      form({ bandId: band.id, kind: "merch", [`each:${cd.id}:31`]: "10", [`sold:${cd.id}:31`]: 2, [`each:stock:${tote.id}`]: "15", [`sold:stock:${tote.id}`]: 1 }),
+    );
+    expect(result).toEqual({ ok: "Added 2 sales." });
+    const sales = await db.select().from(schema.sales).where(eq(schema.sales.orgId, orgId)).orderBy(schema.sales.id);
+    expect(sales.map((s) => ({ itemName: s.itemName, packageName: s.packageName, releaseId: s.releaseId, netCents: s.netCents, bandId: s.bandId }))).toEqual([
+      { itemName: "Flags of the World", packageName: "CD", releaseId: null, netCents: 2000, bandId: band.id },
+      { itemName: "Tote bag", packageName: "", releaseId: null, netCents: 1500, bandId: band.id },
+    ]);
+  });
+
+  it("names a format without repeating the release", async () => {
+    const { merchName } = await import("../manual-sales");
+    expect(merchName({ title: "Triple Single" }, { title: "Triple Single CD" })).toEqual({ itemName: "Triple Single", format: "CD" });
+    expect(merchName({ title: "Night Swims" }, { title: "12in Vinyl LP" })).toEqual({ itemName: "Night Swims", format: "12in Vinyl LP" });
+    expect(merchName({ title: "Logo T-Shirt" }, { title: "Logo T-Shirt" })).toEqual({ itemName: "Logo T-Shirt", format: "" });
   });
 });

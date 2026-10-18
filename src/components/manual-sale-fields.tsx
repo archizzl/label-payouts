@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Field } from "@/components/ui";
 import { MANUAL_KINDS } from "@/lib/manual-sales";
 
@@ -15,6 +15,17 @@ export type MerchChoice = { value: string; label: string; bandId: number | null;
 export function ManualSaleFields({ bands, merch, currency }: { bands: { id: number; name: string }[]; merch: MerchChoice[]; currency: string }) {
   const [bandId, setBandId] = useState(bands.length === 1 ? String(bands[0].id) : "");
   const [kind, setKind] = useState<string>("show");
+  // The form resets itself after each add, which puts the select back to its first choice: put it
+  // back to what's showing.
+  const kindSelect = useRef<HTMLSelectElement>(null);
+  useEffect(() => {
+    const select = kindSelect.current;
+    const form = select?.form;
+    if (!select || !form) return;
+    const restore = () => setTimeout(() => (select.value = kind));
+    form.addEventListener("reset", restore);
+    return () => form.removeEventListener("reset", restore);
+  }, [kind]);
   const items = merch.filter((m) => !bandId || m.bandId === null || String(m.bandId) === bandId);
   return (
     <>
@@ -34,8 +45,10 @@ export function ManualSaleFields({ bands, merch, currency }: { bands: { id: numb
           </select>
         </Field>
       )}
+      {/* What's sent is what's shown (the form resets itself after each add, but this stays). */}
+      <input type="hidden" name="kind" value={kind} />
       <Field label="What it was">
-        <select name="kind" value={kind} onChange={(e) => setKind(e.target.value)}>
+        <select ref={kindSelect} value={kind} onChange={(e) => setKind(e.target.value)}>
           {MANUAL_KINDS.map((k) => (
             <option key={k.value} value={k.value}>
               {k.label}

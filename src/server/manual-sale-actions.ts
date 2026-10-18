@@ -1,7 +1,7 @@
 "use server";
 
 import { randomUUID } from "node:crypto";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db, schema } from "@/db";
 import { MANUAL_IMPORT, MANUAL_KINDS, MANUAL_SOURCE, MANUAL_VIA } from "@/lib/manual-sales";
@@ -10,6 +10,7 @@ import { plural } from "@/lib/plural";
 import { bandScope } from "@/lib/permissions";
 import { requireAccess } from "./context";
 import { saleInPayout } from "./sales-browse";
+import { merchName, merchSources } from "./manual-sales";
 
 export type ManualSaleState = { ok?: string; error?: string } | null;
 
@@ -31,7 +32,7 @@ async function manualImport(orgId: string) {
 
 /** Add a sale by hand (a show, merch sold in person): counted like any other sale, for the band chosen. */
 export async function addManualSale(_: ManualSaleState, fd: FormData): Promise<ManualSaleState> {
-  const { orgId, access, user } = await requireAccess("sales", "edit");
+  const { orgId, access, user, managedBy } = await requireAccess("sales", "edit");
   const date = str(fd, "date");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { error: "Enter the date." };
   const bandId = Number(str(fd, "bandId")) || null;
@@ -53,13 +54,9 @@ export async function addManualSale(_: ManualSaleState, fd: FormData): Promise<M
       .filter((k) => k.startsWith("sold:"))
       .map((k) => ({ ref: k.slice("sold:".length), quantity: Math.round(Number(str(fd, k)) || 0) }))
       .filter((x) => x.quantity > 0);
-    const releaseIds = [...new Set(sold.filter((x) => x.ref !== "other").map((x) => Number(x.ref.split(":")[0]) || 0))];
-    const releases = releaseIds.length
-      ? await db
-          .select({ id: schema.releases.id, title: schema.releases.title, bandId: schema.releases.bandId, packages: schema.releases.packages })
-          .from(schema.releases)
-          .where(and(eq(schema.releases.orgId, orgId), inArray(schema.releases.id, releaseIds)))
-      : [];
+    const sources = await merchSources({ orgId, managed: managedBy ? { labelOrgId: managedBy.labelOrgId, bandId: managedBy.bandId } : null, onlyBands: scope });
+    // (Its own books' items must be the band's; the label's are all for the band.)
+    const theBands = (x: { own: boolean; bandId: number | null }) => !x.own || x.bandId === null || x.bandId === bandId;
     for (const { ref, quantity } of sold) {
       const each = parseCents(str(fd, `each:${ref}`));
       if (ref === "other") {
@@ -69,14 +66,22 @@ export async function addManualSale(_: ManualSaleState, fd: FormData): Promise<M
         lines.push({ itemName, format: "", releaseId: null, netCents: each * quantity, quantity });
         continue;
       }
+      if (ref.startsWith("stock:")) {
+        const item = sources.stock.find((x) => x.id === Number(ref.slice("stock:".length)));
+        if (!item || !theBands(item)) return { error: "That item isn’t the band’s." };
+        const itemName = item.option ? `${item.name} (${item.option})` : item.name;
+        if (!each) return { error: `Enter the price of ${itemName}.` };
+        lines.push({ itemName, format: "", releaseId: null, netCents: each * quantity, quantity });
+        continue;
+      }
       const [releaseId, packageId] = ref.split(":").map((n) => Number(n) || null);
-      const release = releases.find((r) => r.id === releaseId);
+      const release = sources.releases.find((r) => r.id === releaseId);
       const pkg = release && packageId ? release.packages.find((p) => p.bandcampId === packageId) : undefined;
-      if (!release || (release.bandId !== null && release.bandId !== bandId) || (packageId && !pkg)) return { error: "That item isn’t the band’s." };
-      // Named like Bandcamp's own rows: the release, and the format beside it (unless it's the item itself).
-      const format = pkg && pkg.title !== release.title ? pkg.title : "";
-      if (!each) return { error: `Enter the price of ${format ? `${release.title}, ${format}` : release.title}.` };
-      lines.push({ itemName: release.title, format, releaseId: release.id, netCents: each * quantity, quantity });
+      if (!release || !theBands(release) || (packageId && !pkg)) return { error: "That item isn’t the band’s." };
+      const { itemName, format } = merchName(release, pkg);
+      if (!each) return { error: `Enter the price of ${format ? `${itemName}, ${format}` : itemName}.` };
+      // (The label's catalog is the label's books: the sale is named after it, not linked to it.)
+      lines.push({ itemName, format, releaseId: release.own ? release.id : null, netCents: each * quantity, quantity });
     }
     if (!lines.length) return { error: "Enter how many of something were sold." };
   } else {

@@ -9,7 +9,8 @@ import { addBandFromArtist, assignArtistToBand, assignRouting, createReleaseFrom
 import { bandcampSubdomain } from "@/lib/applications";
 import { bandScope, can } from "@/lib/permissions";
 import { MANUAL_IMPORT } from "@/lib/manual-sales";
-import { ManualSaleForm, merchChoices } from "@/components/manual-sale";
+import { ManualSaleForm } from "@/components/manual-sale";
+import { merchChoices, merchSources } from "@/server/manual-sales";
 import { plural } from "@/lib/plural";
 import { API_SYNC_PREFIX, bandcampCredentials } from "@/server/bandcamp-api";
 import { SalesTabs } from "@/components/sales-tabs";
@@ -214,7 +215,9 @@ export default async function ImportPage({ searchParams }: PageProps<"/sales/imp
         <Card title="Add a sale by hand">
           <ManualSaleForm
             bands={scope ? bands.filter((b) => scope.includes(b.id)) : bands}
-            merch={merchChoices(scope ? releases.filter((r) => r.bandId !== null && scope.includes(r.bandId)) : releases)}
+            merch={merchChoices(
+              await merchSources({ orgId, managed: ctx.managedBy ? { labelOrgId: ctx.managedBy.labelOrgId, bandId: ctx.managedBy.bandId } : null, onlyBands: scope }),
+            )}
             currency={usual?.currency ?? "USD"}
           />
         </Card>
