@@ -40,17 +40,30 @@ setTimeout(() => {
   process.exit(1);
 }, 15 * 60 * 1000);
 
-// "Sync now" requests waiting on the live site.
-async function requests(): Promise<{ orgId: string; at: string }[]> {
+// "Sync now" requests waiting on the live site (for all of an account, or some of its bands).
+type Request = { orgId: string; at: string; bandIds?: number[] | null };
+async function requests(): Promise<Request[]> {
   if (args.local || !secret) return [];
   try {
     const res = await fetch(`${site}/api/catalog-sync`, { headers: { authorization: `Bearer ${secret}` }, signal: AbortSignal.timeout(15000) });
     if (!res.ok) throw new Error(`the site answered ${res.status}`);
-    return ((await res.json()) as { requests: { orgId: string; at: string }[] }).requests;
+    return ((await res.json()) as { requests: Request[] }).requests;
   } catch (e) {
     if (!args["if-due"]) console.log(`  (couldn't check for "Sync now" requests: ${(e as Error).message})`);
     return [];
   }
+}
+// How far a sync has got, for the page to show (at most every couple of seconds).
+let lastReport = 0;
+function reportProgress(orgId: string, done: number, total: number) {
+  if (args.local || !secret || (done < total && Date.now() - lastReport < 2000)) return;
+  lastReport = Date.now();
+  void fetch(`${site}/api/catalog-sync`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${secret}`, "content-type": "application/json" },
+    body: JSON.stringify({ orgId, progress: { done, total } }),
+    signal: AbortSignal.timeout(15000),
+  }).catch(() => {});
 }
 async function clearRequest(orgId: string) {
   await fetch(`${site}/api/catalog-sync`, {
@@ -93,6 +106,13 @@ const { eq, isNotNull } = await import("drizzle-orm");
 
 const where = args.local ? "the local database" : new URL(process.env.DATABASE_URL!).host;
 const requested = new Set(waiting.map((r) => r.orgId));
+// Asked for some bands only (a band's own group pressing "Sync now"): just their releases, unless
+// it's time for everyone's anyway.
+const onlyBandsOf = (orgId: string) => {
+  if (due) return null;
+  const r = waiting.find((x) => x.orgId === orgId);
+  return r?.bandIds?.length ? r.bandIds : null;
+};
 const accounts = (
   await db
     .select({ orgId: schema.accountSettings.orgId, name: schema.organization.name })
@@ -108,8 +128,10 @@ if (!accounts.length && !args["if-due"]) {
   console.log(args.account ? `No account called “${args.account}” with a Bandcamp address.` : "No accounts have a Bandcamp address.");
 }
 for (const a of accounts) {
-  const r = await syncCatalog(a.orgId);
-  console.log(`${stamp()}  ${a.name} → ${where}${requested.has(a.orgId) ? " (Sync now)" : ""}: ${r.summary}`);
+  const onlyBands = onlyBandsOf(a.orgId);
+  const r = await syncCatalog(a.orgId, { onlyBands, onProgress: (done, total) => reportProgress(a.orgId, done, total) });
+  const why = requested.has(a.orgId) ? (onlyBands ? ` (Sync now, ${onlyBands.length === 1 ? "one band" : `${onlyBands.length} bands`})` : " (Sync now)") : "";
+  console.log(`${stamp()}  ${a.name} → ${where}${why}: ${r.summary}`);
   for (const e of r.errors) console.log(`  ! ${e}`);
   if (requested.has(a.orgId)) await clearRequest(a.orgId);
 }

@@ -76,30 +76,32 @@ export function SignUpForm({
 
 export function CreateAccountForm() {
   const [state, action, pending] = useActionState(createAccount, null);
+  // The button and name say which it is.
+  const [kind, setKind] = useState<"label" | "band">("label");
   return (
     <form action={action} className="space-y-4">
       <fieldset className="space-y-2">
         <legend className="mb-1 text-sm font-medium">This group is</legend>
         <label className="flex items-start gap-2 text-sm">
-          <input type="radio" name="kind" value="label" defaultChecked className="mt-1" />
+          <input type="radio" name="kind" value="label" checked={kind === "label"} onChange={() => setKind("label")} className="mt-1" />
           <span>
             <b>A label</b>
             <span className="block text-muted">Several bands, their members, and payouts across all of them.</span>
           </span>
         </label>
         <label className="flex items-start gap-2 text-sm">
-          <input type="radio" name="kind" value="band" className="mt-1" />
+          <input type="radio" name="kind" value="band" checked={kind === "band"} onChange={() => setKind("band")} className="mt-1" />
           <span>
             <b>A band</b>
             <span className="block text-muted">One band and its members, splitting what you earn.</span>
           </span>
         </label>
       </fieldset>
-      <Field label="Name" hint="Your label or band name.">
+      <Field label={kind === "label" ? "Label name" : "Band name"}>
         <input name="name" required />
       </Field>
       <Result state={state} />
-      <Submit pending={pending}>Create group</Submit>
+      <Submit pending={pending}>{kind === "label" ? "Create label" : "Create band"}</Submit>
     </form>
   );
 }

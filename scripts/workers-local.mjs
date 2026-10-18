@@ -43,7 +43,7 @@ execSync("npx tsx scripts/migrate.mts", { stdio: "inherit", env: { ...process.en
 const secret = () => randomBytes(32).toString("hex");
 writeFileSync(
   VARS,
-  [MARK, `BETTER_AUTH_SECRET=${secret()}`, `APP_ENCRYPTION_KEY=${secret()}`, `CRON_SECRET=${secret()}`, `BETTER_AUTH_URL=http://localhost:${port}`, "SITE_ADMIN_EMAILS=admin@example.test", "BANDCAMP_API=off", ""].join("\n"),
+  [MARK, `BETTER_AUTH_SECRET=${secret()}`, `APP_ENCRYPTION_KEY=${secret()}`, `CRON_SECRET=${secret()}`, `CATALOG_SYNC_SECRET=${secret()}`, `BETTER_AUTH_URL=http://localhost:${port}`, "SITE_ADMIN_EMAILS=admin@example.test", "BANDCAMP_API=off", ""].join("\n"),
 );
 writeFileSync(CONFIG, readFileSync("wrangler.jsonc", "utf8").replace(/\n\s*"routes": \[[\s\S]*?\],/, ""));
 

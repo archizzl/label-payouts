@@ -96,9 +96,10 @@ async function fromPublicPages(
   found: string[],
   errors: string[],
   refreshAll: boolean,
+  { onlyBands, onProgress }: CatalogScope = {},
 ) {
-  // A label's artists. (A band account has no artists page.)
-  if (kind === "label") {
+  // A label's artists. (A band account has no artists page; one band's part of a label needs none.)
+  if (kind === "label" && !onlyBands) {
     await step("Artists", async () => {
       const lookup = lookedUp(await lookupLabelArtists(orgId, url));
       const rows = lookup.artists.filter((a) => a.status !== "linked");
@@ -122,7 +123,9 @@ async function fromPublicPages(
       bandId: onlyBand?.id ?? r.bandId,
       releaseId: r.releaseId,
     });
-    const fresh = lookup.releases.filter((r) => r.status === "new");
+    // Just some bands' part of it: their releases only.
+    const theirs = (r: (typeof lookup.releases)[number]) => !onlyBands || (r.bandId != null && onlyBands.includes(r.bandId));
+    const fresh = lookup.releases.filter((r) => r.status === "new" && theirs(r));
     const staleBefore = iso(Date.now() - REFRESH_AFTER_MS);
     const syncedAt = new Map(
       (await db.select({ id: releases.id, syncedAt: releases.syncedAt }).from(releases).where(eq(releases.orgId, orgId))).map((r) => [
@@ -131,11 +134,13 @@ async function fromPublicPages(
       ]),
     );
     const stale = lookup.releases
-      .filter((r) => r.status === "imported" && r.releaseId && (syncedAt.get(r.releaseId) ?? "") < staleBefore)
+      .filter((r) => r.status === "imported" && r.releaseId && (syncedAt.get(r.releaseId) ?? "") < staleBefore && theirs(r))
       .sort((a, b) => (syncedAt.get(a.releaseId!) ?? "").localeCompare(syncedAt.get(b.releaseId!) ?? ""))
       .slice(0, refreshAll ? undefined : REFRESH_PER_SYNC);
     if (!fresh.length && !stale.length) return;
-    const results = await importReleases(orgId, [...fresh, ...stale].map(toRow), lookup.labelHost, lookup.label);
+    const rows = [...fresh, ...stale].map(toRow);
+    onProgress?.(0, rows.length);
+    const results = await importReleases(orgId, rows, lookup.labelHost, lookup.label, onProgress);
     const created = results.filter((r) => r.ok && r.created);
     const merch = fresh.filter((r) => r.kind === "merch").length;
     if (created.length) {
@@ -145,11 +150,15 @@ async function fromPublicPages(
     if (failed.length) errors.push(`Couldn't read ${plural(failed.length, "Bandcamp page")}, including ${failed[0].title}.`);
     await reRouteAll(orgId);
   });
+  if (onlyBands) return;
   await step("Photos", async () => {
     const updated = await refreshBandPhotos(orgId);
     if (updated) found.push(plural(updated, "new artist photo"));
   });
 }
+
+/** A catalog sync of just some bands' part of an account, and/or one that reports how far it's got. */
+type CatalogScope = { onlyBands?: number[] | null; onProgress?: (done: number, total: number) => void };
 
 /** Bring in what's new on Bandcamp. With `force`, ignores the once-an-hour limit. */
 export async function syncAccount(orgId: string, { force = false } = {}): Promise<SyncResult> {
@@ -233,9 +242,10 @@ export async function syncAccount(orgId: string, { force = false } = {}): Promis
 /**
  * Just the public pages (artists, releases, merch, track lists, artwork, dates), all due refreshes
  * at once: for `npm run sync-catalog`, which runs where Bandcamp's pages can be read. Separate from
- * the hourly sync, so it doesn't hold that up; it records when it last ran.
+ * the hourly sync, so it doesn't hold that up; it records when it last ran. `scope`: just some bands'
+ * releases (a band's own group asking), and/or a report of how far it's got.
  */
-export async function syncCatalog(orgId: string): Promise<{ summary: string; errors: string[] }> {
+export async function syncCatalog(orgId: string, scope: CatalogScope = {}): Promise<{ summary: string; errors: string[] }> {
   const [settings] = await db.select().from(accountSettings).where(eq(accountSettings.orgId, orgId));
   if (!settings?.bandcampUrl) return { summary: "No Bandcamp address.", errors: [] };
   const managed = await managingLabel(orgId);
@@ -259,9 +269,11 @@ export async function syncCatalog(orgId: string): Promise<{ summary: string; err
     found,
     errors,
     true,
+    scope,
   );
   if (blocked) errors.push("Bandcamp showed a bot check instead of its pages.");
-  else await db.update(accountSettings).set({ catalogSyncedAt: iso(Date.now()) }).where(eq(accountSettings.orgId, orgId));
+  // (Just some bands' part of it isn't the whole catalog read.)
+  else if (!scope.onlyBands) await db.update(accountSettings).set({ catalogSyncedAt: iso(Date.now()) }).where(eq(accountSettings.orgId, orgId));
   if (org?.kind === "label") {
     try {
       await ensureBandAccounts(orgId);

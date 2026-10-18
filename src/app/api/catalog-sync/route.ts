@@ -1,9 +1,10 @@
 import { timingSafeEqual } from "node:crypto";
-import { clearCatalogSync, pendingCatalogSyncs } from "@/server/catalog-requests";
+import { clearCatalogSync, pendingCatalogSyncs, setCatalogProgress } from "@/server/catalog-requests";
 
 /*
- * For the Mac running `npm run sync-catalog`: GET lists the accounts waiting on a "Sync now", POST
- * {orgId, before} clears one once it's done. Only with CATALOG_SYNC_SECRET; anything else is a 404.
+ * For the Mac running `npm run sync-catalog`: GET lists the accounts waiting on a "Sync now" (and for
+ * which bands), POST {orgId, before} clears one once it's done, and POST {orgId, progress: {done,
+ * total}} says how far a sync has got. Only with CATALOG_SYNC_SECRET; anything else is a 404.
  */
 
 function allowed(request: Request) {
@@ -21,7 +22,15 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   if (!allowed(request)) return notFound();
-  const { orgId, before } = (await request.json().catch(() => ({}))) as { orgId?: string; before?: string };
+  const { orgId, before, progress } = (await request.json().catch(() => ({}))) as {
+    orgId?: string;
+    before?: string;
+    progress?: { done?: unknown; total?: unknown };
+  };
+  if (typeof orgId === "string" && progress && typeof progress.done === "number" && typeof progress.total === "number") {
+    await setCatalogProgress(orgId, { done: progress.done, total: progress.total });
+    return Response.json({ ok: true });
+  }
   if (typeof orgId !== "string" || typeof before !== "string") return new Response("Bad request", { status: 400 });
   await clearCatalogSync(orgId, before);
   return Response.json({ ok: true });

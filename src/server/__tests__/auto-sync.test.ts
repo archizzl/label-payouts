@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { eq } from "drizzle-orm";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { newAccount, testDb } from "../../../test/helpers/db";
@@ -101,6 +102,40 @@ describe("the catalog sync (npm run sync-catalog)", () => {
     expect(s.catalogSyncedAt).toBeTruthy();
     expect(s.syncStartedAt).toBeNull();
     expect((await sync.syncStatus(orgId))?.due).toBe(true);
+  });
+
+  it("reads just one band's releases when its own group asks, and says how far it's got", async () => {
+    const page = (name: string) => readFileSync(new URL(`../../../test/fixtures/${name}`, import.meta.url), "utf8");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url.endsWith("/music")) return new Response(page("label-music.html"), { status: 200 });
+        if (url.endsWith("/merch")) return new Response("<html></html>", { status: 200 });
+        return new Response(page("release-album.html"), { status: 200 });
+      }),
+    );
+    const orgId = await newAccount("Tidepool", "label");
+    await db.insert(schema.accountSettings).values({ orgId, bandcampUrl: "tidepool.bandcamp.com" });
+    const [glass, moth] = await db
+      .insert(schema.bands)
+      .values([
+        { orgId, name: "Glass Harbor", urlPatterns: ["glassharbor"] },
+        { orgId, name: "Moth Parade" },
+      ])
+      .returning();
+    const progress: [number, number][] = [];
+    await sync.syncCatalog(orgId, { onlyBands: [glass.id], onProgress: (done, total) => progress.push([done, total]) });
+    const made = await db.select({ bandId: schema.releases.bandId }).from(schema.releases).where(eq(schema.releases.orgId, orgId));
+    expect(made.length).toBeGreaterThan(0);
+    expect(made.every((r) => r.bandId === glass.id)).toBe(true);
+    expect(made.some((r) => r.bandId === moth.id)).toBe(false);
+    // Every page it read was counted, from none to all of them.
+    const total = progress[0][1];
+    expect(progress[0]).toEqual([0, total]);
+    expect(progress.at(-1)).toEqual([total, total]);
+    expect(progress.length).toBe(total + 1);
+    // One band's part isn't the whole catalog read.
+    expect((await settings(orgId)).catalogSyncedAt).toBeNull();
   });
 
   it("doesn't record a sync when Bandcamp shows a bot check", async () => {

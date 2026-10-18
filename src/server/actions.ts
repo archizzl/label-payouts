@@ -4,7 +4,7 @@ import { and, eq, gt, inArray } from "drizzle-orm";
 import type { AnyPgColumn, PgTable } from "drizzle-orm/pg-core";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { db, schema } from "@/db";
+import { db, onCloudflare, schema } from "@/db";
 import { type ItemCategory, parseBandcampCsv } from "@/lib/bandcamp-csv";
 import { parseReleasePage } from "@/lib/bandcamp-release";
 import { parseCents } from "@/lib/money";
@@ -17,7 +17,7 @@ import { deleteSubAccount, ensureBandAccounts, renameSubAccount } from "./band-a
 import { fetchPage, upsertRelease } from "./bandcamp";
 import { bandcampCredentials } from "./bandcamp-api";
 import { requestCatalogSync } from "./catalog-requests";
-import { syncAccount } from "./auto-sync";
+import { syncAccount, syncCatalog } from "./auto-sync";
 import { getContext, requireAccess, requireAdmin } from "./context";
 import { prepare, runSalesSync, saveSales } from "./sync";
 import { computePayoutPeriod, reRouteAll, strandedSales } from "./data";
@@ -712,11 +712,19 @@ export async function setLabelKeepsNothing(fd: FormData) {
 
 /** "Sync with Bandcamp now": artists, releases, merch and sales, right away (not waiting for the hour). */
 export async function syncWithBandcamp(_?: ActionState, fd?: FormData): Promise<ActionState> {
-  // A band's own account can sync too: it syncs the label's account (reading Bandcamp only), or,
-  // from its Settings, its own books.
   const viewed = await getContext();
   const own = fd?.get("books") === "own";
-  const { orgId } = viewed.lens && !own ? viewed : await requireAdmin();
+  // A band account the label made, on a page of the label's books for it: just its band's part,
+  // its releases read from the label's Bandcamp, not the whole label. (From its Settings: its own books.)
+  if (viewed.lens && !own) {
+    const m = viewed.managedBy!;
+    // On the live site the Mac reads the pages; here, the app does.
+    const local = onCloudflare ? null : await syncCatalog(m.labelOrgId, { onlyBands: [m.bandId] });
+    if (onCloudflare) await requestCatalogSync(m.labelOrgId, [m.bandId]);
+    done();
+    return local ? { ok: local.summary } : { ok: `Reading ${viewed.org.name}’s releases from Bandcamp.` };
+  }
+  const { orgId } = await requireAdmin();
   // On the live site, artists and releases come from the catalog sync on a Mac: ask it to run now.
   await requestCatalogSync(orgId);
   const result = await syncAccount(orgId, { force: true });

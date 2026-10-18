@@ -371,8 +371,11 @@ export async function importReleases(
   rows: ReleaseImportRow[],
   labelHost: string,
   labelName: string | null = null,
+  /** After each page: how many are done, of how many. */
+  onEach?: (done: number, total: number) => void,
 ): Promise<ReleaseImportResult[]> {
   const results: ReleaseImportResult[] = new Array(rows.length);
+  let done = 0;
   // Pages are fetched in parallel, but saved one at a time, so two releases by a new artist can't
   // both create the band.
   let saving = Promise.resolve();
@@ -391,6 +394,7 @@ export async function importReleases(
       } catch (e) {
         results[i] = { ok: false, title: rows[i].title, error: (e as Error).message };
       }
+      onEach?.(++done, rows.length);
     }
   };
   await Promise.all(Array.from({ length: Math.min(FETCH_CONCURRENCY, rows.length) }, worker));

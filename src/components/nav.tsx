@@ -120,6 +120,7 @@ export function Nav({
   labels = [],
   syncing = false,
   syncedAt = null,
+  catalogBusy = false,
   siteAdmin = false,
   projects = false,
   showAdminLink = true,
@@ -143,6 +144,8 @@ export function Nav({
   syncing?: boolean;
   /** When the last sync with Bandcamp finished (so the page can tell when another one has). */
   syncedAt?: string | null;
+  /** A catalog sync (on the Mac) is waiting or running for the books shown. */
+  catalogBusy?: boolean;
   /** Runs the whole site: gets the Admin link. */
   siteAdmin?: boolean;
   /** Projects is switched on for them (a flagged feature). */
@@ -179,7 +182,7 @@ export function Nav({
           <span className="text-xl font-bold tracking-tight lowercase">labelmaker</span>
         </Link>
         <div className="flex flex-wrap items-center gap-3">
-          <SyncIndicator active={syncing} syncedAt={syncedAt} />
+          <SyncIndicator active={syncing} syncedAt={syncedAt} catalogBusy={catalogBusy} />
           {/* A band's own account is just the band, then the login's name (unless that's the band's too). */}
           <AccountSwitcher account={account} accounts={accounts} bare={!!managed} />
           {(!managed || user.name !== account.name) && <span className="hidden text-sm text-muted sm:inline">{user.name}</span>}

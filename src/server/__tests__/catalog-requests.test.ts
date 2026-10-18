@@ -16,7 +16,7 @@ vi.mock("@opennextjs/cloudflare", () => ({
   }),
 }));
 
-const { requestCatalogSync, catalogSyncRequestedAt } = await import("../catalog-requests");
+const { requestCatalogSync, catalogSyncRequestedAt, catalogSyncProgress, pendingCatalogSyncs } = await import("../catalog-requests");
 const route = await import("../../app/api/catalog-sync/route");
 
 process.env.CATALOG_SYNC_SECRET = "s".repeat(64);
@@ -43,5 +43,29 @@ describe("Sync now for the Mac's catalog sync", () => {
   it("is a 404 without the secret", async () => {
     expect((await route.GET(new Request("https://x/api/catalog-sync"))).status).toBe(404);
     expect((await route.GET(new Request("https://x/api/catalog-sync", { headers: { authorization: "Bearer nope" } }))).status).toBe(404);
+  });
+
+  it("can be for some bands only, adding up until it runs, and a whole one wins", async () => {
+    await requestCatalogSync("label", [3]);
+    await requestCatalogSync("label", [5]);
+    expect((await pendingCatalogSyncs()).find((r) => r.orgId === "label")?.bandIds?.sort()).toEqual([3, 5]);
+    await requestCatalogSync("label");
+    await requestCatalogSync("label", [7]);
+    expect((await pendingCatalogSyncs()).find((r) => r.orgId === "label")?.bandIds).toBeNull();
+  });
+
+  it("reads a request made before requests had bands as the whole account", async () => {
+    store.set("request:old", "2026-10-01T00:00:00.000Z");
+    expect(await pendingCatalogSyncs()).toEqual([{ orgId: "old", at: "2026-10-01T00:00:00.000Z", bandIds: null }]);
+  });
+
+  it("takes the Mac's progress, and drops it once the sync is done", async () => {
+    await requestCatalogSync("org1");
+    const post = (body: unknown) => route.POST(new Request("https://x/api/catalog-sync", { method: "POST", headers: auth, body: JSON.stringify(body) }));
+    expect((await post({ orgId: "org1", progress: { done: 3, total: 40 } })).status).toBe(200);
+    expect(await catalogSyncProgress("org1")).toMatchObject({ done: 3, total: 40 });
+    await post({ orgId: "org1", before: new Date(Date.now() + 1000).toISOString() });
+    expect(await catalogSyncProgress("org1")).toBeNull();
+    expect(await catalogSyncRequestedAt("org1")).toBeNull();
   });
 });

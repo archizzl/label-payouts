@@ -116,7 +116,7 @@ export default async function InventoryPage({ searchParams }: PageProps<"/invent
           <ActionForm action={addFromCatalog} className="flex flex-wrap items-center gap-2" keepOpen>
             {band && <input type="hidden" name="bandId" value={band} />}
             <SubmitButton variant="secondary" size="sm">
-              Sync catalog from bandcamp
+              Add from the catalog
             </SubmitButton>
           </ActionForm>
         </div>

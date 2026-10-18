@@ -4,7 +4,7 @@ import { syncWithBandcamp } from "@/server/actions";
 import { onCloudflare } from "@/db";
 import { CATALOG_SYNC_EVERY_MINUTES, syncStatus } from "@/server/auto-sync";
 import { bandcampApiOff } from "@/server/bandcamp-api";
-import { catalogSyncRequestedAt } from "@/server/catalog-requests";
+import { catalogSyncProgress, catalogSyncRequestedAt } from "@/server/catalog-requests";
 import { getContext } from "@/server/context";
 
 /** How many minutes ago it was. */
@@ -51,7 +51,7 @@ export async function SyncStatus({ orgId, onSettings = false }: { orgId: string;
       </p>
     );
   }
-  const requestedAt = await catalogSyncRequestedAt(orgId);
+  const [requestedAt, progress] = await Promise.all([catalogSyncRequestedAt(orgId), catalogSyncProgress(orgId)]);
   // Sync now is for admins and bands' own accounts (members with a member type see the status only).
   const { isAdmin: admin, lens, managedBy, orgId: viewedOrgId } = await getContext();
   const isAdmin = admin || lens;
@@ -84,13 +84,15 @@ export async function SyncStatus({ orgId, onSettings = false }: { orgId: string;
             `${hourly}: not synced yet.`
           )}
         </p>
-        {(s.catalogSyncedAt || requestedAt) && (
+        {(s.catalogSyncedAt || requestedAt || progress) && (
           <p>
             Releases, track lists, artwork and artist photos:{" "}
-            {requestedAt
+            {progress
+              ? `reading Bandcamp, ${progress.done} of ${progress.total} pages.`
+              : requestedAt
               ? minutesSince(requestedAt) > 5
                 ? <span className="text-warn">asked for {ago(requestedAt)}, not done yet. The Mac that runs this sync may be off or asleep.</span>
-                : "update on its way, usually within a minute."
+                : "starting in a minute or two."
               :`synced ${ago(s.catalogSyncedAt!)} (every ${CATALOG_SYNC_EVERY_MINUTES} minutes).`}
           </p>
         )}
