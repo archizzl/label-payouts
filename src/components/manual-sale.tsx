@@ -12,18 +12,9 @@ export function ManualSaleForm({ bands, merch, currency }: { bands: { id: number
       <Field label="Date">
         <input name="date" type="date" required defaultValue={today} />
       </Field>
-      <ManualSaleFields bands={bands} merch={merch} />
-      <Field label="Amount received">
-        <input name="amount" required inputMode="decimal" />
-      </Field>
-      <Field label="Currency">
-        <input name="currency" required defaultValue={currency} maxLength={3} className="uppercase" />
-      </Field>
-      <Field label="Quantity">
-        <input name="quantity" type="number" min={1} defaultValue={1} />
-      </Field>
+      <ManualSaleFields bands={bands} merch={merch} currency={currency} />
       <div className="sm:col-span-3">
-        <SubmitButton>Add sale</SubmitButton>
+        <SubmitButton>Add</SubmitButton>
       </div>
     </ActionForm>
   );
@@ -42,16 +33,17 @@ export function DeleteManualSale({ id }: { id: number }) {
 }
 
 /**
- * The merch a hand-added sale can be for: merch items (each of their kinds, if they have several)
- * and releases' physical formats, as "<release id>:<package id>".
+ * The merch a hand-added sale can be for, sold out or not: merch items (each of their kinds, if they
+ * have several) and releases' physical formats, as "<release id>:<package id>", with their price.
  */
 export function merchChoices(releases: { id: number; title: string; kind: string; bandId: number | null; packages: ReleasePackage[] }[]): MerchChoice[] {
   return releases.flatMap((r) => {
-    if (r.kind === "merch" && !r.packages.length) return [{ value: `${r.id}:`, label: r.title, bandId: r.bandId }];
+    if (r.kind === "merch" && !r.packages.length) return [{ value: `${r.id}:`, label: r.title, bandId: r.bandId, price: null }];
     return r.packages.map((p) => ({
       value: `${r.id}:${p.bandcampId}`,
       label: r.kind === "merch" && p.title === r.title ? r.title : `${r.title} — ${p.title}`,
       bandId: r.bandId,
+      price: p.price,
     }));
   });
 }

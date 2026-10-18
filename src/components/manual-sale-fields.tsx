@@ -4,17 +4,17 @@ import { useState } from "react";
 import { Field } from "@/components/ui";
 import { MANUAL_KINDS } from "@/lib/manual-sales";
 
-/** A merch item to pick for a hand-added sale: "<release id>:<package id>" (or just "<release id>:"), and its band. */
-export type MerchChoice = { value: string; label: string; bandId: number | null };
+/** A merch item that can be sold by hand: "<release id>:<package id>" (or just "<release id>:"), its band and price. */
+export type MerchChoice = { value: string; label: string; bandId: number | null; price: number | null };
 
 /**
- * The hand-added sale's band (a choice only when there's more than one), what it was, and for merch,
- * which item (optional). Picking an item is enough to say what it was.
+ * The hand-added sale's band (a choice only when there's more than one) and what it was. A show or
+ * anything else is one amount; merch is every merch item the band has, each with its price and how
+ * many were sold (and a line for anything not in the catalog).
  */
-export function ManualSaleFields({ bands, merch }: { bands: { id: number; name: string }[]; merch: MerchChoice[] }) {
+export function ManualSaleFields({ bands, merch, currency }: { bands: { id: number; name: string }[]; merch: MerchChoice[]; currency: string }) {
   const [bandId, setBandId] = useState(bands.length === 1 ? String(bands[0].id) : "");
   const [kind, setKind] = useState<string>("show");
-  const [item, setItem] = useState("");
   const items = merch.filter((m) => !bandId || m.bandId === null || String(m.bandId) === bandId);
   return (
     <>
@@ -22,15 +22,7 @@ export function ManualSaleFields({ bands, merch }: { bands: { id: number; name: 
         <input type="hidden" name="bandId" value={bands[0].id} />
       ) : (
         <Field label="Band">
-          <select
-            name="bandId"
-            required
-            value={bandId}
-            onChange={(e) => {
-              setBandId(e.target.value);
-              setItem("");
-            }}
-          >
+          <select name="bandId" required value={bandId} onChange={(e) => setBandId(e.target.value)}>
             <option value="" disabled>
               Choose a band
             </option>
@@ -51,21 +43,59 @@ export function ManualSaleFields({ bands, merch }: { bands: { id: number; name: 
           ))}
         </select>
       </Field>
-      {kind === "merch" && items.length > 0 && (
-        <Field label="Item (optional)">
-          <select name="item" value={item} onChange={(e) => setItem(e.target.value)}>
-            <option value="">Not one of these</option>
-            {items.map((m) => (
-              <option key={m.value} value={m.value}>
-                {m.label}
-              </option>
-            ))}
-          </select>
-        </Field>
-      )}
-      <Field label="Description" className="sm:col-span-3">
-        <input name="itemName" required={!(kind === "merch" && item)} maxLength={200} />
+      <Field label="Currency">
+        <input name="currency" required defaultValue={currency} maxLength={3} className="uppercase" />
       </Field>
+      {kind === "merch" ? (
+        // A new band's list starts empty.
+        <div key={bandId} className="overflow-x-auto sm:col-span-3">
+          <table className="data">
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th className="num">Each</th>
+                <th className="num">Sold</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((m) => (
+                <tr key={m.value}>
+                  <td>{m.label}</td>
+                  <td className="num">
+                    <input name={`each:${m.value}`} inputMode="decimal" defaultValue={m.price?.toFixed(2) ?? ""} aria-label={`${m.label}: price each`} className="!w-24 text-right" />
+                  </td>
+                  <td className="num">
+                    <input name={`sold:${m.value}`} type="number" min={0} placeholder="0" aria-label={`${m.label}: how many sold`} className="!w-20 text-right" />
+                  </td>
+                </tr>
+              ))}
+              <tr>
+                <td>
+                  <input name="name:other" maxLength={200} placeholder="Something else" aria-label="Something else: what it was" />
+                </td>
+                <td className="num">
+                  <input name="each:other" inputMode="decimal" aria-label="Something else: price each" className="!w-24 text-right" />
+                </td>
+                <td className="num">
+                  <input name="sold:other" type="number" min={0} placeholder="0" aria-label="Something else: how many sold" className="!w-20 text-right" />
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <>
+          <Field label="Description" className="sm:col-span-3">
+            <input name="itemName" required maxLength={200} />
+          </Field>
+          <Field label="Amount received">
+            <input name="amount" required inputMode="decimal" />
+          </Field>
+          <Field label="Quantity">
+            <input name="quantity" type="number" min={1} defaultValue={1} />
+          </Field>
+        </>
+      )}
     </>
   );
 }

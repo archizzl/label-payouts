@@ -40,28 +40,42 @@ const form = (values: Record<string, string | number>) => {
 const lastSale = async () => (await db.select().from(schema.sales).where(eq(schema.sales.orgId, orgId)).orderBy(schema.sales.id)).at(-1)!;
 
 describe("adding a sale by hand", () => {
-  it("records the merch item picked, and names the sale after it when there's no description", async () => {
+  it("adds a sale for each merch item sold, at its price each, named like Bandcamp's rows", async () => {
+    const { band, lp, shirt } = await setup();
+    const result = await actions.addManualSale(
+      null,
+      form({ bandId: band.id, kind: "merch", [`each:${lp.id}:11`]: "25.00", [`sold:${lp.id}:11`]: 2, [`each:${shirt.id}:`]: "20", [`sold:${shirt.id}:`]: 3 }),
+    );
+    expect(result).toEqual({ ok: "Added 2 sales." });
+    const sales = await db.select().from(schema.sales).where(eq(schema.sales.orgId, orgId)).orderBy(schema.sales.id);
+    expect(sales.map((s) => ({ itemName: s.itemName, packageName: s.packageName, releaseId: s.releaseId, quantity: s.quantity, netCents: s.netCents, category: s.category }))).toEqual([
+      { itemName: "Night Swims", packageName: "12in Vinyl LP", releaseId: lp.id, quantity: 2, netCents: 5000, category: "merch" },
+      { itemName: "Logo T-Shirt", packageName: "", releaseId: shirt.id, quantity: 3, netCents: 6000, category: "merch" },
+    ]);
+  });
+
+  it("takes something not in the catalog, and leaves out items none were sold of", async () => {
     const { band, lp } = await setup();
-    expect(await actions.addManualSale(null, form({ bandId: band.id, kind: "merch", item: `${lp.id}:11`, amount: "25.00" }))).toEqual({
-      ok: "Added Night Swims, 12in Vinyl LP.",
-    });
-    expect(await lastSale()).toMatchObject({ releaseId: lp.id, packageName: "12in Vinyl LP", itemName: "Night Swims", category: "merch", netCents: 2500 });
+    const result = await actions.addManualSale(
+      null,
+      form({ bandId: band.id, kind: "merch", [`each:${lp.id}:11`]: "25.00", [`sold:${lp.id}:11`]: "", "name:other": "Tote bag", "each:other": "15", "sold:other": 1 }),
+    );
+    expect(result).toEqual({ ok: "Added Tote bag." });
+    expect(await lastSale()).toMatchObject({ itemName: "Tote bag", releaseId: null, netCents: 1500, quantity: 1 });
   });
 
-  it("keeps the description given, for a merch item with no formats of its own", async () => {
-    const { band, shirt } = await setup();
-    await actions.addManualSale(null, form({ bandId: band.id, kind: "merch", item: `${shirt.id}:`, itemName: "Shirt at the Mercury", amount: "20" }));
-    expect(await lastSale()).toMatchObject({ releaseId: shirt.id, packageName: "", itemName: "Shirt at the Mercury" });
-  });
-
-  it("needs a description without an item, and refuses another band's item", async () => {
-    const { band, theirs } = await setup();
-    expect(await actions.addManualSale(null, form({ bandId: band.id, kind: "merch", amount: "20" }))).toEqual({ error: "Say what it was." });
-    expect(await actions.addManualSale(null, form({ bandId: band.id, kind: "merch", item: `${theirs.id}:`, amount: "20" }))).toEqual({
+  it("needs something sold, a price for it, and the band's own items", async () => {
+    const { band, shirt, theirs } = await setup();
+    expect(await actions.addManualSale(null, form({ bandId: band.id, kind: "merch" }))).toEqual({ error: "Enter how many of something were sold." });
+    expect(await actions.addManualSale(null, form({ bandId: band.id, kind: "merch", [`sold:${shirt.id}:`]: 1 }))).toEqual({ error: "Enter the price of Logo T-Shirt." });
+    expect(await actions.addManualSale(null, form({ bandId: band.id, kind: "merch", [`each:${theirs.id}:`]: "9", [`sold:${theirs.id}:`]: 1 }))).toEqual({
       error: "That item isn’t the band’s.",
     });
-    // An item is only for merch: a show ignores it.
-    await actions.addManualSale(null, form({ bandId: band.id, kind: "show", item: `${theirs.id}:`, itemName: "Door money", amount: "300" }));
-    expect(await lastSale()).toMatchObject({ releaseId: null, itemName: "Door money", itemType: "show" });
+  });
+
+  it("adds a show as one amount", async () => {
+    const { band } = await setup();
+    await actions.addManualSale(null, form({ bandId: band.id, kind: "show", itemName: "Door money", amount: "300" }));
+    expect(await lastSale()).toMatchObject({ releaseId: null, itemName: "Door money", itemType: "show", netCents: 30000, quantity: 1 });
   });
 });
