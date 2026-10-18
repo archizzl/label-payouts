@@ -37,6 +37,8 @@ export default async function ReleasePage({ params, searchParams }: PageProps<"/
   const canMoney = can(ctx.access, "rules", "edit");
   // A band's own account can't change the fields sales are matched by (they'd move money between bands).
   const matchLocked = ctx.lens;
+  // A band's own group (or a label viewing as one): its one band, nothing to choose.
+  const oneBand = ctx.org.kind === "band";
   const id = Number((await params).id);
   const [release] = await db
     .select()
@@ -286,18 +288,20 @@ export default async function ReleasePage({ params, searchParams }: PageProps<"/
                           <Field label="ISRC">
                             <input name="isrc" defaultValue={t.isrc ?? ""} readOnly={matchLocked} />
                           </Field>
-                          <Field label="Band">
-                            <select name="bandId" defaultValue={t.bandId ?? ""}>
-                              <option value="">Same as release ({band.name})</option>
-                              {shownBands
-                                .filter((b) => b.id !== release.bandId)
-                                .map((b) => (
-                                  <option key={b.id} value={b.id}>
-                                    {b.name}
-                                  </option>
-                                ))}
-                            </select>
-                          </Field>
+                          {!oneBand && (
+                            <Field label="Band">
+                              <select name="bandId" defaultValue={t.bandId ?? ""}>
+                                <option value="">Same as release ({band.name})</option>
+                                {shownBands
+                                  .filter((b) => b.id !== release.bandId)
+                                  .map((b) => (
+                                    <option key={b.id} value={b.id}>
+                                      {b.name}
+                                    </option>
+                                  ))}
+                              </select>
+                            </Field>
+                          )}
                           {canMoney && (
                             <label className="flex items-center gap-2 text-sm sm:col-span-2">
                               <input type="checkbox" name="labelKeeps" defaultChecked={t.labelKeeps} /> Donated: the label keeps this track’s share
@@ -428,15 +432,19 @@ export default async function ReleasePage({ params, searchParams }: PageProps<"/
         <form action={saveRelease} className="grid gap-4 sm:grid-cols-2">
           <input type="hidden" name="id" value={id} />
           {release.kind !== "album" && <input type="hidden" name="albumSplitMode" value={release.albumSplitMode} />}
-          <Field label="Band">
-            <select name="bandId" defaultValue={release.bandId}>
-              {shownBands.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
-              ))}
-            </select>
-          </Field>
+          {oneBand ? (
+            <input type="hidden" name="bandId" value={release.bandId} />
+          ) : (
+            <Field label="Band">
+              <select name="bandId" defaultValue={release.bandId}>
+                {shownBands.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          )}
           <Field label="Title">
             <input name="title" defaultValue={release.title} required />
           </Field>

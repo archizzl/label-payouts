@@ -88,6 +88,7 @@ export function ExpenseForm({
   bandId,
   projects = [],
   projectId,
+  oneBand = false,
 }: {
   expense?: Expense;
   bands: Band[];
@@ -98,6 +99,8 @@ export function ExpenseForm({
   projects?: ProjectOption[];
   /** Pre-select this project, e.g. on a project's page. */
   projectId?: number;
+  /** A band's own group: every expense is its band's, so nothing to choose. */
+  oneBand?: boolean;
 }) {
   const e = expense;
   const paidBy = e ? (e.paidBy === "person" ? `person:${e.paidByPersonId}` : e.paidBy) : "label";
@@ -124,18 +127,22 @@ export function ExpenseForm({
         projects={projects.filter((p) => !bandId || p.bandId === bandId || p.bandId === null)}
         value={e?.projectId ?? projectId}
       />
-      <Field label="Band">
-        <select name="bandId" defaultValue={e?.bandId ?? bandId ?? ""}>
-          {!bandId && <option value="">The whole label</option>}
-          {bands
-            .filter((b) => !bandId || b.id === bandId)
-            .map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name}
-              </option>
-            ))}
-        </select>
-      </Field>
+      {oneBand && bands.length === 1 ? (
+        <input type="hidden" name="bandId" value={bands[0].id} />
+      ) : (
+        <Field label="Band">
+          <select name="bandId" defaultValue={e?.bandId ?? bandId ?? ""}>
+            {!bandId && <option value="">The whole label</option>}
+            {bands
+              .filter((b) => !bandId || b.id === bandId)
+              .map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+          </select>
+        </Field>
+      )}
       <Field label="Release (optional)">
         <select name="releaseId" defaultValue={e?.releaseId ?? ""}>
           <option value="">Any of the band’s sales</option>
@@ -198,6 +205,7 @@ export function SubmitReceiptForm({
   projects = [],
   payers,
   toLabel = false,
+  oneBand = false,
 }: {
   bands: Band[];
   projects?: ProjectOption[];
@@ -205,6 +213,8 @@ export function SubmitReceiptForm({
   payers?: { id: number; name: string }[];
   /** A band account the label made: sent to the label (in its books), not the band's own. */
   toLabel?: boolean;
+  /** A band's own group: every receipt is its band's, so nothing to choose. */
+  oneBand?: boolean;
 }) {
   return (
     <ActionForm action={submitReceipt} className="grid gap-4 sm:grid-cols-3">
@@ -240,16 +250,20 @@ export function SubmitReceiptForm({
       </Field>
       <CategoryField />
       <ProjectField projects={projects} />
-      <Field label="For">
-        <select name="bandId" defaultValue={bands[0]?.id ?? ""}>
-          {bands.map((b) => (
-            <option key={b.id} value={b.id}>
-              {b.name}
-            </option>
-          ))}
-          <option value="">Something else</option>
-        </select>
-      </Field>
+      {oneBand && bands.length === 1 ? (
+        <input type="hidden" name="bandId" value={bands[0].id} />
+      ) : (
+        <Field label="For">
+          <select name="bandId" defaultValue={bands[0]?.id ?? ""}>
+            {bands.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
+            ))}
+            <option value="">Something else</option>
+          </select>
+        </Field>
+      )}
       <FilesField required />
       <div className="sm:col-span-3">
         <SubmitButton>Submit receipt</SubmitButton>

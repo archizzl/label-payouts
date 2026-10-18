@@ -313,16 +313,21 @@ function ItemForm({
           ))}
         </select>
       </Field>
-      <Field label={ownBandsOnly ? "Band" : "Band (optional)"}>
-        <select name="bandId" defaultValue={item?.bandId ?? defaultBand ?? (ownBandsOnly ? bands[0]?.id : "")}>
-          {!ownBandsOnly && <option value="">The label / shared</option>}
-          {bands.map((b) => (
-            <option key={b.id} value={b.id}>
-              {b.name}
-            </option>
-          ))}
-        </select>
-      </Field>
+      {/* Only one band it can be (a band's own group): nothing to choose. */}
+      {ownBandsOnly && bands.length === 1 ? (
+        <input type="hidden" name="bandId" value={bands[0].id} />
+      ) : (
+        <Field label={ownBandsOnly ? "Band" : "Band (optional)"}>
+          <select name="bandId" defaultValue={item?.bandId ?? defaultBand ?? (ownBandsOnly ? bands[0]?.id : "")}>
+            {!ownBandsOnly && <option value="">The label / shared</option>}
+            {bands.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
+            ))}
+          </select>
+        </Field>
+      )}
       <Field label="Size or option">
         <input name="option" defaultValue={item?.option ?? ""} placeholder="e.g. M" maxLength={100} />
       </Field>

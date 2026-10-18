@@ -69,7 +69,7 @@ export default async function ReceiptsPage({ searchParams }: PageProps<"/receipt
   const owed = visible.filter(owedReimbursement);
   const recouping = visible.filter((e) => e.status === "approved" && e.recoup);
   const form = (e?: (typeof all)[number]) => (
-    <ExpenseForm expense={e} bands={bandsShown} releases={releases} people={people} bandId={bandFilter} projects={projects} />
+    <ExpenseForm expense={e} bands={bandsShown} releases={releases} people={people} bandId={bandFilter} projects={projects} oneBand={ctx.org.kind === "band"} />
   );
   // Seeing receipts without changing them: no forms, approve or pay-back buttons (just withdrawing your own pending one).
   const tableMode = canChange ? ({ mode: "admin", edit: form } as const) : ({ mode: "member", userId: user.id } as const);
@@ -128,6 +128,7 @@ export default async function ReceiptsPage({ searchParams }: PageProps<"/receipt
             <div className="mb-4">
               <Disclosure summary="+ Submit a receipt">
                 <SubmitReceiptForm
+                  oneBand={ctx.org.kind === "band"}
                   bands={bandsShown}
                   projects={projects.filter((p) => p.status !== "done" && bandsShown.some((b) => b.id === p.bandId))}
                 />
@@ -140,6 +141,7 @@ export default async function ReceiptsPage({ searchParams }: PageProps<"/receipt
           <div className="mb-4">
             <Disclosure summary={`+ Send a receipt to ${m.labelName}`}>
               <SubmitReceiptForm
+                  oneBand={ctx.org.kind === "band"}
                 toLabel
                 bands={[{ id: m.bandId, name: ctx.org.name }]}
                 projects={labelProjects.filter((p) => p.status !== "done" && p.bandId === m.bandId)}

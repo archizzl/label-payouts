@@ -392,7 +392,7 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
               </div>
             )}
             <Disclosure summary="+ Add an expense">
-              <ExpenseForm bands={[band]} releases={releases} people={bandPeople} bandId={id} projects={allProjects} />
+              <ExpenseForm bands={[band]} releases={releases} people={bandPeople} bandId={id} projects={allProjects} oneBand={ctx.org.kind === "band"} />
             </Disclosure>
           </Card>
 

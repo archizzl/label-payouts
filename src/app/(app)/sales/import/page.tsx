@@ -81,8 +81,9 @@ function Group({ g, mode, catalog }: { g: Awaited<ReturnType<typeof unroutedGrou
         {bands.length > 0 && (g.category === "album" || g.category === "track" || mode === "no_release") && (
           <form action={createReleaseFromSales} className="flex flex-wrap gap-2">
             <input type="hidden" name="key" value={g.key} />
-            {mode === "no_release" && g.bandId ? (
-              <input type="hidden" name="bandId" value={g.bandId} />
+            {/* (Its band already, or the only one there is: nothing to choose.) */}
+            {(mode === "no_release" && g.bandId) || bands.length === 1 ? (
+              <input type="hidden" name="bandId" value={mode === "no_release" && g.bandId ? g.bandId : bands[0].id} />
             ) : (
               <select name="bandId" required defaultValue="" className="!w-48" aria-label="Band for new release">
                 <option value="" disabled>
@@ -253,18 +254,22 @@ export default async function ImportPage({ searchParams }: PageProps<"/sales/imp
                       {a.groups.map((g) => (
                         <input key={g.key} type="hidden" name="key" value={g.key} />
                       ))}
-                      <select name="bandId" required defaultValue="" className="!w-56" aria-label={`Band for ${a.artist || "these sales"}`}>
-                        <option value="" disabled>
-                          {canAddBands && a.artist ? "or they’re on…" : "They’re on…"}
-                        </option>
-                        {bands.map((b) => (
-                          <option key={b.id} value={b.id}>
-                            {b.name}
+                      {bands.length === 1 ? (
+                        <input type="hidden" name="bandId" value={bands[0].id} />
+                      ) : (
+                        <select name="bandId" required defaultValue="" className="!w-56" aria-label={`Band for ${a.artist || "these sales"}`}>
+                          <option value="" disabled>
+                            {canAddBands && a.artist ? "or they’re on…" : "They’re on…"}
                           </option>
-                        ))}
-                      </select>
+                          {bands.map((b) => (
+                            <option key={b.id} value={b.id}>
+                              {b.name}
+                            </option>
+                          ))}
+                        </select>
+                      )}
                       <SubmitButton size="sm" variant="secondary">
-                        Assign all
+                        {bands.length === 1 ? `They’re ${bands[0].name}` : "Assign all"}
                       </SubmitButton>
                     </form>
                   )}

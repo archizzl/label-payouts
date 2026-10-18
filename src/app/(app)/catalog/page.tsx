@@ -50,21 +50,24 @@ export default async function CatalogPage({ searchParams }: PageProps<"/catalog"
           ? "label-wide default split"
           : "no split set";
   const shown = bands.filter((b) => !bandFilter || b.id === bandFilter);
+  // A band's own group (or a label viewing as one): one band, nothing to choose or label.
+  const oneBand = ctx.org.kind === "band" && bands.length <= 1;
 
   return (
     <>
       <PageHeader title="Catalog" />
-      <div className="mb-4 flex flex-wrap gap-2 text-sm">
-        <Link href="/catalog" className={`rounded-full px-3 py-1 ${!bandFilter ? "bg-text text-bg" : "bg-surface-2 text-muted"}`}>
-          all bands
-        </Link>
-        {bands.map((b) => (
-          <Link key={b.id} href={`/catalog?band=${b.id}`} className={`rounded-full px-3 py-1 ${bandFilter === b.id ? "bg-text text-bg" : "bg-surface-2 text-muted"}`}>
-            {b.name}
+      {!oneBand && (
+        <div className="mb-4 flex flex-wrap gap-2 text-sm">
+          <Link href="/catalog" className={`rounded-full px-3 py-1 ${!bandFilter ? "bg-text text-bg" : "bg-surface-2 text-muted"}`}>
+            all bands
           </Link>
-        ))}
-
-      </div>
+          {bands.map((b) => (
+            <Link key={b.id} href={`/catalog?band=${b.id}`} className={`rounded-full px-3 py-1 ${bandFilter === b.id ? "bg-text text-bg" : "bg-surface-2 text-muted"}`}>
+              {b.name}
+            </Link>
+          ))}
+        </div>
+      )}
       {bands.length === 0 && (
         <Card>
           <Empty>
@@ -109,7 +112,7 @@ export default async function CatalogPage({ searchParams }: PageProps<"/catalog"
           </ul>
         );
         return (
-          <Card key={b.id} title={<Link href={`/bands/${b.id}`} className="hover:underline">{b.name}</Link>}>
+          <Card key={b.id} title={oneBand ? undefined : <Link href={`/bands/${b.id}`} className="hover:underline">{b.name}</Link>}>
             {rs.length === 0 ? (
               <p className="text-sm text-muted">No releases or merch.</p>
             ) : (

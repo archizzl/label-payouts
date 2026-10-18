@@ -300,7 +300,7 @@ async function BandAccountEarnings({ ctx, range }: { ctx: Context; range?: strin
         {ownPerson && band && (
           <div className="mb-4">
             <Disclosure summary="+ Submit a receipt">
-              <SubmitReceiptForm bands={[band]} projects={ownProjects.filter((p) => p.status !== "done")} />
+              <SubmitReceiptForm oneBand bands={[band]} projects={ownProjects.filter((p) => p.status !== "done")} />
             </Disclosure>
           </div>
         )}
@@ -308,6 +308,7 @@ async function BandAccountEarnings({ ctx, range }: { ctx: Context; range?: strin
           <div className="mb-4">
             <Disclosure summary={`+ Send a receipt to ${m.labelName}`}>
               <SubmitReceiptForm
+                oneBand
                 toLabel
                 bands={[{ id: m.bandId, name: ctx.org.name }]}
                 projects={labelProjects.filter((p) => p.bandId === m.bandId && p.status !== "done")}
