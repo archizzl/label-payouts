@@ -79,7 +79,8 @@ export function Money({ cents, currency = "USD", className = "" }: { cents: numb
 
 /** Totals keyed by currency, shown as "$12.00 · £3.00". */
 export function MoneyList({ totals }: { totals: Map<string, number> | Record<string, number> }) {
-  const entries = totals instanceof Map ? [...totals] : Object.entries(totals);
+  // The main currency (the most money) first.
+  const entries = (totals instanceof Map ? [...totals] : Object.entries(totals)).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
   if (entries.length === 0) return <span className="text-muted">—</span>;
   return (
     <span>

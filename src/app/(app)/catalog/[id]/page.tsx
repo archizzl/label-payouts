@@ -346,62 +346,66 @@ export default async function ReleasePage({ params, searchParams }: PageProps<"/
 
       {isMerch && item?.options && item.options.length > 0 && (
         <Card title="Sizes & options">
-          <table className="data">
-            <thead>
-              <tr>
-                <th>option</th>
-                <th>SKU</th>
-              </tr>
-            </thead>
-            <tbody>
-              {item.options.map((o) => (
-                <tr key={o.title}>
-                  <td>{o.title}</td>
-                  <td>{o.sku ?? "—"}</td>
+          <div className="overflow-x-auto">
+            <table className="data">
+              <thead>
+                <tr>
+                  <th>option</th>
+                  <th>SKU</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {item.options.map((o) => (
+                  <tr key={o.title}>
+                    <td>{o.title}</td>
+                    <td>{o.sku ?? "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
           {/* <p className="mt-2 text-xs text-muted">Sales with any of these SKUs are matched to this item automatically.</p> */}
         </Card>
       )}
 
       {release.packages.length > 0 && !isMerch && (
         <Card title="Formats">
-          <table className="data">
-            <thead>
-              <tr>
-                <th>format</th>
-                <th>type</th>
-                <th>SKU</th>
-                <th>UPC</th>
-                <th className="num">price</th>
-                <th>per-item cost</th>
-              </tr>
-            </thead>
-            <tbody>
-              {release.packages.map((p) => (
-                <tr key={p.bandcampId}>
-                  <td>{p.title}</td>
-                  <td className="text-muted">{p.typeName}</td>
-                  <td>{p.sku ?? "—"}</td>
-                  <td className="tabular-nums">{p.upc ?? "—"}</td>
-                  <td className="num">{p.price != null ? `${p.price.toFixed(2)} ${p.currency ?? ""}` : "—"}</td>
-                  <td>
-                    <ItemCosts
-                      costs={costsFor(costDeductions, release, p)}
-                      releaseId={release.id}
-                      packageId={p.bandcampId}
-                      currency={p.currency ?? "USD"}
-                      people={bandPeople}
-                      personName={names.person}
-                      readOnly={!canMoney}
-                    />
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="data">
+              <thead>
+                <tr>
+                  <th>format</th>
+                  <th>type</th>
+                  <th>SKU</th>
+                  <th>UPC</th>
+                  <th className="num">price</th>
+                  <th>per-item cost</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {release.packages.map((p) => (
+                  <tr key={p.bandcampId}>
+                    <td>{p.title}</td>
+                    <td className="text-muted">{p.typeName}</td>
+                    <td>{p.sku ?? "—"}</td>
+                    <td className="tabular-nums">{p.upc ?? "—"}</td>
+                    <td className="num">{p.price != null ? `${p.price.toFixed(2)} ${p.currency ?? ""}` : "—"}</td>
+                    <td>
+                      <ItemCosts
+                        costs={costsFor(costDeductions, release, p)}
+                        releaseId={release.id}
+                        packageId={p.bandcampId}
+                        currency={p.currency ?? "USD"}
+                        people={bandPeople}
+                        personName={names.person}
+                        readOnly={!canMoney}
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
           {/* <p className="mt-2 text-xs text-muted">Merch sales with any of these SKUs or UPCs are matched to this release automatically.</p> */}
         </Card>
       )}

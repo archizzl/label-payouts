@@ -72,19 +72,21 @@ export async function BandPayouts({
                       <Link href={statementHref(p.id)}>statement</Link>
                     </span>
                   </div>
-                  <table className="data">
-                    <tbody>
-                      {lines.map((l) => (
-                        <tr key={l.id}>
-                          <td>{names.person.get(l.personId)}</td>
-                          <td className="text-sm text-muted">{PAYOUT_STATUS[l.status]}</td>
-                          <td className="num">
-                            <Money cents={l.cents} currency={l.currency} />
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  <div className="overflow-x-auto">
+                    <table className="data">
+                      <tbody>
+                        {lines.map((l) => (
+                          <tr key={l.id}>
+                            <td>{names.person.get(l.personId)}</td>
+                            <td className="text-sm text-muted">{PAYOUT_STATUS[l.status]}</td>
+                            <td className="num">
+                              <Money cents={l.cents} currency={l.currency} />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </li>
               );
             })}

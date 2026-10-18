@@ -156,40 +156,42 @@ export default async function RulesPage() {
         {bandLevel.length === 0 ? (
           <p className="text-sm text-muted">None.</p>
         ) : (
-          <table className="data">
-            <thead>
-              <tr>
-                <th>Band</th>
-                <th>Deduction</th>
-                <th>Amount</th>
-                <th>Scope</th>
-              </tr>
-            </thead>
-            <tbody>
-              {bandLevel.map((d) => {
-                const desc = describeDeduction(d, names);
-                return (
-                  <tr key={d.id}>
-                    <td>
-                      <Link href={`/bands/${d.bandId}`} className="hover:underline">
-                        {names.band.get(d.bandId!)}
-                      </Link>
-                    </td>
-                    <td>
-                      <Link href={`/bands/${d.bandId}?tab=money#deduction-${d.id}`} className="hover:underline">
-                        {d.label}
-                      </Link>
-                    </td>
-                    <td>{desc.amount}</td>
-                    <td className="text-xs text-muted">
-                      {desc.scope}
-                      {desc.window && ` · ${desc.window}`}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <div className="overflow-x-auto">
+            <table className="data">
+              <thead>
+                <tr>
+                  <th>Band</th>
+                  <th>Deduction</th>
+                  <th>Amount</th>
+                  <th>Scope</th>
+                </tr>
+              </thead>
+              <tbody>
+                {bandLevel.map((d) => {
+                  const desc = describeDeduction(d, names);
+                  return (
+                    <tr key={d.id}>
+                      <td>
+                        <Link href={`/bands/${d.bandId}`} className="hover:underline">
+                          {names.band.get(d.bandId!)}
+                        </Link>
+                      </td>
+                      <td>
+                        <Link href={`/bands/${d.bandId}?tab=money#deduction-${d.id}`} className="hover:underline">
+                          {d.label}
+                        </Link>
+                      </td>
+                      <td>{desc.amount}</td>
+                      <td className="text-xs text-muted">
+                        {desc.scope}
+                        {desc.window && ` · ${desc.window}`}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </Card>
 
@@ -214,35 +216,37 @@ export default async function RulesPage() {
         {overrides.length === 0 ? (
           <Empty>None yet.</Empty>
         ) : (
-          <table className="data">
-            <thead>
-              <tr>
-                <th>Sales matching</th>
-                <th>Go to</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {overrides.map((o) => (
-                <tr key={o.id}>
-                  <td className="font-mono text-xs break-all">{o.matchKey.replace(/^(url|name):/, "")}</td>
-                  <td className="text-sm">
-                    {names.band.get(o.bandId)}
-                    {o.releaseId && ` › ${names.release.get(o.releaseId)}`}
-                    {o.trackId && ` › ${names.track.get(o.trackId)}`}
-                  </td>
-                  <td className="text-right">
-                    <form action={deleteRoutingOverride}>
-                      <input type="hidden" name="id" value={o.id} />
-                      <SubmitButton variant="ghost" size="sm">
-                        Forget
-                      </SubmitButton>
-                    </form>
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="data">
+              <thead>
+                <tr>
+                  <th>Sales matching</th>
+                  <th>Go to</th>
+                  <th />
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {overrides.map((o) => (
+                  <tr key={o.id}>
+                    <td className="font-mono text-xs break-all">{o.matchKey.replace(/^(url|name):/, "")}</td>
+                    <td className="text-sm">
+                      {names.band.get(o.bandId)}
+                      {o.releaseId && ` › ${names.release.get(o.releaseId)}`}
+                      {o.trackId && ` › ${names.track.get(o.trackId)}`}
+                    </td>
+                    <td className="text-right">
+                      <form action={deleteRoutingOverride}>
+                        <input type="hidden" name="id" value={o.id} />
+                        <SubmitButton variant="ghost" size="sm">
+                          Forget
+                        </SubmitButton>
+                      </form>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </Card> */}
     </>

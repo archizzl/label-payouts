@@ -112,22 +112,24 @@ export default async function FansPage({ searchParams }: PageProps<"/fans">) {
 
           {stats.top.length > 0 && (
             <Card title="Biggest supporters on the list">
-              <table className="data">
-                <tbody>
-                  {stats.top.map((t) => (
-                    <tr key={`${t.fanId}-${t.currency}`}>
-                      <td>
-                        {t.name ?? t.email}
-                        {t.name && <div className="text-xs text-muted">{t.email}</div>}
-                      </td>
-                      <td className="num text-muted">
-                        {t.items} item{t.items === 1 ? "" : "s"}
-                      </td>
-                      <td className="num font-medium">{formatCents(t.cents, t.currency)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <div className="overflow-x-auto">
+                <table className="data">
+                  <tbody>
+                    {stats.top.map((t) => (
+                      <tr key={`${t.fanId}-${t.currency}`}>
+                        <td>
+                          {t.name ?? t.email}
+                          {t.name && <div className="text-xs text-muted">{t.email}</div>}
+                        </td>
+                        <td className="num text-muted">
+                          {t.items} item{t.items === 1 ? "" : "s"}
+                        </td>
+                        <td className="num font-medium">{formatCents(t.cents, t.currency)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
               <p className="mt-2 text-xs text-muted">What reached you from their purchases (Bandcamp’s net amount).</p>
             </Card>
           )}

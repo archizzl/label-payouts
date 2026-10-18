@@ -31,7 +31,8 @@ export function ViewAsButton({ kind, id, name, prefix = "View as" }: { kind: "ba
       <input type="hidden" name="id" value={id} />
       <SubmitButton variant="secondary" size="sm">
         {prefix}
-        {name && <span className="normal-case">{name}</span>}
+        {/* A long name is cut short rather than running off a phone's screen. */}
+        {name && <span className="max-w-[60vw] truncate normal-case">{name}</span>}
       </SubmitButton>
     </form>
   );

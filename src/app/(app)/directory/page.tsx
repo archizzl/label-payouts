@@ -28,7 +28,12 @@ type Membership = { id: number; personId: number; roles: string[]; active: boole
 type Totals = Map<string, number>;
 
 /** The person rows' columns (and the header above them). */
-const COLUMNS = "grid grid-cols-[minmax(0,1.2fr)_minmax(0,1.1fr)_minmax(0,1.4fr)_minmax(0,1.3fr)_5.5rem_5.5rem_3rem] gap-3";
+/** A person's row: columns on a wide screen; on a phone, their name (and edit) then the rest under it. */
+const COLUMNS = "grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1.1fr)_minmax(0,1.4fr)_minmax(0,1.3fr)_5.5rem_5.5rem_3rem] md:gap-3";
+/** Under the name on a phone; its own column on a wide screen. */
+const UNDER = "col-span-2 md:col-span-1";
+/** The last column (edit): beside the name on a phone. */
+const BESIDE = "col-start-2 row-start-1 md:col-start-auto md:row-start-auto";
 
 /**
  * Everyone on the books: each band with its people underneath, then people who aren't in a band
@@ -232,10 +237,10 @@ export default async function DirectoryPage() {
                       {l.user.name} {l.user.id === ctx.user.id && <span className="text-xs font-normal text-muted">(you)</span>}
                     </span>
                     <span className="col-span-2">{controlsFor(l)}</span>
-                    <span className="truncate text-xs">{l.user.email}</span>
-                    <span />
-                    <span />
-                    <span />
+                    <span className={`${UNDER} truncate text-xs`}>{l.user.email}</span>
+                    <span className="hidden md:block" />
+                    <span className="hidden md:block" />
+                    <span className="hidden md:block" />
                   </div>
                 ))}
                 {runsLogins && (
@@ -269,7 +274,7 @@ export default async function DirectoryPage() {
             <details key={b.id} id={`band-${b.id}`} className="group/band scroll-mt-4">
               <summary className="flex flex-wrap items-center gap-x-4 gap-y-1 py-2.5 hover:bg-surface-2">
                 <span className="w-4 shrink-0 text-center text-xs text-muted transition group-open/band:rotate-90">▸</span>
-                <Link href={`/bands/${b.id}`} className="flex items-center gap-3 font-bold">
+                <Link href={`/bands/${b.id}`} className="flex min-w-0 flex-[1_1_10rem] items-center gap-3 font-bold">
                   {b.imageUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={b.imageUrl} alt="" className="h-8 w-8 shrink-0 bg-surface-2 object-cover" />
@@ -336,7 +341,7 @@ export default async function DirectoryPage() {
 /** The person columns, at the top of an opened band. */
 function ColumnHeads() {
   return (
-    <div className={`${COLUMNS} border-b border-border px-2.5 py-1.5 text-xs text-muted lowercase`}>
+    <div className={`${COLUMNS} hidden border-b border-border px-2.5 py-1.5 text-xs text-muted lowercase md:grid`}>
       <span>person</span>
       <span>roles</span>
       <span>how they’re paid</span>
@@ -409,7 +414,8 @@ function PersonRow({
   const editable = !ctx.ownLogin;
   const cells = (
     <>
-      <span className="font-medium">
+      {/* (A long name breaks inside its column rather than running into the next.) */}
+      <span className="min-w-0 font-medium [overflow-wrap:anywhere]">
         {p.name}
         {!active && <span className="ml-2 text-xs font-normal text-muted">(former member)</span>}
         {p.holdsLabelAccount && (
@@ -418,11 +424,11 @@ function PersonRow({
           </span>
         )}
       </span>
-      <span className="text-xs">
+      <span className={`${UNDER} text-xs`}>
         {roles && roles.length > 0 && <RolesList roles={roles} />}
         {contactFor.length > 0 && <span className="block text-muted">contact for {contactFor.join(", ")}</span>}
       </span>
-      <span className="truncate text-xs">
+      <span className={`${UNDER} truncate text-xs`}>
         {p.email ? (
           <span className="block truncate">{p.email}</span>
         ) : p.holdsLabelAccount ? (
@@ -432,11 +438,13 @@ function PersonRow({
         )}
         {payHandlesSummary(p) && <span className="block truncate text-muted">{payHandlesSummary(p)}</span>}
       </span>
-      <span className="truncate text-xs">{login}</span>
-      <span className="text-right tabular-nums">
+      <span className={`${UNDER} truncate text-xs`}>{login}</span>
+      <span className={`${UNDER} tabular-nums md:text-right`}>
+        <span className="text-xs text-muted md:hidden">owed </span>
         <MoneyList totals={money.owed} />
       </span>
-      <span className="text-right tabular-nums">
+      <span className={`${UNDER} tabular-nums md:text-right`}>
+        <span className="text-xs text-muted md:hidden">paid or kept </span>
         <MoneyList totals={money.paid} />
       </span>
     </>
@@ -445,7 +453,7 @@ function PersonRow({
     return (
       <div id={id} className={`${COLUMNS} scroll-mt-4 items-start border-b border-border px-2.5 py-2 ${active ? "" : "opacity-50"}`}>
         {cells}
-        <span />
+        <span className={BESIDE} />
       </div>
     );
   }
@@ -455,7 +463,7 @@ function PersonRow({
         className={`${COLUMNS} items-start px-2.5 py-2 hover:bg-surface-2 ${active ? "" : "opacity-50"}`}
       >
         {cells}
-        <span className="text-right text-xs text-link">
+        <span className={`${BESIDE} text-right text-xs text-link`}>
           <span className="group-open:hidden">edit</span>
           <span className="hidden group-open:inline">close</span>
         </span>

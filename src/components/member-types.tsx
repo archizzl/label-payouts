@@ -87,48 +87,50 @@ function MemberTypeForm({
       <Field label="Name">
         <input name="name" required defaultValue={name} placeholder="Band manager" className="!w-64" maxLength={60} />
       </Field>
-      <table className="data">
-        <thead>
-          <tr>
-            <th>Section</th>
-            <th>Nothing</th>
-            <th>View</th>
-            <th>Change</th>
-            <th>Only their own bands</th>
-          </tr>
-        </thead>
-        <tbody>
-          {AREAS.map((a) => {
-            const level = permissions[a.key] ?? "none";
-            return (
-              <tr key={a.key}>
-                <td>
-                  <div className="font-medium">{a.label}</div>
-                  <div className="text-xs text-muted">{a.hint}</div>
-                </td>
-                {(["none", "view", "edit"] as const).map((l) => (
-                  <td key={l}>
-                    {l === "edit" && !a.edit ? null : (
-                      <input
-                        type="radio"
-                        name={`perm:${a.key}`}
-                        value={l}
-                        defaultChecked={level === l}
-                        aria-label={`${a.label}: ${l === "none" ? "nothing" : l === "view" ? "view" : "change"}`}
-                      />
+      <div className="overflow-x-auto">
+        <table className="data">
+          <thead>
+            <tr>
+              <th>Section</th>
+              <th>Nothing</th>
+              <th>View</th>
+              <th>Change</th>
+              <th>Only their own bands</th>
+            </tr>
+          </thead>
+          <tbody>
+            {AREAS.map((a) => {
+              const level = permissions[a.key] ?? "none";
+              return (
+                <tr key={a.key}>
+                  <td>
+                    <div className="font-medium">{a.label}</div>
+                    <div className="text-xs text-muted">{a.hint}</div>
+                  </td>
+                  {(["none", "view", "edit"] as const).map((l) => (
+                    <td key={l}>
+                      {l === "edit" && !a.edit ? null : (
+                        <input
+                          type="radio"
+                          name={`perm:${a.key}`}
+                          value={l}
+                          defaultChecked={level === l}
+                          aria-label={`${a.label}: ${l === "none" ? "nothing" : l === "view" ? "view" : "change"}`}
+                        />
+                      )}
+                    </td>
+                  ))}
+                  <td>
+                    {a.bands && (
+                      <input type="checkbox" name={`bands:${a.key}`} defaultChecked={bandAreas.includes(a.key)} aria-label={`${a.label}: only their own bands`} />
                     )}
                   </td>
-                ))}
-                <td>
-                  {a.bands && (
-                    <input type="checkbox" name={`bands:${a.key}`} defaultChecked={bandAreas.includes(a.key)} aria-label={`${a.label}: only their own bands`} />
-                  )}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
       {/* <p className="text-xs text-muted">
         “Only their own bands” means the bands they play in. Everyone also sees their own earnings. Settings, who can sign in and label-wide
         changes (new bands, merging people) stay with admins.

@@ -92,28 +92,30 @@ export function ImportForm() {
                 </p>
               )}
               {preview.byBand.length > 0 && (
-                <table className="data mb-4">
-                  <thead>
-                    <tr>
-                      <th>Band</th>
-                      <th className="num">New sales</th>
-                      <th className="num">Net</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {preview.byBand.map((b) => (
-                      <tr key={b.band}>
-                        <td className={b.band.startsWith("⚠") ? "text-warn" : ""}>{b.band}</td>
-                        <td className="num">{b.count}</td>
-                        <td className="num">
-                          {Object.entries(b.totals)
-                            .map(([c, v]) => formatCents(v, c))
-                            .join(" · ")}
-                        </td>
+                <div className="overflow-x-auto">
+                  <table className="data mb-4">
+                    <thead>
+                      <tr>
+                        <th>Band</th>
+                        <th className="num">New sales</th>
+                        <th className="num">Net</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {preview.byBand.map((b) => (
+                        <tr key={b.band}>
+                          <td className={b.band.startsWith("⚠") ? "text-warn" : ""}>{b.band}</td>
+                          <td className="num">{b.count}</td>
+                          <td className="num">
+                            {Object.entries(b.totals)
+                              .map(([c, v]) => formatCents(v, c))
+                              .join(" · ")}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
               {preview.skipped.length > 0 && (
                 <details className="mb-4 text-sm text-muted">

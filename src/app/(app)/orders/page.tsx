@@ -159,28 +159,30 @@ export default async function OrdersPage({ searchParams }: PageProps<"/orders">)
         <>
           {pack.length > 0 && (
             <Card title="To pack">
-              <table className="data">
-                <thead>
-                  <tr>
-                    <th>Item</th>
-                    <th>Option</th>
-                    {pack.some((p) => p.sku) && <th>SKU</th>}
-                    <th className="num">Orders</th>
-                    <th className="num">Quantity</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pack.map((p) => (
-                    <tr key={`${p.name}|${p.option}`}>
-                      <td>{p.name}</td>
-                      <td>{p.option ?? <span className="text-muted">–</span>}</td>
-                      {pack.some((x) => x.sku) && <td className="text-xs text-muted">{p.sku ?? "–"}</td>}
-                      <td className="num text-muted">{p.orders}</td>
-                      <td className="num font-bold">{p.quantity}</td>
+              <div className="overflow-x-auto">
+                <table className="data">
+                  <thead>
+                    <tr>
+                      <th>Item</th>
+                      <th>Option</th>
+                      {pack.some((p) => p.sku) && <th>SKU</th>}
+                      <th className="num">Orders</th>
+                      <th className="num">Quantity</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {pack.map((p) => (
+                      <tr key={`${p.name}|${p.option}`}>
+                        <td>{p.name}</td>
+                        <td>{p.option ?? <span className="text-muted">–</span>}</td>
+                        {pack.some((x) => x.sku) && <td className="text-xs text-muted">{p.sku ?? "–"}</td>}
+                        <td className="num text-muted">{p.orders}</td>
+                        <td className="num font-bold">{p.quantity}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </Card>
           )}
 
@@ -423,62 +425,66 @@ function OrderDetails({ order: o, sales, bandName }: { order: MerchOrder; sales:
         <dd>{o.address.length ? o.address.join(", ") : "–"}</dd>
       </dl>
 
-      <table className="data">
-        <thead>
-          <tr>
-            <th>Item</th>
-            <th>Option</th>
-            <th>SKU</th>
-            <th>Band</th>
-            <th className="num">Qty</th>
-          </tr>
-        </thead>
-        <tbody>
-          {o.lines.map((l) => (
-            <tr key={l.saleItemId}>
-              <td>{l.name}</td>
-              <td>{l.option ?? "–"}</td>
-              <td className="text-xs text-muted">{l.sku ?? "–"}</td>
-              <td>{l.bandId ? bandName.get(l.bandId) : l.artist || "–"}</td>
-              <td className="num">{l.quantity}</td>
+      <div className="overflow-x-auto">
+        <table className="data">
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Option</th>
+              <th>SKU</th>
+              <th>Band</th>
+              <th className="num">Qty</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {o.lines.map((l) => (
+              <tr key={l.saleItemId}>
+                <td>{l.name}</td>
+                <td>{l.option ?? "–"}</td>
+                <td className="text-xs text-muted">{l.sku ?? "–"}</td>
+                <td>{l.bandId ? bandName.get(l.bandId) : l.artist || "–"}</td>
+                <td className="num">{l.quantity}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
       {sales &&
         (sales.length === 0 ? (
           <p className="text-muted">The money side (fees, shipping, tax, what you received) shows here once the hourly sales sync brings this sale in.</p>
         ) : (
           <div>
-            <table className="data">
-              <thead>
-                <tr>
-                  <th>Sale</th>
-                  {shown.map(([label]) => (
-                    <th key={label} className="num">
-                      {label}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {sales.map((x) => (
-                  <tr key={x.saleId}>
-                    <td>
-                      {x.itemName}
-                      {x.packageName && <span className="text-muted"> · {x.packageName}</span>}
-                      {x.raw["fee type"] && <div className="text-xs text-muted">paid by {x.raw["fee type"]}</div>}
-                    </td>
-                    {shown.map(([label, k]) => (
-                      <td key={label} className="num">
-                        {amount(x.raw[k], x.currency)}
-                      </td>
+            <div className="overflow-x-auto">
+              <table className="data">
+                <thead>
+                  <tr>
+                    <th>Sale</th>
+                    {shown.map(([label]) => (
+                      <th key={label} className="num">
+                        {label}
+                      </th>
                     ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {sales.map((x) => (
+                    <tr key={x.saleId}>
+                      <td>
+                        {x.itemName}
+                        {x.packageName && <span className="text-muted"> · {x.packageName}</span>}
+                        {x.raw["fee type"] && <div className="text-xs text-muted">paid by {x.raw["fee type"]}</div>}
+                      </td>
+                      {shown.map(([label, k]) => (
+                        <td key={label} className="num">
+                          {amount(x.raw[k], x.currency)}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
             <Link href={`/sales?q=${o.paymentId}`} className="mt-2 inline-block text-xs">
               See {sales.length === 1 ? "this sale" : "these sales"} in Sales
             </Link>

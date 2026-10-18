@@ -309,35 +309,37 @@ export default async function ImportPage({ searchParams }: PageProps<"/sales/imp
           {history.length === 0 ? (
             <Empty>No imports yet.</Empty>
           ) : (
-            <table className="data">
-              <thead>
-                <tr>
-                  <th>File</th>
-                  <th>Imported</th>
-                  <th className="num">Added</th>
-                  <th className="num">Duplicates</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {history.map((h) => (
-                  <tr key={h.id}>
-                    <td>{h.filename}</td>
-                    <td className="text-muted">{h.importedAt.replace("T", " ").slice(0, 16)}</td>
-                    <td className="num">{h.addedCount}</td>
-                    <td className="num">{h.duplicateCount}</td>
-                    <td className="text-right">
-                      <form action={deleteImport}>
-                        <input type="hidden" name="id" value={h.id} />
-                        <SubmitButton variant="ghost" size="sm" confirm={`Remove the ${h.addedCount} sales from this import? Finalized payouts are not affected.`}>
-                          Undo import
-                        </SubmitButton>
-                      </form>
-                    </td>
+            <div className="overflow-x-auto">
+              <table className="data">
+                <thead>
+                  <tr>
+                    <th>File</th>
+                    <th>Imported</th>
+                    <th className="num">Added</th>
+                    <th className="num">Duplicates</th>
+                    <th />
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {history.map((h) => (
+                    <tr key={h.id}>
+                      <td>{h.filename}</td>
+                      <td className="text-muted">{h.importedAt.replace("T", " ").slice(0, 16)}</td>
+                      <td className="num">{h.addedCount}</td>
+                      <td className="num">{h.duplicateCount}</td>
+                      <td className="text-right">
+                        <form action={deleteImport}>
+                          <input type="hidden" name="id" value={h.id} />
+                          <SubmitButton variant="ghost" size="sm" confirm={`Remove the ${h.addedCount} sales from this import? Finalized payouts are not affected.`}>
+                            Undo import
+                          </SubmitButton>
+                        </form>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </Card>
       )}

@@ -157,63 +157,65 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
 
   /** Releases or merch items: tiny artwork, title and details, and the split they use. */
   const itemTable = (items: typeof releases) => (
-    <table className="data mb-4">
-      <thead>
-        <tr>
-          <th>{items[0]?.kind === "merch" ? "Item" : "Release"}</th>
-          <th>Split</th>
-          {items[0]?.kind === "merch" && <th>per-item cost</th>}
-        </tr>
-      </thead>
-      <tbody>
-        {items.map((r) => {
-          const rule = releaseRules.get(r.id);
-          const details =
-            r.kind === "merch" ? [r.packages[0]?.typeName, r.packages[0]?.sku] : [r.catalogNumber, r.kind === "track" ? "single" : null];
-          return (
-            <tr key={r.id}>
-              <td>
-                <div className="flex items-center gap-2.5">
-                  {r.artUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={r.artUrl.replace(/_(10|16)\.jpg$/, "_3.jpg")}
-                      alt=""
-                      loading="lazy"
-                      className="h-6 w-6 shrink-0 border border-border bg-surface-2 object-cover"
-                    />
-                  ) : (
-                    <span className="h-6 w-6 shrink-0 bg-surface-2" />
-                  )}
-                  <Link href={`/catalog/${r.id}`} className="font-medium hover:underline">
-                    {r.title}
-                  </Link>
-                  <span className="text-xs text-muted">{details.filter(Boolean).join(" · ")}</span>
-                </div>
-              </td>
-              <td>
-                {rule ? (
-                  <SharesSummary shares={rule.shares} people={personOptions} />
-                ) : (
-                  <span className="text-sm text-muted">{r.kind === "merch" && hasMerchSplit ? "band merch split" : fallbackSplit}</span>
-                )}
-              </td>
-              {r.kind === "merch" && (
+    <div className="overflow-x-auto">
+      <table className="data mb-4">
+        <thead>
+          <tr>
+            <th>{items[0]?.kind === "merch" ? "Item" : "Release"}</th>
+            <th>Split</th>
+            {items[0]?.kind === "merch" && <th>per-item cost</th>}
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((r) => {
+            const rule = releaseRules.get(r.id);
+            const details =
+              r.kind === "merch" ? [r.packages[0]?.typeName, r.packages[0]?.sku] : [r.catalogNumber, r.kind === "track" ? "single" : null];
+            return (
+              <tr key={r.id}>
                 <td>
-                  <ItemCosts
-                    costs={r.packages[0] ? costsFor(itemCosts.deductions, r, r.packages[0]) : []}
-                    releaseId={r.id}
-                    currency={r.packages[0]?.currency ?? "USD"}
-                    people={bandPeople}
-                    personName={names.person}
-                  />
+                  <div className="flex items-center gap-2.5">
+                    {r.artUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={r.artUrl.replace(/_(10|16)\.jpg$/, "_3.jpg")}
+                        alt=""
+                        loading="lazy"
+                        className="h-6 w-6 shrink-0 border border-border bg-surface-2 object-cover"
+                      />
+                    ) : (
+                      <span className="h-6 w-6 shrink-0 bg-surface-2" />
+                    )}
+                    <Link href={`/catalog/${r.id}`} className="font-medium hover:underline">
+                      {r.title}
+                    </Link>
+                    <span className="text-xs text-muted">{details.filter(Boolean).join(" · ")}</span>
+                  </div>
                 </td>
-              )}
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
+                <td>
+                  {rule ? (
+                    <SharesSummary shares={rule.shares} people={personOptions} />
+                  ) : (
+                    <span className="text-sm text-muted">{r.kind === "merch" && hasMerchSplit ? "band merch split" : fallbackSplit}</span>
+                  )}
+                </td>
+                {r.kind === "merch" && (
+                  <td>
+                    <ItemCosts
+                      costs={r.packages[0] ? costsFor(itemCosts.deductions, r, r.packages[0]) : []}
+                      releaseId={r.id}
+                      currency={r.packages[0]?.currency ?? "USD"}
+                      people={bandPeople}
+                      personName={names.person}
+                    />
+                  </td>
+                )}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 
   // A bare subdomain pattern ("blackmarble") or a custom host; prefixes with a path aren't a homepage.
@@ -302,32 +304,34 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
             {bandPeriods.length === 0 ? (
               <Empty>No payouts for {band.name} yet.</Empty>
             ) : (
-              <table className="data">
-                <thead>
-                  <tr>
-                    <th>payout</th>
-                    <th>for</th>
-                    <th>dates</th>
-                    <th>status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {bandPeriods.map((p) => (
-                    <tr key={p.id}>
-                      <td>
-                        <Link href={`/periods/${p.id}`}>{p.name}</Link>
-                      </td>
-                      <td className="text-sm text-muted">{p.bandId ? "this band" : "whole label"}</td>
-                      <td className="text-muted">
-                        {p.startDate} → {p.endDate}
-                      </td>
-                      <td>
-                        <Badge tone={STATUS_TONE[p.status]}>{STATUS_LABEL[p.status]}</Badge>
-                      </td>
+              <div className="overflow-x-auto">
+                <table className="data">
+                  <thead>
+                    <tr>
+                      <th>payout</th>
+                      <th>for</th>
+                      <th>dates</th>
+                      <th>status</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {bandPeriods.map((p) => (
+                      <tr key={p.id}>
+                        <td>
+                          <Link href={`/periods/${p.id}`}>{p.name}</Link>
+                        </td>
+                        <td className="text-sm text-muted">{p.bandId ? "this band" : "whole label"}</td>
+                        <td className="text-muted">
+                          {p.startDate} → {p.endDate}
+                        </td>
+                        <td>
+                          <Badge tone={STATUS_TONE[p.status]}>{STATUS_LABEL[p.status]}</Badge>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </Card>
 
@@ -339,38 +343,40 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
                   <Link href={`/projects?band=${id}`}>Create one</Link>.
                 </p>
               ) : (
-                <table className="data">
-                  <thead>
-                    <tr>
-                      <th>Project</th>
-                      <th className="num">Spent</th>
-                      <th className="num">Made back</th>
-                      <th className="num">Balance</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {bandProjects.map((p) => {
-                      const t = projectTotals.get(p.id)!;
-                      return (
-                        <tr key={p.id}>
-                          <td>
-                            <Link href={`/projects/${p.id}`}>{p.name}</Link>
-                            {p.status === "done" && <span className="ml-2 text-xs text-muted">done</span>}
-                          </td>
-                          <td className="num">
-                            <Money cents={t.spent} currency={t.currency} />
-                          </td>
-                          <td className="num">
-                            <Money cents={t.madeBack} currency={t.currency} />
-                          </td>
-                          <td className={`num ${t.balance >= 0 && t.spent > 0 ? "text-good" : ""}`}>
-                            <Money cents={t.balance} currency={t.currency} />
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                <div className="overflow-x-auto">
+                  <table className="data">
+                    <thead>
+                      <tr>
+                        <th>Project</th>
+                        <th className="num">Spent</th>
+                        <th className="num">Made back</th>
+                        <th className="num">Balance</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {bandProjects.map((p) => {
+                        const t = projectTotals.get(p.id)!;
+                        return (
+                          <tr key={p.id}>
+                            <td>
+                              <Link href={`/projects/${p.id}`}>{p.name}</Link>
+                              {p.status === "done" && <span className="ml-2 text-xs text-muted">done</span>}
+                            </td>
+                            <td className="num">
+                              <Money cents={t.spent} currency={t.currency} />
+                            </td>
+                            <td className="num">
+                              <Money cents={t.madeBack} currency={t.currency} />
+                            </td>
+                            <td className={`num ${t.balance >= 0 && t.spent > 0 ? "text-good" : ""}`}>
+                              <Money cents={t.balance} currency={t.currency} />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </Card>
           )}
@@ -497,7 +503,7 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
             ) : (
               // Rows expand full-width to edit, rather than squeezing a form into a table cell.
               <div className="mb-4 text-sm">
-                <div className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1.1fr)_minmax(0,1.5fr)_minmax(0,1.3fr)_auto] gap-3 border-b border-border px-2.5 py-1.5 text-xs text-muted lowercase">
+                <div className="hidden grid-cols-[minmax(0,1.2fr)_minmax(0,1.1fr)_minmax(0,1.5fr)_minmax(0,1.3fr)_auto] gap-3 border-b border-border px-2.5 py-1.5 text-xs text-muted lowercase sm:grid">
                   <span>person</span>
                   <span>roles</span>
                   <span>paypal</span>
@@ -507,22 +513,23 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
                 {members.map((m) => (
                   <details key={m.membershipId} className="group border-b border-border">
                     <summary
-                      className={`grid grid-cols-[minmax(0,1.2fr)_minmax(0,1.1fr)_minmax(0,1.5fr)_minmax(0,1.3fr)_auto] items-center gap-3 px-2.5 py-2 hover:bg-surface-2 ${m.active ? "" : "opacity-50"}`}
+                      // On a phone: the name (and edit), then the rest under it.
+                      className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 px-2.5 py-2 hover:bg-surface-2 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,1.1fr)_minmax(0,1.5fr)_minmax(0,1.3fr)_auto] sm:gap-3 ${m.active ? "" : "opacity-50"}`}
                     >
-                      <span className="font-medium">
+                      <span className="min-w-0 font-medium [overflow-wrap:anywhere]">
                         {m.person.name}
                         {!m.active && <span className="ml-2 text-xs font-normal text-muted">(former member)</span>}
                       </span>
-                      <span>
+                      <span className="col-span-2 sm:col-span-1">
                         <RolesList roles={m.roles} />
                       </span>
-                      <span className="truncate text-xs text-muted">
+                      <span className="col-span-2 truncate text-xs text-muted sm:col-span-1">
                         {[m.person.email, payHandlesSummary(m.person)].filter(Boolean).join(" · ") || (
                           <span className="text-warn">no payment details — click to add</span>
                         )}
                       </span>
-                      <span className="truncate text-xs">{loginOf(m.person.id, id)}</span>
-                      <span className={`text-xs text-link ${ownBooks ? "invisible" : ""}`}>
+                      <span className="col-span-2 truncate text-xs sm:col-span-1">{loginOf(m.person.id, id)}</span>
+                      <span className={`col-start-2 row-start-1 text-xs text-link sm:col-start-auto sm:row-start-auto ${ownBooks ? "invisible" : ""}`}>
                         <span className="group-open:hidden">edit</span>
                         <span className="hidden group-open:inline">close</span>
                       </span>

@@ -131,42 +131,44 @@ export default async function MyEarningsPage({ searchParams }: PageProps<"/me">)
         {payoutRows.length === 0 ? (
           <Empty>No payouts yet.</Empty>
         ) : (
-          <table className="data">
-            <thead>
-              <tr>
-                <th>Payout</th>
-                <th>From</th>
-                <th className="num">Amount</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {payoutRows.map(({ payout, period }) => (
-                <tr key={payout.id}>
-                  <td>
-                    <div className="font-medium">{period.name}</div>
-                    <div className="text-xs text-muted">
-                      {period.startDate} → {period.endDate}
-                    </div>
-                  </td>
-                  <td className="text-xs">
-                    {Object.entries(payout.byBand).map(([b, cents]) => (
-                      <div key={b}>
-                        {names.band.get(Number(b))}: <Money cents={cents} currency={payout.currency} />
-                      </div>
-                    ))}
-                  </td>
-                  <td className="num font-medium">
-                    <Money cents={payout.amountCents} currency={payout.currency} />
-                  </td>
-                  <td>
-                    <Badge tone={STATUS[payout.status].tone}>{STATUS[payout.status].label}</Badge>
-                    {payout.paidAt && payout.status === "paid" && <div className="mt-1 text-xs text-muted">{payout.paidAt.slice(0, 10)}</div>}
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="data">
+              <thead>
+                <tr>
+                  <th>Payout</th>
+                  <th>From</th>
+                  <th className="num">Amount</th>
+                  <th>Status</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {payoutRows.map(({ payout, period }) => (
+                  <tr key={payout.id}>
+                    <td>
+                      <div className="font-medium">{period.name}</div>
+                      <div className="text-xs text-muted">
+                        {period.startDate} → {period.endDate}
+                      </div>
+                    </td>
+                    <td className="text-xs">
+                      {Object.entries(payout.byBand).map(([b, cents]) => (
+                        <div key={b}>
+                          {names.band.get(Number(b))}: <Money cents={cents} currency={payout.currency} />
+                        </div>
+                      ))}
+                    </td>
+                    <td className="num font-medium">
+                      <Money cents={payout.amountCents} currency={payout.currency} />
+                    </td>
+                    <td>
+                      <Badge tone={STATUS[payout.status].tone}>{STATUS[payout.status].label}</Badge>
+                      {payout.paidAt && payout.status === "paid" && <div className="mt-1 text-xs text-muted">{payout.paidAt.slice(0, 10)}</div>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </Card>
 
@@ -263,36 +265,38 @@ async function BandAccountEarnings({ ctx, range }: { ctx: Context; range?: strin
         {payouts.length === 0 ? (
           <Empty>No payouts yet.</Empty>
         ) : (
-          <table className="data">
-            <thead>
-              <tr>
-                <th>Payout</th>
-                <th>From</th>
-                <th className="num">Amount</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {payouts.map(({ payout, period, cents, through }) => (
-                <tr key={payout.id}>
-                  <td>
-                    <div className="font-medium">{period.name}</div>
-                    <div className="text-xs text-muted">
-                      {period.startDate} → {period.endDate}
-                    </div>
-                  </td>
-                  <td className="text-xs">{through ? `through ${through}` : ctx.org.name}</td>
-                  <td className="num font-medium">
-                    <Money cents={cents} currency={payout.currency} />
-                  </td>
-                  <td>
-                    <Badge tone={STATUS[payout.status].tone}>{STATUS[payout.status].label}</Badge>
-                    {payout.paidAt && payout.status === "paid" && <div className="mt-1 text-xs text-muted">{payout.paidAt.slice(0, 10)}</div>}
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="data">
+              <thead>
+                <tr>
+                  <th>Payout</th>
+                  <th>From</th>
+                  <th className="num">Amount</th>
+                  <th>Status</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {payouts.map(({ payout, period, cents, through }) => (
+                  <tr key={payout.id}>
+                    <td>
+                      <div className="font-medium">{period.name}</div>
+                      <div className="text-xs text-muted">
+                        {period.startDate} → {period.endDate}
+                      </div>
+                    </td>
+                    <td className="text-xs">{through ? `through ${through}` : ctx.org.name}</td>
+                    <td className="num font-medium">
+                      <Money cents={cents} currency={payout.currency} />
+                    </td>
+                    <td>
+                      <Badge tone={STATUS[payout.status].tone}>{STATUS[payout.status].label}</Badge>
+                      {payout.paidAt && payout.status === "paid" && <div className="mt-1 text-xs text-muted">{payout.paidAt.slice(0, 10)}</div>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </Card>
 

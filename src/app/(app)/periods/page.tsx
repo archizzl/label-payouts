@@ -165,60 +165,62 @@ export default async function PeriodsPage({ searchParams }: PageProps<"/periods"
         {rows.length === 0 ? (
           <Empty>No finalized payouts yet.</Empty>
         ) : (
-          <table className="data">
-            <thead>
-              <tr>
-                <th>Payout</th>
-                <th>For</th>
-                <th>Dates</th>
-                <th>Status</th>
-                <th className="num">To people</th>
-                <th className="num">Paid or kept</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map(({ key, href, period: p, byCurrency, through }) => (
-                <tr key={key}>
-                  <td>
-                    <Link href={href} className="font-medium hover:underline">
-                      {p.name}
-                    </Link>
-                  </td>
-                  <td className="text-sm">
-                    {through ? (
-                      <span className="text-muted">through {through}</span>
-                    ) : p.bandId ? (
-                      bandName.get(p.bandId)
-                    ) : ctx.org.kind === "band" ? (
-                      ctx.org.name
-                    ) : (
-                      <span className="text-muted">whole label</span>
-                    )}
-                  </td>
-                  <td className="text-muted">
-                    {p.startDate} → {p.endDate}
-                  </td>
-                  <td>
-                    <Badge tone={STATUS_TONE[p.status]}>{STATUS_LABEL[p.status]}</Badge>
-                  </td>
-                  <td className="num">
-                    {[...byCurrency].map(([c, v]) => (
-                      <div key={c}>
-                        <Money cents={v.total} currency={c} />
-                      </div>
-                    ))}
-                  </td>
-                  <td className="num">
-                    {[...byCurrency].map(([c, v]) => (
-                      <div key={c}>
-                        <Money cents={v.paid} currency={c} />
-                      </div>
-                    ))}
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="data">
+              <thead>
+                <tr>
+                  <th>Payout</th>
+                  <th>For</th>
+                  <th>Dates</th>
+                  <th>Status</th>
+                  <th className="num">To people</th>
+                  <th className="num">Paid or kept</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {rows.map(({ key, href, period: p, byCurrency, through }) => (
+                  <tr key={key}>
+                    <td>
+                      <Link href={href} className="font-medium hover:underline">
+                        {p.name}
+                      </Link>
+                    </td>
+                    <td className="text-sm">
+                      {through ? (
+                        <span className="text-muted">through {through}</span>
+                      ) : p.bandId ? (
+                        bandName.get(p.bandId)
+                      ) : ctx.org.kind === "band" ? (
+                        ctx.org.name
+                      ) : (
+                        <span className="text-muted">whole label</span>
+                      )}
+                    </td>
+                    <td className="text-muted">
+                      {p.startDate} → {p.endDate}
+                    </td>
+                    <td>
+                      <Badge tone={STATUS_TONE[p.status]}>{STATUS_LABEL[p.status]}</Badge>
+                    </td>
+                    <td className="num">
+                      {[...byCurrency].map(([c, v]) => (
+                        <div key={c}>
+                          <Money cents={v.total} currency={c} />
+                        </div>
+                      ))}
+                    </td>
+                    <td className="num">
+                      {[...byCurrency].map(([c, v]) => (
+                        <div key={c}>
+                          <Money cents={v.paid} currency={c} />
+                        </div>
+                      ))}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </Card>
     </>

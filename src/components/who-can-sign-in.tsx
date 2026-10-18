@@ -75,101 +75,103 @@ export async function WhoCanSignIn({ ctx }: { ctx: Context }) {
               )}
             </p>
           )} */}
-          <table className="data mb-6">
-            <thead>
-              <tr>
-                <th>Person</th>
-                {/* A band account's logins are all the band's: no payee or role to show. */}
-                {!managed && <th>Paid as</th>}
-                {!managed && <th>Role</th>}
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {members.map(({ member, user }) => {
-                const self = user.id === ctx.user.id;
-                return (
-                  <tr key={member.id} className="group">
-                    <td>
-                      <div className="font-medium">
-                        {managed ? (loginNames.get(user.id) ?? ctx.org.name) : user.name}{" "}
-                        {self && <span className="text-xs font-normal text-muted">(you)</span>}
-                      </div>
-                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                        <span className="text-xs text-muted">{user.email}</span>
-                        {/* A band account: who this login signs in as, shown with Edit. */}
-                        {managed && !self && (
-                          <span className="hidden group-has-[.login-edit:checked]:inline-flex">
-                            <LoginIdentity
-                              userId={user.id}
-                              current={loginPersons.get(user.id) ?? null}
-                              bandName={ctx.org.name}
-                              members={bandPeople}
-                              takenByOthers={new Set([...loginPersons].filter(([u]) => u !== user.id).map(([, p]) => p))}
-                            />
-                          </span>
+          <div className="overflow-x-auto">
+            <table className="data mb-6">
+              <thead>
+                <tr>
+                  <th>Person</th>
+                  {/* A band account's logins are all the band's: no payee or role to show. */}
+                  {!managed && <th>Paid as</th>}
+                  {!managed && <th>Role</th>}
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {members.map(({ member, user }) => {
+                  const self = user.id === ctx.user.id;
+                  return (
+                    <tr key={member.id} className="group">
+                      <td>
+                        <div className="font-medium">
+                          {managed ? (loginNames.get(user.id) ?? ctx.org.name) : user.name}{" "}
+                          {self && <span className="text-xs font-normal text-muted">(you)</span>}
+                        </div>
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                          <span className="text-xs text-muted">{user.email}</span>
+                          {/* A band account: who this login signs in as, shown with Edit. */}
+                          {managed && !self && (
+                            <span className="hidden group-has-[.login-edit:checked]:inline-flex">
+                              <LoginIdentity
+                                userId={user.id}
+                                current={loginPersons.get(user.id) ?? null}
+                                bandName={ctx.org.name}
+                                members={bandPeople}
+                                takenByOthers={new Set([...loginPersons].filter(([u]) => u !== user.id).map(([, p]) => p))}
+                              />
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      {!managed && <td className="text-sm">{personOf(user.id)?.name ?? <span className="text-muted">not linked</span>}</td>}
+                      {!managed && (
+                      <td>
+                        {member.role === "owner" || self ? (
+                          <Badge tone={member.role === "member" ? "neutral" : "accent"}>
+                            {member.role === "member" ? (typeName(typeOf.get(user.id)) ?? "member") : (ROLE_LABEL[member.role] ?? member.role)}
+                          </Badge>
+                        ) : (
+                          <RolePicker memberId={member.id} name={user.name} saved={roleValue(member.role, typeOf.get(user.id))} options={roleOptions} />
                         )}
-                      </div>
-                    </td>
-                    {!managed && <td className="text-sm">{personOf(user.id)?.name ?? <span className="text-muted">not linked</span>}</td>}
-                    {!managed && (
-                    <td>
-                      {member.role === "owner" || self ? (
-                        <Badge tone={member.role === "member" ? "neutral" : "accent"}>
-                          {member.role === "member" ? (typeName(typeOf.get(user.id)) ?? "member") : (ROLE_LABEL[member.role] ?? member.role)}
-                        </Badge>
-                      ) : (
-                        <RolePicker memberId={member.id} name={user.name} saved={roleValue(member.role, typeOf.get(user.id))} options={roleOptions} />
+                      </td>
                       )}
-                    </td>
-                    )}
-                    <td className="text-right">
-                      <div className="flex justify-end gap-1">
-                        {member.role !== "owner" && !self && (
-                          <form action={removeAccountMember}>
-                            <input type="hidden" name="memberId" value={member.id} />
-                            <SubmitButton variant="ghost" size="sm" confirm={`Remove ${user.name}'s access? Their payout history stays.`}>
-                              Remove
+                      <td className="text-right">
+                        <div className="flex justify-end gap-1">
+                          {member.role !== "owner" && !self && (
+                            <form action={removeAccountMember}>
+                              <input type="hidden" name="memberId" value={member.id} />
+                              <SubmitButton variant="ghost" size="sm" confirm={`Remove ${user.name}'s access? Their payout history stays.`}>
+                                Remove
+                              </SubmitButton>
+                            </form>
+                          )}
+                          {managed && !self && <LoginEditToggle />}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {openInvites.map((i) => {
+                  const who = i.personId ? people.find((p) => p.id === i.personId)?.name : null;
+                  return (
+                    <tr key={i.id}>
+                      <td>
+                        <div className="font-medium">
+                          {i.email} <Badge tone="warn">invited</Badge>
+                        </div>
+                      </td>
+                      {!managed && <td className="text-sm">{who ?? <span className="text-muted">not linked</span>}</td>}
+                      {!managed && (
+                        <td>
+                          <Badge>{i.role === "member" ? (typeName(inviteTypes.get(i.id)) ?? "member") : (i.role ?? "member")}</Badge>
+                        </td>
+                      )}
+                      <td className="text-right">
+                        <div className="flex justify-end gap-2">
+                          <CopyButton text={`${base}/invite/${i.id}`} label="Copy invite link" />
+                          <form action={cancelInvite}>
+                            <input type="hidden" name="id" value={i.id} />
+                            <SubmitButton variant="ghost" size="sm" confirm={`Cancel the invite for ${i.email}? Its link stops working.`}>
+                              Cancel invite
                             </SubmitButton>
                           </form>
-                        )}
-                        {managed && !self && <LoginEditToggle />}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-              {openInvites.map((i) => {
-                const who = i.personId ? people.find((p) => p.id === i.personId)?.name : null;
-                return (
-                  <tr key={i.id}>
-                    <td>
-                      <div className="font-medium">
-                        {i.email} <Badge tone="warn">invited</Badge>
-                      </div>
-                    </td>
-                    {!managed && <td className="text-sm">{who ?? <span className="text-muted">not linked</span>}</td>}
-                    {!managed && (
-                      <td>
-                        <Badge>{i.role === "member" ? (typeName(inviteTypes.get(i.id)) ?? "member") : (i.role ?? "member")}</Badge>
+                        </div>
                       </td>
-                    )}
-                    <td className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <CopyButton text={`${base}/invite/${i.id}`} label="Copy invite link" />
-                        <form action={cancelInvite}>
-                          <input type="hidden" name="id" value={i.id} />
-                          <SubmitButton variant="ghost" size="sm" confirm={`Cancel the invite for ${i.email}? Its link stops working.`}>
-                            Cancel invite
-                          </SubmitButton>
-                        </form>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
 
           {/* One invite link, the same every time: whoever opens it signs up (or in) with their own email, says who they are and fills in their details. */}
           <div className="mt-4">

@@ -128,14 +128,16 @@ export default async function ProjectPage({ params }: PageProps<"/projects/[id]"
           {n.madeBack === 0 ? (
             <Empty>No sales yet.</Empty>
           ) : (
-            <table className="data">
-              <tbody>
-                <Row label="Paid to people" cents={n.toPeople} cur={cur} />
-                <Row label="Kept by the label" cents={n.labelKept} cur={cur} />
-                {n.bandFunds !== 0 && <Row label="Into band funds" cents={n.bandFunds} cur={cur} />}
-                <Row label="Of which paid back this project’s costs" cents={n.recouped} cur={cur} muted />
-              </tbody>
-            </table>
+            <div className="overflow-x-auto">
+              <table className="data">
+                <tbody>
+                  <Row label="Paid to people" cents={n.toPeople} cur={cur} />
+                  <Row label="Kept by the label" cents={n.labelKept} cur={cur} />
+                  {n.bandFunds !== 0 && <Row label="Into band funds" cents={n.bandFunds} cur={cur} />}
+                  <Row label="Of which paid back this project’s costs" cents={n.recouped} cur={cur} muted />
+                </tbody>
+              </table>
+            </div>
           )}
         </Card>
       </div>
@@ -144,37 +146,39 @@ export default async function ProjectPage({ params }: PageProps<"/projects/[id]"
         {n.byRelease.length === 0 ? (
           <Empty>None attached.</Empty>
         ) : (
-          <table className="data">
-            <thead>
-              <tr>
-                <th>Release</th>
-                <th className="num">Sold</th>
-                <th className="num">Made back</th>
-              </tr>
-            </thead>
-            <tbody>
-              {n.byRelease.map((r) => (
-                <tr key={r.releaseId}>
-                  <td>
-                    <span className="flex items-center gap-2.5">
-                      {r.artUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={r.artUrl.replace(/_(10|16)\.jpg$/, "_3.jpg")} alt="" className="h-6 w-6 border border-border object-cover" />
-                      ) : (
-                        <span className="h-6 w-6 bg-surface-2" />
-                      )}
-                      <Link href={`/catalog/${r.releaseId}`}>{r.title}</Link>
-                      {r.kind === "merch" && <span className="text-xs text-muted">merch</span>}
-                    </span>
-                  </td>
-                  <td className="num">{r.units}</td>
-                  <td className="num">
-                    <Money cents={r.net} currency={cur} />
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="data">
+              <thead>
+                <tr>
+                  <th>Release</th>
+                  <th className="num">Sold</th>
+                  <th className="num">Made back</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {n.byRelease.map((r) => (
+                  <tr key={r.releaseId}>
+                    <td>
+                      <span className="flex items-center gap-2.5">
+                        {r.artUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={r.artUrl.replace(/_(10|16)\.jpg$/, "_3.jpg")} alt="" className="h-6 w-6 border border-border object-cover" />
+                        ) : (
+                          <span className="h-6 w-6 bg-surface-2" />
+                        )}
+                        <Link href={`/catalog/${r.releaseId}`}>{r.title}</Link>
+                        {r.kind === "merch" && <span className="text-xs text-muted">merch</span>}
+                      </span>
+                    </td>
+                    <td className="num">{r.units}</td>
+                    <td className="num">
+                      <Money cents={r.net} currency={cur} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </Card>
 

@@ -70,38 +70,40 @@ export default async function FromLabelPage({ params, searchParams }: PageProps<
 
       {bandProjects.length > 0 && (
         <Card title="Projects">
-          <table className="data">
-            <thead>
-              <tr>
-                <th>Project</th>
-                <th className="num">Spent</th>
-                <th className="num">Made back</th>
-                <th className="num">Balance</th>
-              </tr>
-            </thead>
-            <tbody>
-              {bandProjects.map((p) => {
-                const t = projectTotals.get(p.id)!;
-                return (
-                  <tr key={p.id}>
-                    <td>
-                      {p.name}
-                      {p.status === "done" && <span className="ml-2 text-xs text-muted">done</span>}
-                    </td>
-                    <td className="num">
-                      <Money cents={t.spent} currency={t.currency} />
-                    </td>
-                    <td className="num">
-                      <Money cents={t.madeBack} currency={t.currency} />
-                    </td>
-                    <td className="num">
-                      <Money cents={t.balance} currency={t.currency} />
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <div className="overflow-x-auto">
+            <table className="data">
+              <thead>
+                <tr>
+                  <th>Project</th>
+                  <th className="num">Spent</th>
+                  <th className="num">Made back</th>
+                  <th className="num">Balance</th>
+                </tr>
+              </thead>
+              <tbody>
+                {bandProjects.map((p) => {
+                  const t = projectTotals.get(p.id)!;
+                  return (
+                    <tr key={p.id}>
+                      <td>
+                        {p.name}
+                        {p.status === "done" && <span className="ml-2 text-xs text-muted">done</span>}
+                      </td>
+                      <td className="num">
+                        <Money cents={t.spent} currency={t.currency} />
+                      </td>
+                      <td className="num">
+                        <Money cents={t.madeBack} currency={t.currency} />
+                      </td>
+                      <td className="num">
+                        <Money cents={t.balance} currency={t.currency} />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </Card>
       )}
 

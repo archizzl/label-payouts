@@ -56,73 +56,77 @@ export function BandStatement({ view, bandId }: { view: View; bandId: number }) 
         return (
           <section key={cur} className="mb-8">
             {currencies.length > 1 && <h2 className="mb-2 font-medium">{cur}</h2>}
-            <table className="data mb-4">
-              <thead>
-                <tr>
-                  <th>Sales</th>
-                  <th className="num">Qty</th>
-                  <th className="num">Net</th>
-                </tr>
-              </thead>
-              <tbody>
-                {[...items.values()]
-                  .sort((a, b) => b.net - a.net)
-                  .map((it) => (
-                    <tr key={it.label}>
-                      <td>{it.label}</td>
-                      <td className="num">{it.count}</td>
-                      <td className="num">
-                        <Money cents={it.net} currency={cur} />
-                      </td>
-                    </tr>
-                  ))}
-                <tr>
-                  <td className="font-medium">Total net sales (after Bandcamp &amp; payment fees)</td>
-                  <td />
-                  <td className="num font-medium">
-                    <Money cents={net} currency={cur} />
-                  </td>
-                </tr>
-                {[...deductions].map(([label, cents]) => (
-                  <tr key={label}>
-                    <td className="text-muted">Less: {label}</td>
-                    <td />
-                    <td className="num text-muted">
-                      <Money cents={-cents} currency={cur} />
-                    </td>
-                  </tr>
-                ))}
-                {unallocated !== 0 && (
+            <div className="overflow-x-auto print:overflow-visible">
+              <table className="data mb-4">
+                <thead>
                   <tr>
-                    <td className="text-bad">Not yet allocated</td>
+                    <th>Sales</th>
+                    <th className="num">Qty</th>
+                    <th className="num">Net</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...items.values()]
+                    .sort((a, b) => b.net - a.net)
+                    .map((it) => (
+                      <tr key={it.label}>
+                        <td>{it.label}</td>
+                        <td className="num">{it.count}</td>
+                        <td className="num">
+                          <Money cents={it.net} currency={cur} />
+                        </td>
+                      </tr>
+                    ))}
+                  <tr>
+                    <td className="font-medium">Total net sales (after Bandcamp &amp; payment fees)</td>
                     <td />
-                    <td className="num text-bad">
-                      <Money cents={-unallocated} currency={cur} />
+                    <td className="num font-medium">
+                      <Money cents={net} currency={cur} />
                     </td>
                   </tr>
-                )}
-              </tbody>
-            </table>
-            <table className="data">
-              <thead>
-                <tr>
-                  <th>Paid to</th>
-                  <th className="num">Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                {[...people]
-                  .sort((a, b) => b[1] - a[1])
-                  .map(([pid, cents]) => (
-                    <tr key={pid}>
-                      <td>{names.person.get(pid)}</td>
-                      <td className="num font-medium">
-                        <Money cents={cents} currency={cur} />
+                  {[...deductions].map(([label, cents]) => (
+                    <tr key={label}>
+                      <td className="text-muted">Less: {label}</td>
+                      <td />
+                      <td className="num text-muted">
+                        <Money cents={-cents} currency={cur} />
                       </td>
                     </tr>
                   ))}
-              </tbody>
-            </table>
+                  {unallocated !== 0 && (
+                    <tr>
+                      <td className="text-bad">Not yet allocated</td>
+                      <td />
+                      <td className="num text-bad">
+                        <Money cents={-unallocated} currency={cur} />
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <div className="overflow-x-auto print:overflow-visible">
+              <table className="data">
+                <thead>
+                  <tr>
+                    <th>Paid to</th>
+                    <th className="num">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...people]
+                    .sort((a, b) => b[1] - a[1])
+                    .map(([pid, cents]) => (
+                      <tr key={pid}>
+                        <td>{names.person.get(pid)}</td>
+                        <td className="num font-medium">
+                          <Money cents={cents} currency={cur} />
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
           </section>
         );
       })}

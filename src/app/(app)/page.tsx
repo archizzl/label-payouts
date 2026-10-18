@@ -240,7 +240,8 @@ export default async function Dashboard() {
         </Card>
       )}
 
-      {[...figures].map(([cur, f]) => (
+      {/* The main currency (the most sales) first. */}
+      {[...figures].sort((a, b) => b[1].net - a[1].net).map(([cur, f]) => (
         <Card key={cur} title={`All-time${figures.size > 1 ? ` (${cur})` : ""}`}>
           <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
             <Figure label="Net sales" cents={f.net} currency={cur} />

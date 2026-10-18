@@ -250,29 +250,31 @@ const REASON_LABEL = new Map<string, string>(MOVE_REASONS.map((r) => [r.key, r.l
 function History({ moves }: { moves: Move[] }) {
   if (!moves.length) return <p className="text-sm text-muted">No changes yet.</p>;
   return (
-    <table className="data">
-      <thead>
-        <tr>
-          <th>When</th>
-          <th>What</th>
-          <th className="num">Change</th>
-          <th className="num">After</th>
-        </tr>
-      </thead>
-      <tbody>
-        {moves.map((m) => (
-          <tr key={m.id}>
-            <td className="text-xs text-muted">{m.createdAt.slice(0, 10)}</td>
-            <td>
-              {REASON_LABEL.get(m.reason) ?? m.reason}
-              {m.note && <span className="text-muted"> · {m.note}</span>}
-            </td>
-            <td className={`num ${m.delta < 0 ? "text-bad" : m.delta > 0 ? "text-good" : ""}`}>{m.delta > 0 ? `+${m.delta}` : m.delta}</td>
-            <td className="num">{m.onHandAfter}</td>
+    <div className="overflow-x-auto">
+      <table className="data">
+        <thead>
+          <tr>
+            <th>When</th>
+            <th>What</th>
+            <th className="num">Change</th>
+            <th className="num">After</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {moves.map((m) => (
+            <tr key={m.id}>
+              <td className="text-xs text-muted">{m.createdAt.slice(0, 10)}</td>
+              <td>
+                {REASON_LABEL.get(m.reason) ?? m.reason}
+                {m.note && <span className="text-muted"> · {m.note}</span>}
+              </td>
+              <td className={`num ${m.delta < 0 ? "text-bad" : m.delta > 0 ? "text-good" : ""}`}>{m.delta > 0 ? `+${m.delta}` : m.delta}</td>
+              <td className="num">{m.onHandAfter}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
