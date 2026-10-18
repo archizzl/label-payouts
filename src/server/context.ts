@@ -153,6 +153,14 @@ async function ownBooksContext(ctx: Context): Promise<Context> {
   };
 }
 
+/**
+ * Signed in as a band, not a person: the shared login of a band account the label made (an admin
+ * of it, in nothing else). It has no personal details, so no Account page: its password is under Settings.
+ */
+export function isBandLogin(ctx: Context) {
+  return !!ctx.managedBy && ctx.org.role !== "member" && ctx.accounts.length === 1;
+}
+
 /** A label-made band account's own books (from the label's for it, or already them). */
 export async function ownBooksOf(ctx: Context): Promise<Context> {
   return ctx.books === "own" ? ctx : ownBooksContext(await accountContext());

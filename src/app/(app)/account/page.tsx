@@ -6,7 +6,8 @@ import { Card, Field, PageHeader } from "@/components/ui";
 import { DeleteLogin } from "@/components/delete-login";
 import { soleAccounts } from "@/server/account-deletion";
 import { changeMyPassword, leaveAccount, saveMyDetails } from "@/server/account-actions";
-import { accountsFor, realContext } from "@/server/context";
+import { redirect } from "next/navigation";
+import { accountsFor, isBandLogin, realContext } from "@/server/context";
 import { myPeople } from "@/server/people";
 
 export const metadata = { title: "account" };
@@ -18,7 +19,10 @@ export const metadata = { title: "account" };
  */
 export default async function AccountPage() {
   await connection();
-  const { user } = await realContext();
+  const real = await realContext();
+  // Signed in as a band: nothing personal here, and its password is under Settings.
+  if (isBandLogin(real)) redirect("/settings");
+  const { user } = real;
   const [mine, accounts, madeByLabels] = await Promise.all([
     myPeople(user.id),
     accountsFor(user.id),

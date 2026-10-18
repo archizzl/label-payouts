@@ -31,6 +31,7 @@ function itemsFor(
   managed: string | null,
   bandHref: string | null,
   hideOrders: boolean,
+  bandLogin: boolean,
 ): Item[] {
   // A band account the label made: its own books with the label's part for it (dashboard, sales,
   // payouts, receipts, splits), its part of the label's (orders, inventory, funds, catalog,
@@ -47,9 +48,9 @@ function itemsFor(
       ...(isAdmin && bandHref ? [{ href: `${bandHref}?tab=money`, label: "splits" }] : []),
       { href: "/catalog", label: "catalog" },
       { href: "/directory", label: "directory" },
-      // The band's own login runs it (who signs in); everyone has their own account.
+      // The band's own login runs it (who signs in, its password); everyone else has their own account.
       ...(isAdmin ? [{ href: "/settings", label: "settings" }] : []),
-      { href: "/account", label: "account" },
+      ...(bandLogin ? [] : [{ href: "/account", label: "account" }]),
     ];
   }
   const all: (Item & { area?: Area })[] = [
@@ -126,6 +127,7 @@ export function Nav({
   viewing = false,
   bandHref = null,
   hideOrders = false,
+  bandLogin = false,
 }: {
   user: { name: string; email: string };
   account: Account;
@@ -151,6 +153,8 @@ export function Nav({
   managed?: string | null;
   /** A label admin viewing as someone else: no switching accounts or signing out from here. */
   viewing?: boolean;
+  /** Signed in as a band (its shared login), not a person: no Account page. */
+  bandLogin?: boolean;
   /** A band account's own band page. */
   bandHref?: string | null;
   /** No Bandcamp API access or pickups yet: the Orders tab would only say how to connect. */
@@ -166,7 +170,7 @@ export function Nav({
     if (key === "sales" && seenSales) return 0;
     return badges[key] ?? 0;
   };
-  const items = [...itemsFor(account, isAdmin, areas, labels, projects, managed, bandHref, hideOrders), ...(siteAdmin && showAdminLink && !viewing ? [{ href: "/admin", label: "admin" }] : [])];
+  const items = [...itemsFor(account, isAdmin, areas, labels, projects, managed, bandHref, hideOrders, bandLogin), ...(siteAdmin && showAdminLink && !viewing ? [{ href: "/admin", label: "admin" }] : [])];
   return (
     <header className="no-print border-b border-border bg-surface">
       <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 pt-4 pb-3 md:px-8">

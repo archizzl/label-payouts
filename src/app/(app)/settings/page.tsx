@@ -5,7 +5,7 @@ import { connection } from "next/server";
 import { ActionForm, SaveWhenChanged, SubmitButton } from "@/components/client";
 import { Callout, Card, Field, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
-import { saveAccountSettings, saveBandSettings, testBandcampConnection } from "@/server/account-actions";
+import { changeMyPassword, saveAccountSettings, saveBandSettings, testBandcampConnection } from "@/server/account-actions";
 import { WhoCanSignIn } from "@/components/who-can-sign-in";
 import { ownBand } from "@/server/data";
 import { MemberTypesCard } from "@/components/member-types";
@@ -13,7 +13,7 @@ import { DeleteAccount } from "@/components/delete-account";
 import { SyncFooter } from "@/components/sync-status";
 import { setLabelAccountHolder, setSetupHidden } from "@/server/actions";
 import { bandcampApiOff } from "@/server/bandcamp-api";
-import { accountContext, type Context, requireAdmin } from "@/server/context";
+import { accountContext, type Context, isBandLogin, requireAdmin } from "@/server/context";
 import { unlink } from "@/server/link-actions";
 import { labelsForBandAccount } from "@/server/links";
 
@@ -196,6 +196,21 @@ async function SubAccountSettings({ ctx }: { ctx: Context }) {
         <Callout tone="neutral">
           The Bandcamp API is switched off on this copy (<code>BANDCAMP_API=off</code>), so it never takes the live site’s Bandcamp sign-in.
         </Callout>
+      )}
+      {/* Signed in as the band itself: its password is here (it has no Account page). */}
+      {isBandLogin(ctx) && (
+        <Card title="Password">
+          <p className="mb-3 text-sm text-muted">Signs in as {ctx.user.email}.</p>
+          <ActionForm action={changeMyPassword} className="flex flex-wrap items-end gap-3">
+            <Field label="Current password" className="min-w-56">
+              <input name="currentPassword" type="password" required autoComplete="current-password" />
+            </Field>
+            <Field label="New password" className="min-w-56">
+              <input name="newPassword" type="password" required minLength={8} autoComplete="new-password" />
+            </Field>
+            <SubmitButton size="sm">Change password</SubmitButton>
+          </ActionForm>
+        </Card>
       )}
       <SyncFooter orgId={ctx.orgId} onSettings />
     </>

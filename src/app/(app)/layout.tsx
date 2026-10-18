@@ -8,7 +8,7 @@ import { ViewingAsBar } from "@/components/viewing-as";
 import { onCloudflare } from "@/db";
 import { AREAS, can } from "@/lib/permissions";
 import { syncAccount, syncStatus } from "@/server/auto-sync";
-import { getContext } from "@/server/context";
+import { getContext, isBandLogin } from "@/server/context";
 import { ownBand } from "@/server/data";
 import { labelsForBandAccount } from "@/server/links";
 import { projectsEnabled } from "@/server/features";
@@ -50,6 +50,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
       <Nav
         user={{ name: ctx.user.name, email: ctx.user.email }}
         managed={ctx.lens ? "/" : null}
+        bandLogin={isBandLogin(ctx)}
         bandHref={band ? `/bands/${band.id}` : null}
         hideOrders={!orders.inUse}
         viewing={!!ctx.viewingAs}
