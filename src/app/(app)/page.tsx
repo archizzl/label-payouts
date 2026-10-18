@@ -18,6 +18,7 @@ import { setSetupHidden } from "@/server/actions";
 import { requireAccess } from "@/server/context";
 import { computeAllTime } from "@/server/data";
 import { labelPartFor } from "@/server/own-books";
+import { BandProjects } from "@/components/band-projects";
 import type { PeriodSummary } from "@/lib/splits";
 
 export const metadata = { title: "dashboard" };
@@ -85,7 +86,9 @@ export default async function Dashboard() {
       .limit(1),
   ]);
   const splitsSet = bands.length > 0 && (defaults.some((d) => d.scope === "label_default") || bands.every((b) => defaults.some((d) => d.bandId === b.id)));
-  const steps = [
+  // A band account the label made has nothing to set up: the label brings in its band, members and
+  // sales, and its own books are there for when it needs them.
+  const steps = m ? [] : [
     {
       done: !!settingsRow?.bandcampUrl || releaseCount > 0,
       label: isBand ? "Add your Bandcamp address, so your releases and merch come in by themselves" : "Add your Bandcamp address, so your bands, releases and merch come in by themselves",
@@ -141,14 +144,16 @@ export default async function Dashboard() {
   ];
 
   // All-time, per currency: this account's own, plus (a band account the label made) the label's for its band.
-  const figures = new Map<string, { net: number; label: number; funds: number; people: number }>();
-  const addUp = (s: PeriodSummary, fundsSpent: { currency: string; amountCents: number }[]) => {
+  // (In a band's group, what its own books keep is the band's; what the label keeps of its sales is the label's.)
+  const figures = new Map<string, { net: number; label: number; labelThrough: number; funds: number; people: number }>();
+  const addUp = (s: PeriodSummary, fundsSpent: { currency: string; amountCents: number }[], through = false) => {
     for (const cur of s.currencies) {
       const c = s.byCurrency[cur];
       const dest = (k: string) => [...c.byDestination].filter(([key]) => key === k || key.startsWith(`${k}:`)).reduce((a, [, v]) => a + v, 0);
-      const f = figures.get(cur) ?? { net: 0, label: 0, funds: 0, people: 0 };
+      const f = figures.get(cur) ?? { net: 0, label: 0, labelThrough: 0, funds: 0, people: 0 };
       f.net += c.grossCents;
-      f.label += dest("label");
+      if (through) f.labelThrough += dest("label");
+      else f.label += dest("label");
       // Band funds pay for some expenses; what's held is what went in, less what they paid for.
       f.funds += dest("band_fund") - fundsSpent.filter((e) => e.currency === cur).reduce((a, e) => a + e.amountCents, 0);
       f.people += [...c.byPerson.values()].reduce((a, p) => a + p.total, 0);
@@ -156,7 +161,7 @@ export default async function Dashboard() {
     }
   };
   addUp(summary, fundExpenses);
-  if (fromLabel) addUp(fromLabel.summary, fromLabel.fundsSpent);
+  if (fromLabel) addUp(fromLabel.summary, fromLabel.fundsSpent, true);
   // The latest payouts, the label's that paid the band's members among them.
   const recent = [
     ...periods.map((p) => ({ key: `own-${p.id}`, href: `/periods/${p.id}`, period: p, through: null as string | null })),
@@ -243,9 +248,16 @@ export default async function Dashboard() {
       {/* The main currency (the most sales) first. */}
       {[...figures].sort((a, b) => b[1].net - a[1].net).map(([cur, f]) => (
         <Card key={cur} title={`All-time${figures.size > 1 ? ` (${cur})` : ""}`}>
-          <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <div className={`mb-6 grid grid-cols-2 gap-4 ${isBand && m ? "sm:grid-cols-5" : "sm:grid-cols-4"}`}>
             <Figure label="Net sales" cents={f.net} currency={cur} />
-            <Figure label="Label income" cents={f.label} currency={cur} />
+            {isBand ? (
+              <>
+                <Figure label="Kept by the band" cents={f.label} currency={cur} />
+                {m && <Figure label={`Kept by ${m.labelName}`} cents={f.labelThrough} currency={cur} />}
+              </>
+            ) : (
+              <Figure label="Label income" cents={f.label} currency={cur} />
+            )}
             <Figure label="Held in band funds" cents={f.funds} currency={cur} />
             <Figure label="Earned by people" cents={f.people} currency={cur} />
           </div>
@@ -253,6 +265,9 @@ export default async function Dashboard() {
       ))}
 
       <ChartBoard boardId="dashboard" charts={charts} saved={saved} />
+
+      {/* A band account the label made: its projects in the label's books. */}
+      {m && <BandProjects labelOrgId={m.labelOrgId} bandId={m.bandId} />}
 
       <div>
         <Card title="Recent payouts" actions={<LinkButton href="/periods" size="sm">All</LinkButton>}>

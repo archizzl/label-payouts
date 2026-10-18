@@ -16,7 +16,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
       <SignInForm next={next} email={typeof q.email === "string" ? q.email : undefined} />
       <p className="mt-5 text-sm text-muted">Forgot your password? Ask whoever runs your label or band for a reset link.</p>
       <p className="mt-2 text-sm text-muted">
-        New here? <Link href="/signup">Create a login</Link>.
+        New here? <Link href="/signup">Create an account</Link>.
       </p>
     </>
   );

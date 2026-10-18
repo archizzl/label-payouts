@@ -156,14 +156,14 @@ export async function expenseFileList(orgId: string) {
   return byExpense;
 }
 
-/** How an expense is covered, in words. */
-export function coverageText(e: Expense, personName: (id: number) => string | undefined) {
-  const payer = e.paidBy === "label" ? "the label" : e.paidBy === "band_fund" ? "the band fund" : (personName(e.paidByPersonId ?? 0) ?? "someone");
+/** How an expense is covered, in words. `group`: whose books it's in (a band's own group pays as "the band"). */
+export function coverageText(e: Expense, personName: (id: number) => string | undefined, group: "label" | "band" = "label") {
+  const payer = e.paidBy === "label" ? `the ${group}` : e.paidBy === "band_fund" ? "the band fund" : (personName(e.paidByPersonId ?? 0) ?? "someone");
   const paid = `Paid by ${payer}`;
   if (e.status === "pending") return `${paid}; waiting for an admin`;
   if (e.status === "rejected") return paid;
   if (e.recoup) return `${paid}; paid back from sales${e.recoupFrom && e.recoupFrom !== e.date ? ` from ${e.recoupFrom}` : ""}`;
-  if (e.paidBy === "person") return `${paid}; the label pays them back`;
+  if (e.paidBy === "person") return `${paid}; the ${group} pays them back`;
   return paid;
 }
 

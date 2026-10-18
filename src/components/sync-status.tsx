@@ -33,9 +33,11 @@ export async function SyncStatus({ orgId, onSettings = false }: { orgId: string;
   if (!s?.configured) {
     // On Settings itself the Bandcamp fields are right above: nothing to point to.
     if (onSettings) return null;
-    // (A band account the label made: its shared account sets up its own books' Bandcamp.)
     const viewer = await getContext();
-    const canSetUp = viewer.isAdmin || (viewer.lens && viewer.org.role !== "member");
+    // A band account the label made: the label's sync brings in its sales; its own Bandcamp is
+    // optional, under Settings. Nothing to nudge about.
+    if (viewer.managedBy) return null;
+    const canSetUp = viewer.isAdmin;
     return (
       <p className="text-sm text-muted">
         {canSetUp ? (

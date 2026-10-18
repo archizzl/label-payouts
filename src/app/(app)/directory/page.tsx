@@ -28,12 +28,12 @@ type Membership = { id: number; personId: number; roles: string[]; active: boole
 type Totals = Map<string, number>;
 
 /** The person rows' columns (and the header above them). */
-/** A person's row: columns on a wide screen; on a phone, their name (and edit) then the rest under it. */
-const COLUMNS = "grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1.1fr)_minmax(0,1.4fr)_minmax(0,1.3fr)_5.5rem_5.5rem_3rem] md:gap-3";
+/** A person's row: columns on a wide screen; on a phone or tablet, their name (and edit) then the rest under it. */
+const COLUMNS = "grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1.1fr)_minmax(0,1.4fr)_minmax(0,1.3fr)_5.5rem_5.5rem_3rem] lg:gap-3";
 /** Under the name on a phone; its own column on a wide screen. */
-const UNDER = "col-span-2 md:col-span-1";
+const UNDER = "col-span-2 lg:col-span-1";
 /** The last column (edit): beside the name on a phone. */
-const BESIDE = "col-start-2 row-start-1 md:col-start-auto md:row-start-auto";
+const BESIDE = "col-start-2 row-start-1 lg:col-start-auto lg:row-start-auto";
 
 /**
  * Everyone on the books: each band with its people underneath, then people who aren't in a band
@@ -238,9 +238,9 @@ export default async function DirectoryPage() {
                     </span>
                     <span className="col-span-2">{controlsFor(l)}</span>
                     <span className={`${UNDER} truncate text-xs`}>{l.user.email}</span>
-                    <span className="hidden md:block" />
-                    <span className="hidden md:block" />
-                    <span className="hidden md:block" />
+                    <span className="hidden lg:block" />
+                    <span className="hidden lg:block" />
+                    <span className="hidden lg:block" />
                   </div>
                 ))}
                 {runsLogins && (
@@ -341,7 +341,7 @@ export default async function DirectoryPage() {
 /** The person columns, at the top of an opened band. */
 function ColumnHeads() {
   return (
-    <div className={`${COLUMNS} hidden border-b border-border px-2.5 py-1.5 text-xs text-muted lowercase md:grid`}>
+    <div className={`${COLUMNS} hidden border-b border-border px-2.5 py-1.5 text-xs text-muted lowercase lg:grid`}>
       <span>person</span>
       <span>roles</span>
       <span>how they’re paid</span>
@@ -439,12 +439,12 @@ function PersonRow({
         {payHandlesSummary(p) && <span className="block truncate text-muted">{payHandlesSummary(p)}</span>}
       </span>
       <span className={`${UNDER} truncate text-xs`}>{login}</span>
-      <span className={`${UNDER} tabular-nums md:text-right`}>
-        <span className="text-xs text-muted md:hidden">owed </span>
+      <span className={`${UNDER} tabular-nums lg:text-right`}>
+        <span className="text-xs text-muted lg:hidden">owed </span>
         <MoneyList totals={money.owed} />
       </span>
-      <span className={`${UNDER} tabular-nums md:text-right`}>
-        <span className="text-xs text-muted md:hidden">paid or kept </span>
+      <span className={`${UNDER} tabular-nums lg:text-right`}>
+        <span className="text-xs text-muted lg:hidden">paid or kept </span>
         <MoneyList totals={money.paid} />
       </span>
     </>

@@ -10,7 +10,8 @@ import { computePayoutPeriod, nameMaps } from "@/server/data";
 import { accountExpenses, expenseFileList } from "@/server/expenses";
 import { requireLinkedView } from "@/server/links";
 import { projectsEnabled } from "@/server/features";
-import { accountProjects, projectNumbers } from "@/server/projects";
+import { accountProjects } from "@/server/projects";
+import { BandProjects } from "@/components/band-projects";
 
 export const metadata = { title: "from label" };
 
@@ -25,15 +26,12 @@ export default async function FromLabelPage({ params, searchParams }: PageProps<
   const { labelOrgId, bandId } = v;
   // A band account the label made: its dashboard has both its own books and the label's for it.
   if (v.link.managed) redirect("/");
-  const showProjects = await projectsEnabled();
-  const [names, expenses, files, labelProjects, projectTotals] = await Promise.all([
+  const [names, expenses, files, labelProjects] = await Promise.all([
     nameMaps(labelOrgId),
     accountExpenses(labelOrgId, { bandId }),
     expenseFileList(labelOrgId),
-    showProjects ? accountProjects(labelOrgId) : [],
-    showProjects ? projectNumbers(labelOrgId) : new Map<number, never>(),
+    projectsEnabled().then((on) => (on ? accountProjects(labelOrgId) : [])),
   ]);
-  const bandProjects = labelProjects.filter((p) => p.bandId === bandId);
   // A band's own account, linked: its login's earnings, matched by email.
   const mine = await myEarnings(labelOrgId, bandId, { email: v.ctx.user.email });
   const approved = expenses.filter((e) => e.status === "approved");
@@ -68,44 +66,7 @@ export default async function FromLabelPage({ params, searchParams }: PageProps<
 
       <BandPayouts labelOrgId={labelOrgId} bandId={bandId} bandName={v.bandName} statementHref={(id) => `/from-label/${linkId}/statement/${id}`} />
 
-      {bandProjects.length > 0 && (
-        <Card title="Projects">
-          <div className="overflow-x-auto">
-            <table className="data">
-              <thead>
-                <tr>
-                  <th>Project</th>
-                  <th className="num">Spent</th>
-                  <th className="num">Made back</th>
-                  <th className="num">Balance</th>
-                </tr>
-              </thead>
-              <tbody>
-                {bandProjects.map((p) => {
-                  const t = projectTotals.get(p.id)!;
-                  return (
-                    <tr key={p.id}>
-                      <td>
-                        {p.name}
-                        {p.status === "done" && <span className="ml-2 text-xs text-muted">done</span>}
-                      </td>
-                      <td className="num">
-                        <Money cents={t.spent} currency={t.currency} />
-                      </td>
-                      <td className="num">
-                        <Money cents={t.madeBack} currency={t.currency} />
-                      </td>
-                      <td className="num">
-                        <Money cents={t.balance} currency={t.currency} />
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      )}
+      <BandProjects labelOrgId={labelOrgId} bandId={bandId} />
 
       <Card title="Receipts">
         {approved.length > 0 && (

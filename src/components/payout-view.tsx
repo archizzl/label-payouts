@@ -102,6 +102,8 @@ export async function PayoutView({
               <>
                 <Link href={`/bands/${scope.bandId}`}>{bandName(scope.bandId)}</Link> only
               </>
+            ) : ctx.org.kind === "band" ? (
+              ctx.org.name
             ) : (
               "whole label"
             )}{" "}
@@ -225,7 +227,17 @@ export async function PayoutView({
               .{" "}
             </>
           )}
-          {splitlessBands.length > 0 && (
+          {/* A band's group has just its own split to set (on its splits page). */}
+          {splitlessBands.length > 0 && ctx.org.kind === "band" && (
+            <>
+              Set{" "}
+              <Link href={`/bands/${splitlessBands[0]}?tab=money`} className="underline">
+                the band’s split
+              </Link>{" "}
+              (and make sure it has members).
+            </>
+          )}
+          {splitlessBands.length > 0 && ctx.org.kind !== "band" && (
             <>
               Set a{" "}
               <Link href="/rules" className="underline">

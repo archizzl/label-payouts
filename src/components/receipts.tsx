@@ -163,7 +163,7 @@ export function ExpenseForm({
       </Field>
       <Field label="Who paid">
         <select name="paidBy" defaultValue={paidBy}>
-          <option value="label">The label</option>
+          <option value="label">{oneBand ? "The band" : "The label"}</option>
           <option value="band_fund">The band fund</option>
           <optgroup label="Someone, out of pocket">
             {people.map((p) => (
@@ -180,8 +180,8 @@ export function ExpenseForm({
           <b>Pay it back from sales</b>
           <span className="block text-muted">
             Taken from sales not yet paid out (of the release, else the project’s releases, else the band), before they’re split,
-            until it’s covered. The money goes back to whoever paid. Unticked, and someone paid out of pocket, the label reimburses
-            them.
+            until it’s covered. The money goes back to whoever paid. Unticked, and someone paid out of pocket, the {oneBand ? "band" : "label"}{" "}
+            reimburses them.
           </span>
         </span>
       </label>
@@ -316,6 +316,7 @@ export function ExpenseTable({
   userId,
   payees,
   through,
+  group = "label",
 }: {
   rows: Expense[];
   files: Map<number, ReceiptFile[]>;
@@ -334,6 +335,8 @@ export function ExpenseTable({
    * label), which are the label's to approve and pay back. Its own one sent in can still be withdrawn.
    */
   through?: (e: Expense) => string | undefined;
+  /** Whose books the receipts are in (the label's ones excepted): a band's own group pays as "the band". */
+  group?: "label" | "band";
 }) {
   if (!rows.length) return <Empty>No expenses yet.</Empty>;
   return (
@@ -359,7 +362,7 @@ export function ExpenseTable({
               </div>
               <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
                 <Badge tone={STATUS[e.status].tone}>{STATUS[e.status].label}</Badge>
-                <span>{coverageText(e, personName)}</span>
+                <span>{coverageText(e, personName, label ? "label" : group)}</span>
                 {owedReimbursement(e) && <Badge tone="warn">not reimbursed yet</Badge>}
                 {e.reimbursedAt && (
                   <Badge tone="good">

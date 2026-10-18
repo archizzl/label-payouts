@@ -387,6 +387,7 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
             ) : (
               <div className="mb-4">
                 <ExpenseTable
+                  group={ctx.org.kind === "band" ? "band" : "label"}
                   rows={bandExpenses.slice(0, 5)}
                   files={expenseFiles}
                   personName={(pid) => names.person.get(pid)}

@@ -113,7 +113,7 @@ export default async function ReceiptsPage({ searchParams }: PageProps<"/receipt
 
       {pending.length > 0 && (
         <Card title={`Waiting for approval (${pending.length})`}>
-          <ExpenseTable rows={pending} files={allFiles} personName={personName} bandName={bandName} projectName={projectName} {...tableMode} userId={user.id} payees={payees} through={throughLabel} />
+          <ExpenseTable rows={pending} files={allFiles} personName={personName} bandName={bandName} projectName={projectName} {...tableMode} userId={user.id} payees={payees} through={throughLabel} group={ctx.org.kind === "band" ? "band" : "label"} />
         </Card>
       )}
 
@@ -150,7 +150,7 @@ export default async function ReceiptsPage({ searchParams }: PageProps<"/receipt
             </Disclosure>
           </div>
         )}
-        <ExpenseTable rows={rest} files={allFiles} personName={personName} bandName={bandName} projectName={projectName} {...tableMode} userId={user.id} payees={payees} through={throughLabel} />
+        <ExpenseTable rows={rest} files={allFiles} personName={personName} bandName={bandName} projectName={projectName} {...tableMode} userId={user.id} payees={payees} through={throughLabel} group={ctx.org.kind === "band" ? "band" : "label"} />
       </Card>
 
       {clearable && clearable.files.length > 0 && (
