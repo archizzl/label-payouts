@@ -1,11 +1,13 @@
+import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { newAccount, testDb } from "../../../test/helpers/db";
 
 let orgId = "";
+let testUser = "";
 let managedBy: { labelOrgId: string; bandId: number } | null = null;
 vi.mock("../context", () => ({
-  requireAccess: async () => ({ orgId, managedBy, access: { admin: true, permissions: {}, bandAreas: [], bandIds: [] }, user: { name: "Tester" } }),
+  requireAccess: async () => ({ orgId, managedBy, access: { admin: true, permissions: {}, bandAreas: [], bandIds: [] }, user: { id: testUser, name: "Tester" } }),
 }));
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 
@@ -15,6 +17,8 @@ let actions: typeof import("../manual-sale-actions");
 
 beforeAll(async () => {
   ({ db, schema } = await testDb());
+  testUser = randomUUID();
+  await db.insert(schema.user).values({ id: testUser, name: "Tester", email: `${testUser}@example.test`, emailVerified: true, createdAt: new Date(), updatedAt: new Date() });
   actions = await import("../manual-sale-actions");
 });
 
@@ -125,5 +129,45 @@ describe("adding a sale by hand", () => {
     expect(merchName({ title: "Triple Single" }, { title: "Triple Single CD" })).toEqual({ itemName: "Triple Single", format: "CD" });
     expect(merchName({ title: "Night Swims" }, { title: "12in Vinyl LP" })).toEqual({ itemName: "Night Swims", format: "12in Vinyl LP" });
     expect(merchName({ title: "Logo T-Shirt" }, { title: "Logo T-Shirt" })).toEqual({ itemName: "Logo T-Shirt", format: "" });
+  });
+
+  it("takes what's sold off its stock (each size its own line), and puts it back when the sale is deleted", async () => {
+    const { band, shirt } = await setup();
+    const [small, medium] = await db
+      .insert(schema.inventoryItems)
+      .values([
+        { orgId, bandId: band.id, name: "Logo T-Shirt", releaseId: shirt.id, option: "S", onHand: 5, priceCents: 2000 },
+        { orgId, bandId: band.id, name: "Logo T-Shirt", releaseId: shirt.id, option: "M", onHand: 0 },
+      ])
+      .returning();
+    const [sticker] = await db.insert(schema.inventoryItems).values({ orgId, bandId: band.id, name: "Sticker", onHand: 10, priceCents: 300 }).returning();
+    const { merchChoices, merchSources } = await import("../manual-sales");
+    const choices = merchChoices(await merchSources({ orgId, managed: null }));
+    expect(choices.filter((c) => c.value.startsWith("stock:")).map((c) => [c.label, c.price])).toEqual([
+      ["Logo T-Shirt — M", null],
+      ["Logo T-Shirt — S", 20],
+      ["Sticker", 3],
+    ]);
+
+    const onHand = async (id: number) => (await db.select().from(schema.inventoryItems).where(eq(schema.inventoryItems.id, id)))[0].onHand;
+    await actions.addManualSale(
+      null,
+      form({ bandId: band.id, kind: "merch", [`each:stock:${small.id}`]: "20", [`sold:stock:${small.id}`]: 2, [`each:stock:${sticker.id}`]: "3", [`sold:stock:${sticker.id}`]: 3, [`each:stock:${medium.id}`]: "20", [`sold:stock:${medium.id}`]: 1 }),
+    );
+    expect([await onHand(small.id), await onHand(sticker.id), await onHand(medium.id)]).toEqual([3, 7, 0]);
+    const sales = await db.select().from(schema.sales).where(eq(schema.sales.orgId, orgId));
+    expect(sales.find((x) => x.itemName === "Logo T-Shirt")).toMatchObject({ packageName: "S", releaseId: shirt.id, netCents: 4000 });
+
+    // The sticker sale goes: its 3 are back. (M was out of stock: nothing came off, nothing goes back.)
+    const stickerSale = sales.find((x) => x.itemName === "Sticker")!;
+    const fd = new FormData();
+    fd.set("id", String(stickerSale.id));
+    expect(await actions.deleteManualSale(null, fd)).toEqual({ ok: "Deleted." });
+    expect([await onHand(small.id), await onHand(sticker.id), await onHand(medium.id)]).toEqual([3, 10, 0]);
+    const history = await db.select().from(schema.inventoryMoves).where(eq(schema.inventoryMoves.itemId, sticker.id)).orderBy(schema.inventoryMoves.id);
+    expect(history.map((m) => [m.reason, m.delta])).toEqual([
+      ["sold", -3],
+      ["other", 3],
+    ]);
   });
 });

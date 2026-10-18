@@ -2,12 +2,13 @@ import "server-only";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { db, schema } from "@/db";
 import type { MerchChoice } from "@/components/manual-sale-fields";
-import type { ReleasePackage } from "@/db/schema";
 
 /*
  * The merch a sale added by hand can be for, sold out or not: merch items and releases' physical
- * formats from the catalog, and stock that isn't in the catalog. For a band account the label made,
- * the label's for its band too (its merch is usually in the label's catalog and stock).
+ * formats from the catalog (each size or colour stocked on its own line), and stock that isn't in the
+ * catalog. For a band account the label made, the label's for its band too (its merch is usually in
+ * the label's catalog and stock). A stock count's price, if set, is what it sells for in person,
+ * which goes before Bandcamp's; selling takes it off that count.
  */
 
 type Books = { orgId: string; managed: { labelOrgId: string; bandId: number } | null; onlyBands?: number[] | null };
@@ -19,7 +20,7 @@ export async function merchSources({ orgId, managed, onlyBands }: Books) {
     ...(managed ? [{ orgId: managed.labelOrgId, bandIds: [managed.bandId], own: false }] : []),
   ];
   const parts = await Promise.all(
-    places.map(async (p) => {
+    places.map(async (p): Promise<MerchEntry[]> => {
       const inBands = <T extends typeof schema.releases.bandId | typeof schema.inventoryItems.bandId>(col: T) =>
         p.bandIds ? inArray(col, p.bandIds.length ? p.bandIds : [-1]) : undefined;
       const [releases, stock] = await Promise.all([
@@ -49,23 +50,56 @@ export async function merchSources({ orgId, managed, onlyBands }: Books) {
           )
           .orderBy(asc(schema.inventoryItems.name)),
       ]);
-      // Stock of a catalog item is already listed as that item. Its price, if set, is what it sells
-      // for in person, which goes before Bandcamp's.
-      const inPerson = new Map<string, number>();
-      for (const s of stock) if (s.releaseId !== null && s.priceCents !== null) inPerson.set(`${s.releaseId}:${s.packageId ?? ""}`, s.priceCents / 100);
-      const priceOf = (releaseId: number, pkg?: ReleasePackage) => inPerson.get(`${releaseId}:${pkg?.bandcampId ?? ""}`) ?? pkg?.price ?? null;
-      return {
-        releases: releases
-          .filter((r) => r.kind === "merch" || r.packages.length)
-          .map((r) => ({ ...r, own: p.own, price: priceOf(r.id), packages: r.packages.map((pkg) => ({ ...pkg, price: priceOf(r.id, pkg) })) })),
-        stock: stock.filter((s) => s.releaseId === null).map((s) => ({ ...s, own: p.own })),
-      };
+      const entries: MerchEntry[] = [];
+      const bandId = (x: { bandId: number | null }) => (p.own ? x.bandId : null);
+      const stockOf = (x: { id: number }) => ({ id: x.id, orgId: p.orgId });
+      for (const r of releases) {
+        if (r.kind !== "merch" && !r.packages.length) continue;
+        for (const pkg of r.kind === "merch" && !r.packages.length ? [undefined] : r.packages) {
+          const { itemName, format } = merchName(r, pkg);
+          // Its stock: one count, or one per size or colour (each its own line).
+          const counted = stock.filter((x) => x.releaseId === r.id && (x.packageId ?? null) === (pkg?.bandcampId ?? null));
+          if (counted.length <= 1) {
+            const c = counted[0];
+            const price = c?.priceCents != null ? c.priceCents / 100 : (pkg?.price ?? null);
+            entries.push({ value: `${r.id}:${pkg?.bandcampId ?? ""}`, itemName, format, releaseId: p.own ? r.id : null, bandId: bandId(r), price, stock: c ? stockOf(c) : null });
+          } else {
+            for (const c of counted) {
+              const sized = c.option ? (format ? `${format}, ${c.option}` : c.option) : format;
+              const price = c.priceCents != null ? c.priceCents / 100 : (pkg?.price ?? null);
+              entries.push({ value: `stock:${c.id}`, itemName, format: sized, releaseId: p.own ? r.id : null, bandId: bandId(r), price, stock: stockOf(c) });
+            }
+          }
+        }
+      }
+      // Stock that isn't in the catalog.
+      for (const c of stock.filter((x) => x.releaseId === null)) {
+        const price = c.priceCents != null ? c.priceCents / 100 : null;
+        entries.push({ value: `stock:${c.id}`, itemName: c.option ? `${c.name} (${c.option})` : c.name, format: "", releaseId: null, bandId: bandId(c), price, stock: stockOf(c) });
+      }
+      return entries;
     }),
   );
-  return { releases: parts.flatMap((p) => p.releases), stock: parts.flatMap((p) => p.stock) };
+  return parts.flat().sort((a, b) => labelOf(a).localeCompare(labelOf(b)));
 }
 
-export type MerchSources = Awaited<ReturnType<typeof merchSources>>;
+/**
+ * Something to sell: its value in the form ("<release id>:<package id>", or "stock:<id>" for a
+ * size of an item or stock outside the catalog), what the sale is called, the catalog item it's
+ * linked to (its own books' only: the label's catalog is the label's), its band (its own books'
+ * only), the price each, and the stock it comes off.
+ */
+export type MerchEntry = {
+  value: string;
+  itemName: string;
+  format: string;
+  releaseId: number | null;
+  bandId: number | null;
+  price: number | null;
+  stock: { id: number; orgId: string } | null;
+};
+
+const labelOf = (e: { itemName: string; format: string }) => (e.format ? `${e.itemName} — ${e.format}` : e.itemName);
 
 /**
  * What a merch item is called on a sale: the release, and the format beside it (unless it's the item
@@ -77,25 +111,7 @@ export function merchName(release: { title: string }, pkg?: { title: string }) {
   return { itemName: release.title, format: rest || pkg.title };
 }
 
-/**
- * The list to pick from: "<release id>:<package id>" (or "<release id>:") for the catalog,
- * "stock:<id>" for stock. The label's are for the band whichever band's picked (it has one).
- */
-export function merchChoices({ releases, stock }: MerchSources): MerchChoice[] {
-  const bandOf = (x: { own: boolean; bandId: number | null }) => (x.own ? x.bandId : null);
-  return [
-    ...releases.flatMap((r) => {
-      if (r.kind === "merch" && !r.packages.length) return [{ value: `${r.id}:`, label: r.title, bandId: bandOf(r), price: r.price }];
-      return r.packages.map((p) => {
-        const { itemName, format } = merchName(r, p);
-        return { value: `${r.id}:${p.bandcampId}`, label: format ? `${itemName} — ${format}` : itemName, bandId: bandOf(r), price: p.price };
-      });
-    }),
-    ...stock.map((s) => ({
-      value: `stock:${s.id}`,
-      label: s.option ? `${s.name} (${s.option})` : s.name,
-      bandId: bandOf(s),
-      price: s.priceCents !== null ? s.priceCents / 100 : null,
-    })),
-  ].sort((a, b) => a.label.localeCompare(b.label));
+/** The list to pick from, for the form. */
+export function merchChoices(entries: MerchEntry[]): MerchChoice[] {
+  return entries.map((e) => ({ value: e.value, label: labelOf(e), bandId: e.bandId, price: e.price }));
 }

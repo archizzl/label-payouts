@@ -10,7 +10,8 @@ import { plural } from "@/lib/plural";
 import { bandScope } from "@/lib/permissions";
 import { requireAccess } from "./context";
 import { saleInPayout } from "./sales-browse";
-import { merchName, merchSources } from "./manual-sales";
+import { merchSources } from "./manual-sales";
+import { takeStock } from "./inventory";
 
 export type ManualSaleState = { ok?: string; error?: string } | null;
 
@@ -47,16 +48,14 @@ export async function addManualSale(_: ManualSaleState, fd: FormData): Promise<M
 
   // What was sold: merch is a line per item sold (from the catalog, or "something else"); a show
   // or anything else is one line.
-  type Line = { itemName: string; format: string; releaseId: number | null; netCents: number; quantity: number };
+  type Line = { itemName: string; format: string; releaseId: number | null; netCents: number; quantity: number; stock?: { id: number; orgId: string } | null };
   const lines: Line[] = [];
   if (kind.value === "merch") {
     const sold = [...fd.keys()]
       .filter((k) => k.startsWith("sold:"))
       .map((k) => ({ ref: k.slice("sold:".length), quantity: Math.round(Number(str(fd, k)) || 0) }))
       .filter((x) => x.quantity > 0);
-    const sources = await merchSources({ orgId, managed: managedBy ? { labelOrgId: managedBy.labelOrgId, bandId: managedBy.bandId } : null, onlyBands: scope });
-    // (Its own books' items must be the band's; the label's are all for the band.)
-    const theBands = (x: { own: boolean; bandId: number | null }) => !x.own || x.bandId === null || x.bandId === bandId;
+    const entries = await merchSources({ orgId, managed: managedBy ? { labelOrgId: managedBy.labelOrgId, bandId: managedBy.bandId } : null, onlyBands: scope });
     for (const { ref, quantity } of sold) {
       const each = parseCents(str(fd, `each:${ref}`));
       if (ref === "other") {
@@ -66,22 +65,11 @@ export async function addManualSale(_: ManualSaleState, fd: FormData): Promise<M
         lines.push({ itemName, format: "", releaseId: null, netCents: each * quantity, quantity });
         continue;
       }
-      if (ref.startsWith("stock:")) {
-        const item = sources.stock.find((x) => x.id === Number(ref.slice("stock:".length)));
-        if (!item || !theBands(item)) return { error: "That item isn’t the band’s." };
-        const itemName = item.option ? `${item.name} (${item.option})` : item.name;
-        if (!each) return { error: `Enter the price of ${itemName}.` };
-        lines.push({ itemName, format: "", releaseId: null, netCents: each * quantity, quantity });
-        continue;
-      }
-      const [releaseId, packageId] = ref.split(":").map((n) => Number(n) || null);
-      const release = sources.releases.find((r) => r.id === releaseId);
-      const pkg = release && packageId ? release.packages.find((p) => p.bandcampId === packageId) : undefined;
-      if (!release || !theBands(release) || (packageId && !pkg)) return { error: "That item isn’t the band’s." };
-      const { itemName, format } = merchName(release, pkg);
-      if (!each) return { error: `Enter the price of ${format ? `${itemName}, ${format}` : itemName}.` };
-      // (The label's catalog is the label's books: the sale is named after it, not linked to it.)
-      lines.push({ itemName, format, releaseId: release.own ? release.id : null, netCents: each * quantity, quantity });
+      // (Its own books' items must be the band's; the label's are all for the band.)
+      const entry = entries.find((e) => e.value === ref);
+      if (!entry || (entry.bandId !== null && entry.bandId !== bandId)) return { error: "That item isn’t the band’s." };
+      if (!each) return { error: `Enter the price of ${entry.format ? `${entry.itemName}, ${entry.format}` : entry.itemName}.` };
+      lines.push({ itemName: entry.itemName, format: entry.format, releaseId: entry.releaseId, netCents: each * quantity, quantity, stock: entry.stock });
     }
     if (!lines.length) return { error: "Enter how many of something were sold." };
   } else {
@@ -93,32 +81,41 @@ export async function addManualSale(_: ManualSaleState, fd: FormData): Promise<M
   }
 
   const importId = await manualImport(orgId);
-  await db.insert(schema.sales).values(
-    lines.map((l) => {
-      const key = `manual:${randomUUID()}`;
-      return {
-        orgId,
-        importId,
-        dedupeKey: key,
-        date,
-        itemType: kind.itemType,
-        category: kind.category,
-        itemName: l.itemName,
-        artist: band.name,
-        itemUrl: "",
-        packageName: l.format,
-        currency,
-        netCents: l.netCents,
-        quantity: l.quantity,
-        transactionId: key,
-        routingKey: key,
-        bandId,
-        releaseId: l.releaseId,
-        routedVia: MANUAL_VIA,
-        raw: { source: MANUAL_SOURCE, kind: kind.label, "added by": user.name },
-      };
-    }),
-  );
+  await db.transaction(async (tx) => {
+    const added = await tx
+      .insert(schema.sales)
+      .values(
+        lines.map((l) => {
+          const key = `manual:${randomUUID()}`;
+          return {
+            orgId,
+            importId,
+            dedupeKey: key,
+            date,
+            itemType: kind.itemType,
+            category: kind.category,
+            itemName: l.itemName,
+            artist: band.name,
+            itemUrl: "",
+            packageName: l.format,
+            currency,
+            netCents: l.netCents,
+            quantity: l.quantity,
+            transactionId: key,
+            routingKey: key,
+            bandId,
+            releaseId: l.releaseId,
+            routedVia: MANUAL_VIA,
+            raw: { source: MANUAL_SOURCE, kind: kind.label, "added by": user.name },
+          };
+        }),
+      )
+      .returning({ id: schema.sales.id });
+    // What was sold comes off its stock, linked to the sale so deleting it puts it back.
+    for (const [i, l] of lines.entries()) {
+      if (l.stock) await takeStock(tx, l.stock, "sold", l.quantity, { saleId: added[i].id, userId: user.id, note: `From a sale on ${date}` });
+    }
+  });
   revalidatePath("/", "layout");
   if (lines.length > 1) return { ok: `Added ${plural(lines.length, "sale")}.` };
   return { ok: `Added ${lines[0].format ? `${lines[0].itemName}, ${lines[0].format}` : lines[0].itemName}.` };
@@ -126,7 +123,8 @@ export async function addManualSale(_: ManualSaleState, fd: FormData): Promise<M
 
 /** Take back a sale that was added by hand, while it isn't part of a payout yet. */
 export async function deleteManualSale(_: ManualSaleState, fd: FormData): Promise<ManualSaleState> {
-  const { orgId, access } = await requireAccess("sales", "edit");
+  const { orgId, access, user } = await requireAccess("sales", "edit");
+  const userId = user.id;
   const id = Number(str(fd, "id"));
   const [sale] = await db
     .select({ id: schema.sales.id, bandId: schema.sales.bandId, via: schema.sales.routedVia })
@@ -136,7 +134,14 @@ export async function deleteManualSale(_: ManualSaleState, fd: FormData): Promis
   const scope = bandScope(access, "sales");
   if (scope && !(sale.bandId && scope.includes(sale.bandId))) return { error: "That isn’t one of your bands." };
   if (await saleInPayout(orgId, id)) return { error: "It’s part of a payout already, so it stays." };
-  await db.delete(schema.sales).where(and(eq(schema.sales.orgId, orgId), eq(schema.sales.id, id)));
+  await db.transaction(async (tx) => {
+    // What it took off stock goes back.
+    const moves = await tx.select().from(schema.inventoryMoves).where(eq(schema.inventoryMoves.saleId, id));
+    for (const m of moves) {
+      await takeStock(tx, { id: m.itemId, orgId: m.orgId }, "other", -m.delta, { saleId: null, userId, note: "Back in stock: the sale was deleted" });
+    }
+    await tx.delete(schema.sales).where(and(eq(schema.sales.orgId, orgId), eq(schema.sales.id, id)));
+  });
   revalidatePath("/", "layout");
   return { ok: "Deleted." };
 }

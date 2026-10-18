@@ -274,6 +274,13 @@
       "when": 1792310653171,
       "tag": "0038_inventory_price",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1792352804134,
+      "tag": "0039_stock_moves_for_sales",
+      "breakpoints": true
     }
   ]
 }

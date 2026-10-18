@@ -837,9 +837,11 @@ export const inventoryMoves = pgTable(
     /** The count afterwards, for the history. */
     onHandAfter: integer("on_hand_after").notNull(),
     byUserId: text("by_user_id").references(() => user.id, { onDelete: "set null" }),
+    /** A sale added by hand that this took off the count (deleting the sale puts it back). */
+    saleId: integer("sale_id").references((): AnyPgColumn => sales.id, { onDelete: "set null" }),
     createdAt: text("created_at").notNull().default(now),
   },
-  (t) => [index("inventory_moves_item").on(t.itemId)],
+  (t) => [index("inventory_moves_item").on(t.itemId), index("inventory_moves_sale").on(t.saleId)],
 );
 
 /** When someone last opened a section (e.g. Sales), so its tab can show what's new since. */
