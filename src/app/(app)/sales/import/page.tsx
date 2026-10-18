@@ -182,7 +182,8 @@ export default async function ImportPage({ searchParams }: PageProps<"/sales/imp
       )}
       {bandCount === 0 && <Callout>Tip: add your bands first so sales can be matched automatically. You can still import now and match later.</Callout>}
 
-      {!apiReady && (
+      {/* (A band account the label made: the label's sync brings in its sales through the label.) */}
+      {!apiReady && !ctx.managedBy && (
         <Card>
           <p className="text-sm text-muted">
             {isAdmin ? (
