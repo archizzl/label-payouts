@@ -91,8 +91,11 @@ describe("adding a sale by hand", () => {
       .values({ orgId: labelOrgId, bandId: labelBand.id, title: "Flags of the World", kind: "album", packages: [pkg(31, "CD")] })
       .returning();
     await db.insert(schema.releases).values({ orgId: labelOrgId, bandId: otherBand.id, title: "Not Theirs", kind: "album", packages: [pkg(41, "LP")] });
-    await db.insert(schema.inventoryItems).values({ orgId: labelOrgId, bandId: labelBand.id, name: "Flags of the World — CD", releaseId: cd.id, packageId: 31, onHand: 0 });
-    const [tote] = await db.insert(schema.inventoryItems).values({ orgId: labelOrgId, bandId: labelBand.id, name: "Tote bag", onHand: 4 }).returning();
+    // In person, the CD sells for $12 (on Bandcamp it has no price here), and the tote for $15.
+    await db
+      .insert(schema.inventoryItems)
+      .values({ orgId: labelOrgId, bandId: labelBand.id, name: "Flags of the World — CD", releaseId: cd.id, packageId: 31, onHand: 0, priceCents: 1200 });
+    const [tote] = await db.insert(schema.inventoryItems).values({ orgId: labelOrgId, bandId: labelBand.id, name: "Tote bag", onHand: 4, priceCents: 1500 }).returning();
     // The band's own books: its band, and nothing in its catalog.
     orgId = await newAccount("Flag Day", "band");
     const [band] = await db.insert(schema.bands).values({ orgId, name: "Flag Day" }).returning();
@@ -100,7 +103,10 @@ describe("adding a sale by hand", () => {
 
     const { merchChoices, merchSources } = await import("../manual-sales");
     const choices = merchChoices(await merchSources({ orgId, managed: managedBy }));
-    expect(choices.map((c) => c.label)).toEqual(["Flags of the World — CD", "Tote bag"]);
+    expect(choices.map((c) => [c.label, c.price])).toEqual([
+      ["Flags of the World — CD", 12],
+      ["Tote bag", 15],
+    ]);
 
     const result = await actions.addManualSale(
       null,

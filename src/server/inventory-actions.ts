@@ -75,6 +75,7 @@ export async function saveInventoryItem(_: InventoryState, fd: FormData): Promis
     if (scope && (bandId === null || !scope.includes(bandId))) return { error: "Choose one of your bands." };
     const lowAt = optInt(fd, "lowAt");
     const cost = str(fd, "unitCost");
+    const price = str(fd, "price");
     const values = {
       kind: kind as "product" | "supply",
       name,
@@ -85,6 +86,8 @@ export async function saveInventoryItem(_: InventoryState, fd: FormData): Promis
       sku: str(fd, "sku").slice(0, 100) || null,
       lowAt: lowAt !== null && lowAt >= 0 ? lowAt : null,
       unitCostCents: cost ? parseCents(cost) : null,
+      // (Supplies aren't sold.)
+      priceCents: price && kind === "product" ? parseCents(price) : null,
       currency: (str(fd, "currency") || "USD").toUpperCase().slice(0, 3),
       location: str(fd, "location").slice(0, 200) || null,
       notes: str(fd, "notes").slice(0, 1000) || null,

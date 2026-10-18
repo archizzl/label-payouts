@@ -267,6 +267,13 @@
       "when": 1792162379074,
       "tag": "0037_streaming_links",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1792310653171,
+      "tag": "0038_inventory_price",
+      "breakpoints": true
     }
   ]
 }

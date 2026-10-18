@@ -182,7 +182,7 @@ function ItemTable({
               {isLow(i) && <Badge tone="warn">running low</Badge>}
             </div>
             <div className="text-xs text-muted">
-              {[i.bandId && bandName.get(i.bandId), i.sku && `SKU ${i.sku}`, i.location && `kept at ${i.location}`, i.unitCostCents !== null && `${formatCents(i.unitCostCents, i.currency)} each`]
+              {[i.bandId && bandName.get(i.bandId), i.sku && `SKU ${i.sku}`, i.location && `kept at ${i.location}`, i.priceCents !== null && `${formatCents(i.priceCents, i.currency)} each`, i.unitCostCents !== null && `costs ${formatCents(i.unitCostCents, i.currency)}`]
                 .filter(Boolean)
                 .join(" · ") || "–"}
             </div>
@@ -338,6 +338,9 @@ function ItemForm({
       )}
       <Field label="Running low at">
         <input name="lowAt" type="number" inputMode="numeric" min={0} step={1} defaultValue={item?.lowAt ?? ""} />
+      </Field>
+      <Field label="Price each (optional)">
+        <input name="price" inputMode="decimal" defaultValue={item?.priceCents != null ? (item.priceCents / 100).toFixed(2) : ""} placeholder="3.00" />
       </Field>
       <Field label="Cost each (optional)">
         <input name="unitCost" inputMode="decimal" defaultValue={item?.unitCostCents != null ? (item.unitCostCents / 100).toFixed(2) : ""} placeholder="0.85" />

@@ -809,6 +809,8 @@ export const inventoryItems = pgTable(
     /** Flag it as running low at or below this many. */
     lowAt: integer("low_at"),
     unitCostCents: integer("unit_cost_cents"),
+    /** What it sells for (merch sold in person, which may not be on Bandcamp at all). */
+    priceCents: integer("price_cents"),
     currency: text("currency").notNull().default("USD"),
     /** Where it's kept. */
     location: text("location"),
