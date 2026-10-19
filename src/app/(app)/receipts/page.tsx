@@ -118,7 +118,8 @@ export default async function ReceiptsPage({ searchParams }: PageProps<"/receipt
           // Band members send in receipts for an admin to approve.
           person && (
             <div className="mb-4">
-              <Disclosure summary="+ Submit a receipt">
+              {/* Named when there's also one for the label, so the two read apart. */}
+              <Disclosure summary={m && lens ? `+ Send a receipt to ${ctx.org.name}` : "+ Submit a receipt"}>
                 <SubmitReceiptForm
                   oneBand={ctx.org.kind === "band"}
                   bands={bandsShown}

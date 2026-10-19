@@ -304,7 +304,8 @@ async function BandAccountEarnings({ ctx, range }: { ctx: Context; range?: strin
       <Card title="My receipts">
         {ownPerson && band && (
           <div className="mb-4">
-            <Disclosure summary="+ Submit a receipt">
+            {/* Named, so it reads apart from sending one to the label. */}
+            <Disclosure summary={labelPerson ? `+ Send a receipt to ${ctx.org.name}` : "+ Submit a receipt"}>
               <SubmitReceiptForm oneBand bands={[band]} projects={ownProjects.filter((p) => p.status !== "done")} />
             </Disclosure>
           </div>
