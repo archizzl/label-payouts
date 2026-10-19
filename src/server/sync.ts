@@ -17,7 +17,7 @@ import {
 } from "@/lib/bandcamp-label";
 import { parseReleasePage } from "@/lib/bandcamp-release";
 import { normalizeText, routeSale, routingKey } from "@/lib/routing";
-import { allBands, BLOCKED_MESSAGE, createBandFor, fetchPage, findBandFor, findExistingRelease, hostOf, isBotChallenge, rememberLabelPhoto, upsertRelease } from "./bandcamp";
+import { allBands, BLOCKED_MESSAGE, createBandFor, fetchPage, findBandFor, findExistingRelease, hostOf, isBotChallenge, releasesToMatch, rememberLabelPhoto, upsertRelease } from "./bandcamp";
 import { API_SYNC_PREFIX, bandcampCredentials, salesReport } from "./bandcamp-api";
 import { emailFingerprint } from "./secrets";
 import { loadCatalog, reRouteAll } from "./data";
@@ -310,11 +310,11 @@ export async function lookupLabelReleases(orgId: string, input: string): Promise
   // Items on the label's own page with no artist credit are the label's own (logo shirts, compilations).
   for (const r of found) if (!r.artist && hostOf(r.url) === hostOf(url)) r.artist = labelName;
   const labelHost = hostOf(url);
-  const bandRows = await allBands(orgId);
+  const [bandRows, existingReleases] = await Promise.all([allBands(orgId), releasesToMatch(orgId)]);
   const rows: LabelReleaseRow[] = [];
   for (const r of found) {
     const band = findBandFor(r.url, r.artist, labelHost, bandRows);
-    const existing = await findExistingRelease(orgId, r, band?.id ?? null);
+    const existing = await findExistingRelease(orgId, r, band?.id ?? null, existingReleases);
     const bandId = existing?.bandId ?? band?.id ?? null;
     rows.push({
       ...r,

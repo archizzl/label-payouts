@@ -109,12 +109,22 @@ async function outsideArtistId(orgId: string, name: string): Promise<number> {
   return created.id;
 }
 
+/** Just what matching a Bandcamp item to a release here needs, for every release in the account. */
+export function releasesToMatch(orgId: string) {
+  return db
+    .select({ id: releases.id, bandId: releases.bandId, bandcampId: releases.bandcampId, kind: releases.kind, url: releases.url, title: releases.title })
+    .from(releases)
+    .where(eq(releases.orgId, orgId));
+}
+
+/** The release here a Bandcamp item already is. Pass `all` (from releasesToMatch) when matching many. */
 export async function findExistingRelease(
   orgId: string,
   r: { bandcampId: number; url: string; title: string; kind: "album" | "track" | "merch" },
   bandId: number | null,
+  all?: Awaited<ReturnType<typeof releasesToMatch>>,
 ) {
-  const all = await db.select().from(releases).where(eq(releases.orgId, orgId));
+  all ??= await releasesToMatch(orgId);
   const url = normalizeUrl(r.url);
   // Album, track and merch ids are separate number spaces on Bandcamp.
   const sameKind = (x: (typeof all)[number]) => (x.kind === "merch") === (r.kind === "merch");

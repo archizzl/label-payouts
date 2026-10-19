@@ -1,6 +1,6 @@
 import "server-only";
 import { MANUAL_VIA } from "@/lib/manual-sales";
-import { and, asc, eq, isNull, lte, type SQL } from "drizzle-orm";
+import { and, asc, eq, isNull, lte, sql, type SQL } from "drizzle-orm";
 import { cache } from "react";
 import { db, schema } from "@/db";
 import type { ReleasePackage } from "@/db/schema";
@@ -55,11 +55,29 @@ export async function loadCatalog(orgId: string): Promise<Catalog> {
 /** Re-run routing for every imported sale. Call after anything that changes the catalog or overrides. */
 export async function reRouteAll(orgId: string) {
   const catalog = await loadCatalog(orgId);
-  const rows = await db.select().from(sales).where(eq(sales.orgId, orgId));
+  // Only what routing reads: the whole report row (`raw`) is most of a sale's size.
+  const rows = await db
+    .select({
+      id: sales.id,
+      itemUrl: sales.itemUrl,
+      artist: sales.artist,
+      itemName: sales.itemName,
+      packageName: sales.packageName,
+      category: sales.category,
+      bandId: sales.bandId,
+      releaseId: sales.releaseId,
+      trackId: sales.trackId,
+      routedVia: sales.routedVia,
+      catalogNumber: sql<string | null>`${sales.raw}->>'catalog number'`,
+      upc: sql<string | null>`${sales.raw}->>'upc'`,
+      isrc: sql<string | null>`${sales.raw}->>'isrc'`,
+    })
+    .from(sales)
+    .where(eq(sales.orgId, orgId));
   const changed = rows.flatMap((s) => {
     // Added by hand: its band was chosen, not matched.
     if (s.routedVia === MANUAL_VIA) return [];
-    const r = routeSale({ ...s, catalogNumber: s.raw["catalog number"], upc: s.raw["upc"], isrc: s.raw["isrc"] }, catalog);
+    const r = routeSale({ ...s, catalogNumber: s.catalogNumber ?? undefined, upc: s.upc ?? undefined, isrc: s.isrc ?? undefined }, catalog);
     return r.bandId !== s.bandId || r.releaseId !== s.releaseId || r.trackId !== s.trackId || r.via !== s.routedVia ? [{ id: s.id, r }] : [];
   });
   if (!changed.length) return;
