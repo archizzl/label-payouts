@@ -265,7 +265,7 @@ describe("a label-made band account's own books", () => {
     const { labelOrgId, band, bandOrgId } = await setup();
     await own.setOwnBooks(bandOrgId, true);
     const [imp] = await db.insert(schema.imports).values({ orgId: bandOrgId, filename: "own.csv", rowCount: 1, addedCount: 1, duplicateCount: 0 }).returning();
-    const row = { orgId: bandOrgId, importId: imp.id, itemType: "show", category: "other", artist: "Glass Harbor", itemUrl: "", packageName: "", currency: "USD", netCents: 500, quantity: 1, routedVia: "manual", raw: {} };
+    const row = { orgId: bandOrgId, importId: imp.id, itemType: "show", category: "other" as const, artist: "Glass Harbor", itemUrl: "", packageName: "", currency: "USD", netCents: 500, quantity: 1, routedVia: "manual", raw: {} };
     // (Dated after the label made the group: from its time on the label.)
     await db.insert(schema.sales).values([
       { ...row, dedupeKey: "m1", transactionId: "m1", routingKey: "m1", date: "2099-01-01", itemName: "Door money" },
