@@ -12,7 +12,7 @@ import { periodName } from "@/lib/dates";
 import { STATUS_LABEL, STATUS_TONE } from "@/lib/status";
 import { previewPayout } from "@/server/actions";
 import { requireAccess } from "@/server/context";
-import { labelPayoutsFor, syncOwnPeople } from "@/server/own-books";
+import { labelPayoutsFor, moveBandGroupsSales, syncOwnPeople } from "@/server/own-books";
 import { owedByBand, owedTotal } from "@/server/owed";
 
 export const metadata = { title: "payouts" };
@@ -24,6 +24,8 @@ export default async function PeriodsPage({ searchParams }: PageProps<"/periods"
   // A band account the label made: its own payouts, and the label's that paid its members.
   const m = ctx.managedBy;
   if (m) await syncOwnPeople(orgId);
+  // A label: its band groups' sales from their time on it are its to pay out.
+  else if (ctx.org.kind === "label") await moveBandGroupsSales(orgId);
   const [periods, payouts, bands, [salesRange], fromLabel] = await Promise.all([
     db.select().from(schema.periods).where(eq(schema.periods.orgId, orgId)).orderBy(desc(schema.periods.startDate)),
     db.select().from(schema.payouts).where(eq(schema.payouts.orgId, orgId)),

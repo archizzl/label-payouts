@@ -5,7 +5,7 @@ import { db, schema } from "@/db";
 import { artistsFromApi, merchFromApi, releasesFromSales } from "./api-catalog";
 import { type BandcampAccountBand, bandcampCredentials, myBands } from "./bandcamp-api";
 import { ensureBandAccounts, managingLabel } from "./band-accounts";
-import { bothBooksWarning, moveSalesToLabel, syncOwnPeople } from "./own-books";
+import { bothBooksWarning, moveBandGroupsSales, syncOwnPeople } from "./own-books";
 import { reRouteAll } from "./data";
 import { loadOpenOrders } from "./merch-orders";
 import { addArtists, importReleases, lookupLabelArtists, lookupLabelReleases, refreshBandPhotos, type ReleaseImportRow, runSalesSync } from "./sync";
@@ -231,12 +231,7 @@ export async function syncAccount(orgId: string, { force = false } = {}): Promis
   if (org?.kind === "label") {
     await step("Band groups", () => ensureBandAccounts(orgId).then(() => undefined));
     await step("Bands' sales", async () => {
-      const groups = await db
-        .select({ orgId: schema.accountLinks.bandOrgId })
-        .from(schema.accountLinks)
-        .where(and(eq(schema.accountLinks.labelOrgId, orgId), eq(schema.accountLinks.managed, true), eq(schema.accountLinks.status, "active")));
-      let moved = 0;
-      for (const g of groups) if (g.orgId) moved += await moveSalesToLabel(g.orgId);
+      const moved = await moveBandGroupsSales(orgId);
       if (moved) found.push(plural(moved, "sale") + " from band groups");
     });
   }

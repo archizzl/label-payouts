@@ -11,7 +11,7 @@ import { loadLayout } from "@/server/chart-layouts";
 import { bandScope, can } from "@/lib/permissions";
 import { ownBooksOf, requireAccess } from "@/server/context";
 import { saleAdder } from "@/server/manual-sales";
-import { moveSalesToLabel, onLabelSince } from "@/server/own-books";
+import { moveBandGroupsSales, moveSalesToLabel, onLabelSince } from "@/server/own-books";
 import { DeleteManualSale } from "@/components/manual-sale";
 import { MANUAL_VIA } from "@/lib/manual-sales";
 import { markSeen } from "@/server/nav-badges";
@@ -49,7 +49,9 @@ export default async function SalesPage({ searchParams }: PageProps<"/sales">) {
   const scope = m ? null : bandScope(access, "sales");
   const canEdit = can(own.access, "sales", "edit");
   // Its sales from its time on the label are the label's: any still in its own books go there now.
+  // (And a label: its band groups' sales.)
   if (m) await moveSalesToLabel(orgId);
+  else if (ctx.org.kind === "label") await moveBandGroupsSales(orgId);
   const [since, adder] = await Promise.all([m ? onLabelSince(m.labelOrgId, m.bandId) : null, saleAdder()]);
   const canDelete = (s: { orgId: string; bandId: number | null }) =>
     !!adder && ((s.orgId === orgId && adder.bands.some((b) => b.id === s.bandId)) || (!!m && s.orgId === m.labelOrgId));
