@@ -302,17 +302,24 @@ async function BandAccountEarnings({ ctx, range }: { ctx: Context; range?: strin
       </Card>
 
       <Card title="My receipts">
-        {ownPerson && band && (
+        {/* One form: whoever pays it back (the band, or the label) says whose books it goes in. */}
+        {ownPerson && band && labelPerson && (
           <div className="mb-4">
-            {/* Named, so it reads apart from sending one to the label. */}
-            <Disclosure summary={labelPerson ? `+ Send a receipt to ${ctx.org.name}` : "+ Submit a receipt"}>
+            <Disclosure summary="+ Submit a receipt">
+              <SubmitReceiptForm oneBand bands={[band]} paidBackBy={{ own: ctx.org.name, label: m.labelName }} />
+            </Disclosure>
+          </div>
+        )}
+        {ownPerson && band && !labelPerson && (
+          <div className="mb-4">
+            <Disclosure summary="+ Submit a receipt">
               <SubmitReceiptForm oneBand bands={[band]} projects={ownProjects.filter((p) => p.status !== "done")} />
             </Disclosure>
           </div>
         )}
-        {labelPerson && (
+        {labelPerson && !(ownPerson && band) && (
           <div className="mb-4">
-            <Disclosure summary={`+ Send a receipt to ${m.labelName}`}>
+            <Disclosure summary="+ Submit a receipt">
               <SubmitReceiptForm
                 oneBand
                 toLabel
@@ -334,8 +341,17 @@ async function BandAccountEarnings({ ctx, range }: { ctx: Context; range?: strin
         />
       </Card>
 
-      {band && <SalesSection boardId="member-sales" orgId={own.orgId} scope={{ bandId: band.id }} range={range} basePath="/me" readOnly hideMoneyWent title={`${ctx.org.name} sales`} />}
-      <SalesSection boardId="label-sales" orgId={m.labelOrgId} scope={{ bandId: m.bandId }} range={range} basePath="/me" readOnly hideMoneyWent title={`Sales through ${m.labelName}`} />
+      {/* The band's sales, its own and through the label, as one. */}
+      <SalesSection
+        boardId="member-sales"
+        scope={{}}
+        books={[...(band ? [{ orgId: own.orgId, bandId: band.id }] : []), { orgId: m.labelOrgId, bandId: m.bandId }]}
+        range={range}
+        basePath="/me"
+        readOnly
+        hideMoneyWent
+        title={`${ctx.org.name} sales`}
+      />
     </>
   );
 }

@@ -26,6 +26,7 @@ export async function SalesSection({
   orgId: fromOrg,
   boardId,
   hideMoneyWent = false,
+  books,
 }: {
   scope: { bandId?: number; releaseId?: number };
   range?: string;
@@ -41,14 +42,16 @@ export async function SalesSection({
   boardId: string;
   /** A member's own page: not "where the money went", which shows what the band's people got in all. */
   hideMoneyWent?: boolean;
+  /** A band account the label made: its own books and the label's for its band, as one. */
+  books?: { orgId: string; bandId: number }[];
 }) {
   const today = new Date().toISOString().slice(0, 10);
   const r = salesRangeDates(range, today);
   const orgId = fromOrg ?? (await getContext()).orgId;
   const [report, transfers] = await Promise.all([
-    salesReport(orgId, { ...scope, from: r.from, to: r.to }),
+    salesReport(books ?? orgId, { ...scope, from: r.from, to: r.to }),
     // What the label sent on to others from this band's (or release's) money.
-    scope.bandId || scope.releaseId
+    !books && (scope.bandId || scope.releaseId)
       ? db
           .select({ date: schema.labelTransfers.date, currency: schema.labelTransfers.currency, cents: schema.labelTransfers.amountCents })
           .from(schema.labelTransfers)

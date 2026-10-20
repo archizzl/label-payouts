@@ -8,6 +8,7 @@ import { getContext, ownBooksOf, requireAccess } from "./context";
 import { bandScope, can, inBandScope } from "@/lib/permissions";
 import type { Context } from "./context";
 import { readReceiptFiles as readFiles, recoupBands, recoupStartFor } from "./expenses";
+import { ownBand } from "./data";
 import { clearableFiles } from "./receipt-cleanup";
 import { discardStoredFiles, storeReceiptFiles } from "./receipt-store";
 
@@ -180,8 +181,10 @@ export async function submitReceipt(_: ExpenseState, fd: FormData): Promise<Expe
     if (!(amountCents > 0)) return { error: "Enter the amount." };
     const files = await readFiles(fd);
     if (!files.length) return { error: "Attach a photo or PDF of the receipt." };
-    // Members can only file against bands they're in.
-    const bandId = optInt(fd, "bandId");
+    // Members can only file against bands they're in. (Sent with who pays it back, a band account
+    // the label made: its band in those books.)
+    let bandId = optInt(fd, "bandId");
+    if (bandId === null && fd.get("books") && ctx.managedBy) bandId = ctx.lens ? ctx.managedBy.bandId : ((await ownBand(orgId))?.id ?? null);
     if (bandId !== null) {
       const [m] = await db
         .select({ id: bandMemberships.id })

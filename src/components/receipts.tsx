@@ -206,6 +206,7 @@ export function SubmitReceiptForm({
   payers,
   toLabel = false,
   oneBand = false,
+  paidBackBy,
 }: {
   bands: Band[];
   projects?: ProjectOption[];
@@ -215,10 +216,26 @@ export function SubmitReceiptForm({
   toLabel?: boolean;
   /** A band's own group: every receipt is its band's, so nothing to choose. */
   oneBand?: boolean;
+  /**
+   * A member of a band account the label made: who pays it back, the band (its own books) or the
+   * label (the label's books). The band is filled in for whichever it is.
+   */
+  paidBackBy?: { own: string; label: string };
 }) {
   return (
     <ActionForm action={submitReceipt} className="grid gap-4 sm:grid-cols-3">
       {toLabel && <input type="hidden" name="books" value="label" />}
+      {paidBackBy && (
+        <Field label="Paid back by">
+          <select name="books" required defaultValue="">
+            <option value="" disabled>
+              Choose
+            </option>
+            <option value="own">{paidBackBy.own}</option>
+            <option value="label">{paidBackBy.label}</option>
+          </select>
+        </Field>
+      )}
       {payers && (
         <Field label="Who paid">
           <select name="paidByPersonId" required defaultValue="">
@@ -249,8 +266,8 @@ export function SubmitReceiptForm({
         <input name="vendor" placeholder="Where you bought it" />
       </Field>
       <CategoryField />
-      <ProjectField projects={projects} />
-      {oneBand && bands.length === 1 ? (
+      <ProjectField projects={paidBackBy ? [] : projects} />
+      {paidBackBy ? null : oneBand && bands.length === 1 ? (
         <input type="hidden" name="bandId" value={bands[0].id} />
       ) : (
         <Field label="For">

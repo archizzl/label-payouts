@@ -118,19 +118,20 @@ export default async function ReceiptsPage({ searchParams }: PageProps<"/receipt
           // Band members send in receipts for an admin to approve.
           person && (
             <div className="mb-4">
-              {/* Named when there's also one for the label, so the two read apart. */}
-              <Disclosure summary={m && lens ? `+ Send a receipt to ${ctx.org.name}` : "+ Submit a receipt"}>
+              <Disclosure summary="+ Submit a receipt">
+                {/* A member of a band account the label made: one form, and who pays it back says whose books it goes in. */}
                 <SubmitReceiptForm
                   oneBand={ctx.org.kind === "band"}
                   bands={bandsShown}
                   projects={projects.filter((p) => p.status !== "done" && bandsShown.some((b) => b.id === p.bandId))}
+                  paidBackBy={m && lens?.person ? { own: ctx.org.name, label: m.labelName } : undefined}
                 />
               </Disclosure>
             </div>
           )
         )}
-        {/* A band account the label made: receipts for the label to approve and pay back (the band's shared login says who paid). */}
-        {m && lens && (
+        {/* A band account the label made: its shared account sends the label receipts to approve and pay back (saying who paid). */}
+        {m && lens && !(person && lens.person) && (
           <div className="mb-4">
             <Disclosure summary={`+ Send a receipt to ${m.labelName}`}>
               <SubmitReceiptForm

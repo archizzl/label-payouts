@@ -95,19 +95,31 @@ function formatOf(s: SaleRow, packages: (typeof schema.releases.$inferSelect)["p
   return pkg?.typeName ?? (s.packageName || "Merch");
 }
 
-export async function salesReport(orgId: string, scope: SalesScope): Promise<SalesReport> {
-  const [{ results, saleById }, releaseRows] = await Promise.all([
-    computePeriod(orgId, scope.from ?? "0000-01-01", scope.to ?? "9999-12-31"),
-    db.select().from(schema.releases).where(eq(schema.releases.orgId, orgId)),
-  ]);
-  const releases = new Map(releaseRows.map((r) => [r.id, r]));
-
-  const inScope = results.filter((r) => {
-    const s = saleById.get(r.saleId)!;
-    if (scope.releaseId !== undefined) return s.releaseId === scope.releaseId;
-    if (scope.bandId !== undefined) return s.bandId === scope.bandId;
-    return true;
-  });
+/**
+ * `books`: one account's, or several (a band account the label made: its own books and the label's
+ * for its band, each narrowed to its band there), reported as one.
+ */
+export async function salesReport(books: string | { orgId: string; bandId: number }[], scope: SalesScope): Promise<SalesReport> {
+  const parts = typeof books === "string" ? [{ orgId: books, bandId: scope.bandId, releaseId: scope.releaseId }] : books.map((b) => ({ ...b, releaseId: undefined }));
+  const loaded = await Promise.all(
+    parts.map(async (src) => {
+      const [{ results, saleById }, releaseRows] = await Promise.all([
+        computePeriod(src.orgId, scope.from ?? "0000-01-01", scope.to ?? "9999-12-31"),
+        db.select().from(schema.releases).where(eq(schema.releases.orgId, src.orgId)),
+      ]);
+      const mine = results.filter((r) => {
+        const sale = saleById.get(r.saleId)!;
+        if (src.releaseId !== undefined) return sale.releaseId === src.releaseId;
+        if (src.bandId !== undefined) return sale.bandId === src.bandId;
+        return true;
+      });
+      return { results: mine, saleById, releaseRows };
+    }),
+  );
+  // (Sale and release ids are unique across accounts, so the books combine.)
+  const inScope = loaded.flatMap((l) => l.results);
+  const saleById = new Map(loaded.flatMap((l) => [...l.saleById]));
+  const releases = new Map(loaded.flatMap((l) => l.releaseRows.map((r) => [r.id, r] as const)));
 
   // One currency per report (the biggest); others are listed, never mixed or converted.
   const netByCurrency = new Map<string, number>();
