@@ -2,15 +2,19 @@ import Link from "next/link";
 import { connection } from "next/server";
 import { ChartBoard } from "@/components/chart-board";
 import { LabelFunds } from "@/components/label-funds";
-import { Card, PageHeader } from "@/components/ui";
+import { Card, Empty, PageHeader } from "@/components/ui";
 import { type BoardChart, breakdownChart, seriesChart } from "@/lib/chart-data";
 import { formatCents } from "@/lib/money";
+import { plural } from "@/lib/plural";
 import { loadLayout } from "@/server/chart-layouts";
 import { requireAccess } from "@/server/context";
 import { nameMaps } from "@/server/data";
 import { LABEL_RELEASES_SOURCE, labelIncome, SHIPPING_SOURCE, type Totals } from "@/server/label-income";
 
 export const metadata = { title: "label funds" };
+
+/** Sales listed under each source; the rest are counted. */
+const LINES_SHOWN = 100;
 
 /** Why each source of label money is there, in a few words. */
 function explain(source: string) {
@@ -82,12 +86,6 @@ export default async function FundsPage() {
         <Tile label="Sent on to others" cents={-v(inc.sent) || 0} currency={cur} />
         <Tile label="Spent on expenses" cents={-v(inc.spent) || 0} currency={cur} hint={<Link href="/receipts">receipts</Link>} />
       </div>
-      {v(inc.holderShare) !== 0 && (
-        <p className="-mt-3 mb-6 text-sm text-muted">
-          {/* The account also holds {formatCents(v(inc.holderShare), cur)} that’s {inc.holderName ? `${inc.holderName}’s` : "the account holder’s"} own share
-          of sales, kept there instead of being paid out. It isn’t counted as the label’s. */}
-        </p>
-      )}
       {inc.currencies.length > 1 && (
         <p className="-mt-3 mb-6 text-xs text-muted">
           Shown in {cur}. Also: {inc.currencies.slice(1).map((c) => `${formatCents(inc.income.get(c) ?? 0, c)} came in`).join(", ")} (currencies
@@ -96,6 +94,54 @@ export default async function FundsPage() {
       )}
 
       <ChartBoard boardId="funds" charts={charts} saved={saved} />
+
+      <Card title="Where it came from">
+        {sources.length === 0 ? (
+          <Empty>Nothing yet.</Empty>
+        ) : (
+          <ul className="divide-y divide-border">
+            {sources.map((x) => {
+              const lines = (inc.lines.get(x.key) ?? []).filter((l) => l.currency === cur);
+              return (
+                <li key={x.key} className="py-2">
+                  <details>
+                    <summary className="flex cursor-pointer flex-wrap items-baseline gap-x-3">
+                      <span className="font-medium">{x.key}</span>
+                      <span className="text-sm text-muted">{plural(lines.length, "sale")}</span>
+                      <span className="ml-auto font-medium tabular-nums">{formatCents(x.net, cur)}</span>
+                    </summary>
+                    <div className="mt-2 overflow-x-auto">
+                      <table className="data">
+                        <thead>
+                          <tr>
+                            <th>Date</th>
+                            <th>Sale</th>
+                            <th>Band</th>
+                            <th className="num">Sale</th>
+                            <th className="num">To the label</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {lines.slice(0, LINES_SHOWN).map((l, i) => (
+                            <tr key={`${l.saleId}-${i}`}>
+                              <td className="whitespace-nowrap text-muted">{l.date}</td>
+                              <td>{l.item || <span className="text-muted">(no name)</span>}</td>
+                              <td className="text-sm">{l.band}</td>
+                              <td className="num text-muted">{formatCents(l.saleCents, l.currency)}</td>
+                              <td className="num">{formatCents(l.cents, l.currency)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {lines.length > LINES_SHOWN && <p className="mt-2 text-xs text-muted">And {plural(lines.length - LINES_SHOWN, "earlier sale")}.</p>}
+                    </div>
+                  </details>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </Card>
 
       <LabelFunds showTotals={false} />
 

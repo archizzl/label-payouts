@@ -14,6 +14,8 @@ import { computeAllTime, labelFunds } from "./data";
  */
 
 export type Totals = Map<string, number>;
+/** One sale's part of a source: the sale, and what of it went to the label. */
+export type IncomeLine = { saleId: number; date: string; item: string; band: string; currency: string; saleCents: number; cents: number };
 const add = (m: Totals, cur: string, cents: number) => m.set(cur, (m.get(cur) ?? 0) + cents);
 
 export { LABEL_RELEASES_SOURCE, SHIPPING_SOURCE } from "@/lib/label-sources";
@@ -37,8 +39,9 @@ export async function labelIncome(orgId: string) {
   const income: Totals = new Map();
   const holderShare: Totals = new Map();
   const monthly: { month: string; source: string; band: string; cur: string; value: number }[] = [];
+  const lines = new Map<string, IncomeLine[]>();
 
-  const credit = (source: string, cur: string, cents: number, bandId: number | null, date: string) => {
+  const credit = (source: string, cur: string, cents: number, bandId: number | null, date: string, sale?: { id: number; itemName: string; packageName: string; netCents: number }) => {
     if (!cents) return;
     const s = bySource.get(source) ?? new Map();
     add(s, cur, cents);
@@ -52,16 +55,22 @@ export async function labelIncome(orgId: string) {
     byMonth.set(date.slice(0, 7), m);
     add(income, cur, cents);
     monthly.push({ month: date.slice(0, 7), source, band: bandKey, cur, value: cents });
+    if (sale) {
+      const l = lines.get(source) ?? [];
+      const item = sale.packageName && sale.packageName !== sale.itemName ? `${sale.itemName} · ${sale.packageName}` : sale.itemName;
+      l.push({ saleId: sale.id, date, item, band: bandKey, currency: cur, saleCents: sale.netCents, cents });
+      lines.set(source, l);
+    }
   };
 
   for (const r of results) {
     const sale = saleById.get(r.saleId)!;
     for (const d of r.deductions) {
       if (d.destination !== "label") continue;
-      credit(d.deductionId === 0 ? LABEL_RELEASES_SOURCE : d.label, r.currency, d.cents, r.bandId, sale.date);
+      credit(d.deductionId === 0 ? LABEL_RELEASES_SOURCE : d.label, r.currency, d.cents, r.bandId, sale.date, sale);
     }
     const raw = sale.raw.shipping;
-    if (raw) credit(SHIPPING_SOURCE, r.currency, Math.abs(parseCents(raw)) * (Math.sign(r.netCents) || 1), r.bandId, sale.date);
+    if (raw) credit(SHIPPING_SOURCE, r.currency, Math.abs(parseCents(raw)) * (Math.sign(r.netCents) || 1), r.bandId, sale.date, sale);
     for (const s of r.shares) if (holderIds.has(s.personId)) add(holderShare, r.currency, s.cents);
   }
 
@@ -97,6 +106,8 @@ export async function labelIncome(orgId: string) {
     holderShare,
     holderName: holders.length === 1 ? holders[0].name : null,
     bySource,
+    /** The sales each source came from, newest first. */
+    lines: new Map([...lines].map(([k, l]) => [k, l.sort((a, b) => b.date.localeCompare(a.date) || b.saleId - a.saleId)])),
     sentBySource,
     byBand,
     byMonth,
