@@ -17,7 +17,7 @@ import { SyncFooter } from "@/components/sync-status";
 import { setSetupHidden } from "@/server/actions";
 import { requireAccess } from "@/server/context";
 import { computeAllTime } from "@/server/data";
-import { labelPartFor, moveBandGroupsSales, moveSalesToLabel } from "@/server/own-books";
+import { labelPartFor } from "@/server/own-books";
 import { BandProjects } from "@/components/band-projects";
 import type { PeriodSummary } from "@/lib/splits";
 
@@ -29,9 +29,6 @@ export default async function Dashboard() {
   const { orgId, isAdmin } = ctx;
   // A band account the label made: its own books, with what the label has for its band added in.
   const m = ctx.managedBy;
-  // Its sales from its time on the label are the label's; a label takes in its band groups'.
-  if (m) await moveSalesToLabel(orgId);
-  else if (ctx.org.kind === "label") await moveBandGroupsSales(orgId);
   const [bands, memberships, defaults, saleRows, periods, outside, { summary }, people, releaseRows, fundExpenses] = await Promise.all([
     db.select().from(schema.bands).where(eq(schema.bands.orgId, orgId)),
     db.select().from(schema.bandMemberships).where(eq(schema.bandMemberships.orgId, orgId)),

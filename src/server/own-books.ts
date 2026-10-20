@@ -326,13 +326,17 @@ export async function moveSalesToLabel(bandOrgId: string): Promise<number> {
   return todo.length;
 }
 
-/** Every band group a label made: their sales from their time on the label come in. Returns how many moved. */
+/**
+ * A label's band groups that still have sales of their own: what's from their time on the label
+ * comes in (for the hourly sync; new ones come in as they're added). Returns how many moved.
+ */
 export async function moveBandGroupsSales(labelOrgId: string): Promise<number> {
   const groups = await db
-    .select({ orgId: schema.accountLinks.bandOrgId })
+    .selectDistinct({ orgId: sales.orgId })
     .from(schema.accountLinks)
+    .innerJoin(sales, eq(sales.orgId, schema.accountLinks.bandOrgId))
     .where(and(eq(schema.accountLinks.labelOrgId, labelOrgId), eq(schema.accountLinks.managed, true), eq(schema.accountLinks.status, "active")));
   let moved = 0;
-  for (const g of groups) if (g.orgId) moved += await moveSalesToLabel(g.orgId);
+  for (const g of groups) moved += await moveSalesToLabel(g.orgId);
   return moved;
 }

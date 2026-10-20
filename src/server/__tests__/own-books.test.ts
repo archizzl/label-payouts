@@ -261,6 +261,23 @@ describe("a label-made band account's own books", () => {
     vi.unstubAllGlobals();
   });
 
+  it("the label's sync takes in what its band groups still have from their time on the label", async () => {
+    const { labelOrgId, band, bandOrgId } = await setup();
+    await own.setOwnBooks(bandOrgId, true);
+    const [imp] = await db.insert(schema.imports).values({ orgId: bandOrgId, filename: "own.csv", rowCount: 1, addedCount: 1, duplicateCount: 0 }).returning();
+    const row = { orgId: bandOrgId, importId: imp.id, itemType: "show", category: "other", artist: "Glass Harbor", itemUrl: "", packageName: "", currency: "USD", netCents: 500, quantity: 1, routedVia: "manual", raw: {} };
+    // (Dated after the label made the group: from its time on the label.)
+    await db.insert(schema.sales).values([
+      { ...row, dedupeKey: "m1", transactionId: "m1", routingKey: "m1", date: "2099-01-01", itemName: "Door money" },
+      { ...row, dedupeKey: "m2", transactionId: "m2", routingKey: "m2", date: "2099-01-02", itemName: "Merch table" },
+    ]);
+    expect(await own.moveBandGroupsSales(labelOrgId)).toBe(2);
+    const theirs = await db.select({ itemName: schema.sales.itemName, bandId: schema.sales.bandId }).from(schema.sales).where(eq(schema.sales.orgId, labelOrgId));
+    expect(theirs).toEqual(expect.arrayContaining([{ itemName: "Door money", bandId: band.id }, { itemName: "Merch table", bandId: band.id }]));
+    // Nothing left to take in.
+    expect(await own.moveBandGroupsSales(labelOrgId)).toBe(0);
+  });
+
   it("lists the label's payouts that paid the band, with just the band's part of each", async () => {
     const { labelOrgId, band, ana, ben } = await setup();
     const [other] = await db.insert(schema.bands).values({ orgId: labelOrgId, name: "Other Band" }).returning();
