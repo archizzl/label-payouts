@@ -6,8 +6,11 @@ import { newAccount, testDb } from "../../../test/helpers/db";
 let orgId = "";
 let testUser = "";
 let managedBy: { labelOrgId: string; bandId: number } | null = null;
+const ctx = () => ({ orgId, managedBy, person: null, access: { admin: true, permissions: {}, bandAreas: [], bandIds: [] }, user: { id: testUser, name: "Tester" } });
 vi.mock("../context", () => ({
-  requireAccess: async () => ({ orgId, managedBy, access: { admin: true, permissions: {}, bandAreas: [], bandIds: [] }, user: { id: testUser, name: "Tester" } }),
+  requireAccess: async () => ctx(),
+  getContext: async () => ctx(),
+  ownBooksOf: async (c: unknown) => c,
 }));
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 
@@ -117,11 +120,54 @@ describe("adding a sale by hand", () => {
       form({ bandId: band.id, kind: "merch", [`each:${cd.id}:31`]: "10", [`sold:${cd.id}:31`]: 2, [`each:stock:${tote.id}`]: "15", [`sold:stock:${tote.id}`]: 1 }),
     );
     expect(result).toEqual({ ok: "Added 2 sales." });
-    const sales = await db.select().from(schema.sales).where(eq(schema.sales.orgId, orgId)).orderBy(schema.sales.id);
+    // On the label, the band's sales are the label's: in its books, for its band, linked to its catalog.
+    expect(await db.select().from(schema.sales).where(eq(schema.sales.orgId, orgId))).toEqual([]);
+    const sales = await db.select().from(schema.sales).where(eq(schema.sales.orgId, labelOrgId)).orderBy(schema.sales.id);
     expect(sales.map((s) => ({ itemName: s.itemName, packageName: s.packageName, releaseId: s.releaseId, netCents: s.netCents, bandId: s.bandId }))).toEqual([
-      { itemName: "Flags of the World", packageName: "CD", releaseId: null, netCents: 2000, bandId: band.id },
-      { itemName: "Tote bag", packageName: "", releaseId: null, netCents: 1500, bandId: band.id },
+      { itemName: "Flags of the World", packageName: "CD", releaseId: cd.id, netCents: 2000, bandId: labelBand.id },
+      { itemName: "Tote bag", packageName: "", releaseId: null, netCents: 1500, bandId: labelBand.id },
     ]);
+
+    // The band's group deletes one: it goes from the label's books, and the tote's back in stock.
+    const fd = new FormData();
+    fd.set("id", String(sales[1].id));
+    expect(await actions.deleteManualSale(null, fd)).toEqual({ ok: "Deleted." });
+    expect((await db.select().from(schema.inventoryItems).where(eq(schema.inventoryItems.id, tote.id)))[0].onHand).toBe(4);
+
+    // A sale from before the band was on the label (its first sale there) stays in its own books.
+    await db.insert(schema.sales).values({
+      orgId: labelOrgId,
+      importId: (await db.insert(schema.imports).values({ orgId: labelOrgId, filename: "x.csv", rowCount: 1, addedCount: 1, duplicateCount: 0 }).returning())[0].id,
+      dedupeKey: "label-first",
+      date: "2025-01-01",
+      itemType: "album",
+      category: "album",
+      itemName: "Flags of the World",
+      artist: "Flag Day",
+      itemUrl: "",
+      packageName: "",
+      currency: "USD",
+      netCents: 900,
+      quantity: 1,
+      transactionId: "t1",
+      routingKey: "k1",
+      bandId: labelBand.id,
+      raw: {},
+    });
+    await actions.addManualSale(null, form({ bandId: band.id, kind: "show", itemName: "Old show", amount: "50", date: "2024-06-01" }));
+    expect(await lastSale()).toMatchObject({ itemName: "Old show", bandId: band.id });
+  });
+
+  it("deletes a new sale while other accounts have payouts", async () => {
+    // Another account's finalized payout, with its list of sales.
+    const otherOrg = await newAccount("Label");
+    const [period] = await db.insert(schema.periods).values({ orgId: otherOrg, name: "Summer", startDate: "2026-01-01", endDate: "2026-12-31" }).returning();
+    await db.insert(schema.periodSales).values({ orgId: otherOrg, periodId: period.id, dedupeKey: "theirs" });
+    const { band } = await setup();
+    await actions.addManualSale(null, form({ bandId: band.id, kind: "show", itemName: "Door money", amount: "300" }));
+    const fd = new FormData();
+    fd.set("id", String((await lastSale()).id));
+    expect(await actions.deleteManualSale(null, fd)).toEqual({ ok: "Deleted." });
   });
 
   it("names a format without repeating the release", async () => {

@@ -212,7 +212,7 @@ describe("a label-made band account's own books", () => {
     vi.unstubAllGlobals();
   });
 
-  it("its Bandcamp sales sync leaves out sales the label's books already have", async () => {
+  it("its Bandcamp sales sync leaves out sales the label's books already have, and gives the label the rest from its time there", async () => {
     const { labelOrgId, bandOrgId } = await setup();
     await own.setOwnBooks(bandOrgId, true);
     const secrets = await import("../secrets");
@@ -222,10 +222,10 @@ describe("a label-made band account's own books", () => {
       .insert(schema.accountSettings)
       .values({ orgId: labelOrgId, bandcampClientId: `label-${labelOrgId}`, ...creds })
       .onConflictDoUpdate({ target: schema.accountSettings.orgId, set: { bandcampClientId: `label-${labelOrgId}`, ...creds } });
-    const sale = (id: number, name: string) => ({
+    const sale = (id: number, name: string, date = "13 May 2026 23:28:01 GMT") => ({
       bandcamp_transaction_item_id: id,
       bandcamp_transaction_id: 4000 + id,
-      date: "13 May 2026 23:28:01 GMT",
+      date,
       item_type: "album",
       item_name: name,
       artist: "Glass Harbor",
@@ -246,12 +246,16 @@ describe("a label-made band account's own books", () => {
     const sync = await import("../sync");
     expect((await sync.runSalesSync(labelOrgId)).added).toBe(1);
 
-    report = [sale(1, "Through the label"), sale(2, "Only its own")];
+    report = [sale(1, "Through the label"), sale(2, "Only its own"), sale(3, "Before the label", "2 Jan 2026 10:00:00 GMT")];
     const result = await sync.runSalesSync(bandOrgId);
-    expect(result.added).toBe(1);
+    expect(result.added).toBe(2);
     expect(result.inLabelBooks).toEqual({ count: 1, labelName: "Label" });
+    // From its time on the label, its sales are the label's, for its band; before that, its own.
     const mine = await db.select({ itemName: schema.sales.itemName }).from(schema.sales).where(eq(schema.sales.orgId, bandOrgId));
-    expect(mine).toEqual([{ itemName: "Only its own" }]);
+    expect(mine).toEqual([{ itemName: "Before the label" }]);
+    const theirs = await db.select({ itemName: schema.sales.itemName, bandId: schema.sales.bandId }).from(schema.sales).where(eq(schema.sales.orgId, labelOrgId)).orderBy(schema.sales.id);
+    expect(theirs.map((x) => x.itemName)).toEqual(["Through the label", "Only its own"]);
+    expect(new Set(theirs.map((x) => x.bandId))).toEqual(new Set([theirs[0].bandId]));
     // The label's own sync leaves nothing out.
     expect((await sync.runSalesSync(labelOrgId)).inLabelBooks.count).toBe(0);
     vi.unstubAllGlobals();

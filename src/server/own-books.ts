@@ -1,9 +1,13 @@
 import "server-only";
-import { and, asc, desc, eq, inArray, isNull, or } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, min, or, sql } from "drizzle-orm";
 import { db, schema } from "@/db";
+import { BAND_GROUP_VIA, MANUAL_IMPORT, MANUAL_VIA } from "@/lib/manual-sales";
 import { possessive } from "@/lib/plural";
+import { routeSale } from "@/lib/routing";
 import { managingLabel, subAccountFor } from "./band-accounts";
-import { computeAllTime } from "./data";
+import { computeAllTime, loadCatalog } from "./data";
+import { importNamed } from "./import-rows";
+import { paidSaleIds } from "./sales-browse";
 import { summarize } from "@/lib/splits";
 
 /*
@@ -12,6 +16,9 @@ import { summarize } from "@/lib/splits";
  * Settings turns them on). Its own band is one row in those books, and its people are the label's
  * band's members, copied over and kept in step: the label's books say who's in the band, and each
  * person's name and how they're paid are the same in both (people.labelPersonId links the two).
+ *
+ * Its sales from its time on the label are the label's, though: they go into the label's books for
+ * its band (moveSalesToLabel), and its own books keep just what came before.
  */
 
 const { accountSettings, bandLoginPeople, bandMemberships, bands, people, sales } = schema;
@@ -227,4 +234,94 @@ export async function labelPartFor(labelOrgId: string, bandId: number) {
     labelPayoutsFor(labelOrgId, bandId),
   ]);
   return { summary: summarize(results.filter((r) => r.bandId === bandId)), fundsSpent, payouts };
+}
+
+/**
+ * When a band came to its label, as far as its sales go: the label's first sale for it, or when the
+ * label made its group, whichever is earlier. Null when neither is known.
+ */
+export async function onLabelSince(labelOrgId: string, bandId: number): Promise<string | null> {
+  const [[first], [link]] = await Promise.all([
+    db
+      .select({ date: min(sales.date) })
+      .from(sales)
+      .where(and(eq(sales.orgId, labelOrgId), eq(sales.bandId, bandId))),
+    db
+      .select({ at: schema.accountLinks.acceptedAt })
+      .from(schema.accountLinks)
+      .where(and(eq(schema.accountLinks.labelOrgId, labelOrgId), eq(schema.accountLinks.labelBandId, bandId))),
+  ]);
+  const dates = [first?.date, link?.at?.slice(0, 10)].filter((d): d is string => !!d).sort();
+  return dates[0] ?? null;
+}
+
+/**
+ * A band account the label made: its sales from its time on the label (imported, synced or added
+ * by hand) go into the label's books for its band, to be split and paid out there. Ones the label's
+ * books already have (from the label's own Bandcamp) are dropped instead, and ones its own payouts
+ * paid stay. In the label's catalog, a sale is matched as usual if that finds the band; otherwise
+ * it's the band's with no release. Returns how many moved.
+ */
+export async function moveSalesToLabel(bandOrgId: string): Promise<number> {
+  const m = await managingLabel(bandOrgId);
+  if (!m) return 0;
+  const since = await onLabelSince(m.labelOrgId, m.bandId);
+  const rows = await db
+    .select({
+      id: sales.id,
+      dedupeKey: sales.dedupeKey,
+      itemUrl: sales.itemUrl,
+      artist: sales.artist,
+      itemName: sales.itemName,
+      packageName: sales.packageName,
+      category: sales.category,
+      routedVia: sales.routedVia,
+      catalogNumber: sql<string | null>`${sales.raw}->>'catalog number'`,
+      upc: sql<string | null>`${sales.raw}->>'upc'`,
+      isrc: sql<string | null>`${sales.raw}->>'isrc'`,
+    })
+    .from(sales)
+    .where(and(eq(sales.orgId, bandOrgId), since ? gte(sales.date, since) : undefined));
+  if (!rows.length) return 0;
+  const paid = await paidSaleIds(
+    bandOrgId,
+    rows.map((r) => r.id),
+  );
+  const todo = rows.filter((r) => !paid.has(r.id));
+  if (!todo.length) return 0;
+  const { found: there } = await alreadyInLabelBooks(
+    bandOrgId,
+    todo.map((r) => r.dedupeKey),
+  );
+  const [catalog, [group]] = await Promise.all([
+    loadCatalog(m.labelOrgId),
+    db.select({ name: schema.organization.name }).from(schema.organization).where(eq(schema.organization.id, bandOrgId)),
+  ]);
+  const handAdded = todo.some((r) => r.routedVia === MANUAL_VIA) ? await importNamed(m.labelOrgId, MANUAL_IMPORT) : null;
+  const imported = todo.some((r) => r.routedVia !== MANUAL_VIA) ? await importNamed(m.labelOrgId, `From ${group?.name ?? "the band"}`) : null;
+  await db.transaction(async (tx) => {
+    const dupes = todo.filter((r) => there.has(r.dedupeKey)).map((r) => r.id);
+    if (dupes.length) await tx.delete(sales).where(inArray(sales.id, dupes));
+    for (const r of todo.filter((x) => !there.has(x.dedupeKey))) {
+      const route =
+        r.routedVia === MANUAL_VIA
+          ? { bandId: m.bandId, releaseId: null, trackId: null, via: MANUAL_VIA }
+          : (() => {
+              const found = routeSale({ ...r, catalogNumber: r.catalogNumber ?? undefined, upc: r.upc ?? undefined, isrc: r.isrc ?? undefined }, catalog);
+              return found.bandId === m.bandId ? found : { bandId: m.bandId, releaseId: null, trackId: null, via: BAND_GROUP_VIA };
+            })();
+      await tx
+        .update(sales)
+        .set({
+          orgId: m.labelOrgId,
+          importId: r.routedVia === MANUAL_VIA ? handAdded! : imported!,
+          bandId: route.bandId,
+          releaseId: route.releaseId,
+          trackId: route.trackId,
+          routedVia: route.via,
+        })
+        .where(eq(sales.id, r.id));
+    }
+  });
+  return todo.length;
 }

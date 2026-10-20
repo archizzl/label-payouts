@@ -21,7 +21,7 @@ import { allBands, BLOCKED_MESSAGE, createBandFor, fetchPage, findBandFor, findE
 import { API_SYNC_PREFIX, bandcampCredentials, salesReport } from "./bandcamp-api";
 import { emailFingerprint } from "./secrets";
 import { loadCatalog, reRouteAll } from "./data";
-import { alreadyInLabelBooks } from "./own-books";
+import { alreadyInLabelBooks, moveSalesToLabel } from "./own-books";
 
 /*
  * Bringing things in from Bandcamp: sales (through the API), and artists, releases and merch (from
@@ -109,6 +109,8 @@ export async function saveSales(orgId: string, filename: string, parsed: ParseRe
     }
     return id;
   });
+  // A band's group on a label: what's from its time on the label goes into the label's books.
+  await moveSalesToLabel(orgId);
   return { importId, added: fresh.length, duplicates: routed.length - fresh.length };
 }
 

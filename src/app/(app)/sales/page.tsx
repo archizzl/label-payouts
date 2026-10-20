@@ -10,6 +10,8 @@ import { formatCents } from "@/lib/money";
 import { loadLayout } from "@/server/chart-layouts";
 import { bandScope, can } from "@/lib/permissions";
 import { ownBooksOf, requireAccess } from "@/server/context";
+import { saleAdder } from "@/server/manual-sales";
+import { moveSalesToLabel, onLabelSince } from "@/server/own-books";
 import { DeleteManualSale } from "@/components/manual-sale";
 import { MANUAL_VIA } from "@/lib/manual-sales";
 import { markSeen } from "@/server/nav-badges";
@@ -46,6 +48,11 @@ export default async function SalesPage({ searchParams }: PageProps<"/sales">) {
   // A member type can limit this to their own bands' sales.
   const scope = m ? null : bandScope(access, "sales");
   const canEdit = can(own.access, "sales", "edit");
+  // Its sales from its time on the label are the label's: any still in its own books go there now.
+  if (m) await moveSalesToLabel(orgId);
+  const [since, adder] = await Promise.all([m ? onLabelSince(m.labelOrgId, m.bandId) : null, saleAdder()]);
+  const canDelete = (s: { orgId: string; bandId: number | null }) =>
+    !!adder && ((s.orgId === orgId && adder.bands.some((b) => b.id === s.bandId)) || (!!m && s.orgId === m.labelOrgId));
   const f = { ...parseSalesFilter(await searchParams), onlyBands: scope ?? undefined, ...(m ? { band: undefined } : {}) };
   const [page, summary, options, [{ unrouted }]] = await Promise.all([
     browseSales(books, f),
@@ -108,7 +115,7 @@ export default async function SalesPage({ searchParams }: PageProps<"/sales">) {
           )
         }
       />
-      <SalesTabs active="browse" unrouted={unrouted} canImport={canEdit} />
+      <SalesTabs active="browse" unrouted={unrouted} canImport={canEdit} canAdd={!!adder} />
 
       <Card title={main ? `${page.count.toLocaleString("en-US")} sale${page.count === 1 ? "" : "s"}` : "Sales"}>
         <Filters f={f} options={options} filtered={filtered} oneBand={!!m} />
@@ -183,14 +190,14 @@ export default async function SalesPage({ searchParams }: PageProps<"/sales">) {
                               {s.releaseTitle ?? "Release"} in the catalog →
                             </Link>
                           )}
-                          {s.routedVia === MANUAL_VIA && canEdit && s.orgId === orgId && s.payoutState === "none" && <DeleteManualSale id={s.id} />}
+                          {s.routedVia === MANUAL_VIA && s.payoutState === "none" && canDelete(s) && <DeleteManualSale id={s.id} />}
                         </details>
                       </td>
                       <td className="text-sm">
                         {m && s.bandId ? (
                           <>
                             {s.bandName}
-                            {s.orgId !== orgId && <div className="text-xs text-muted">through {m.labelName}</div>}
+                            {s.orgId === orgId && since && s.date < since && <div className="text-xs text-muted">before {m.labelName}</div>}
                           </>
                         ) : s.bandId ? (
                           <Link href={filterQuery(f, { band: s.bandId, page: 1 }) || "?"} className="hover:underline">

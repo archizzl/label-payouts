@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq, gte, ilike, inArray, isNull, lt, lte, or, type SQL, sql } from "drizzle-orm";
+import { and, asc, desc, eq, getTableName, gte, ilike, inArray, isNull, lt, lte, or, type SQL, sql } from "drizzle-orm";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { db, schema } from "@/db";
 import { buildTrend, type Trend } from "@/lib/chart-data";
@@ -103,21 +103,26 @@ export function filterQuery(f: SalesFilter, change: Partial<Record<keyof SalesFi
 
 const country = sql<string>`coalesce(nullif(${sales.raw}->>'country', ''), '')`;
 const source = sql<string>`coalesce(nullif(${sales.raw}->>'referer', ''), nullif(${sales.raw}->>'referrer', ''), nullif(${sales.raw}->>'source', ''), '')`;
+/**
+ * A column named with its table. Drizzle leaves the table off when a query reads only one table,
+ * and inside these subqueries a bare "org_id" would be the subquery's own column.
+ */
+const named = (c: AnyPgColumn) => sql`${sql.identifier(getTableName(c.table))}.${sql.identifier(c.name)}`;
 /*
  * The finalized payout that paid a sale, the same rule payouts use: the one whose list has it (or,
  * for payouts without a list, one for the whole label or the sale's band whose dates include it). It counts as paid once every person in it is
  * marked paid (or kept, for whoever holds the label's account).
  */
 const coveringPeriod = sql`coalesce(
-  (select ps.period_id from ${schema.periodSales} ps where ps.org_id = ${sales.orgId} and ps.dedupe_key = ${sales.dedupeKey} limit 1),
-  (select ${periods.id} from ${periods}
-    where ${periods.orgId} = ${sales.orgId} and ${sales.date} between ${periods.startDate} and ${periods.endDate}
-      and (${periods.bandId} is null or ${periods.bandId} = ${sales.bandId})
-      and not exists (select 1 from ${schema.periodSales} x where x.period_id = ${periods.id})
-    order by ${periods.id} limit 1))`;
+  (select ps.period_id from ${schema.periodSales} ps where ps.org_id = ${named(sales.orgId)} and ps.dedupe_key = ${named(sales.dedupeKey)} limit 1),
+  (select p.id from ${periods} p
+    where p.org_id = ${named(sales.orgId)} and ${named(sales.date)} between p.start_date and p.end_date
+      and (p.band_id is null or p.band_id = ${named(sales.bandId)})
+      and not exists (select 1 from ${schema.periodSales} x where x.period_id = p.id)
+    order by p.id limit 1))`;
 const payoutState = sql<PayoutState>`case
   when ${coveringPeriod} is null then 'none'
-  when exists (select 1 from ${payouts} where ${payouts.periodId} = ${coveringPeriod} and ${payouts.status} = 'pending') then 'pending'
+  when exists (select 1 from ${payouts} po where po.period_id = ${coveringPeriod} and po.status = 'pending') then 'pending'
   else 'paid' end`;
 
 const like = (s: string) => `%${s.replace(/[%_\\]/g, (c) => `\\${c}`)}%`;
@@ -386,6 +391,19 @@ export async function salesFilterOptions(books: SalesBooks, onlyBands?: number[]
     sources: sources.map((s) => s.v),
     currencies: currencies.map((c) => c.v).sort(),
   };
+}
+
+/** Of an account's sales, the ones that are part of a payout already. */
+export async function paidSaleIds(orgId: string, ids: number[]): Promise<Set<number>> {
+  const out = new Set<number>();
+  for (let i = 0; i < ids.length; i += 500) {
+    const rows = await db
+      .select({ id: sales.id, period: coveringPeriod.mapWith(Number) })
+      .from(sales)
+      .where(and(eq(sales.orgId, orgId), inArray(sales.id, ids.slice(i, i + 500))));
+    for (const r of rows) if (r.period) out.add(r.id);
+  }
+  return out;
 }
 
 /** Whether a sale is part of a payout already (so it can't be taken back out). */

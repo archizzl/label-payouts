@@ -10,6 +10,12 @@ export const MANUAL_IMPORT = "Added by hand";
 /** How a hand-added sale is marked as routed (re-matching leaves it alone). */
 export const MANUAL_VIA = "manual";
 
+/**
+ * How a sale that came into the label's books from a band's own group is marked, when the label's
+ * catalog doesn't place it: its band is that band (re-matching leaves it alone).
+ */
+export const BAND_GROUP_VIA = "band group";
+
 /** Where it came from, in the sales list's "From" column. */
 export const MANUAL_SOURCE = "In person";
 

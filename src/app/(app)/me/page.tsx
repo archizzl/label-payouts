@@ -3,7 +3,8 @@ import { connection } from "next/server";
 import { SubmitButton } from "@/components/client";
 import { SalesSection } from "@/components/sales-section";
 import { ExpenseTable, SubmitReceiptForm } from "@/components/receipts";
-import { Badge, Callout, Card, Disclosure, Empty, Money, MoneyList, PageHeader } from "@/components/ui";
+import Link from "next/link";
+import { Badge, buttonClass, Callout, Card, Disclosure, Empty, Money, MoneyList, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
 import { linkMyself } from "@/server/account-actions";
 import { type Context, getContext, ownBooksOf } from "@/server/context";
@@ -102,7 +103,7 @@ export default async function MyEarningsPage({ searchParams }: PageProps<"/me">)
 
   return (
     <>
-      <PageHeader title="My earnings" subtitle={`${person.name} · ${ctx.org.name}`} />
+      <PageHeader title="My earnings" subtitle={`${person.name} · ${ctx.org.name}`} actions={myBands.length > 0 && <AddSale />} />
 
       <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Stat label="Waiting to be paid" totals={owed} emphasis />
@@ -203,6 +204,15 @@ export default async function MyEarningsPage({ searchParams }: PageProps<"/me">)
   );
 }
 
+/** Any band member can add a sale by hand (a show, merch sold in person). */
+function AddSale() {
+  return (
+    <Link href="/sales/add" className={buttonClass("secondary")}>
+      Add a sale
+    </Link>
+  );
+}
+
 /**
  * A member of a band account the label made: their earnings from the label (just this band's part)
  * and from the band's own books, in one place, with the label's marked "through {label}".
@@ -254,7 +264,7 @@ async function BandAccountEarnings({ ctx, range }: { ctx: Context; range?: strin
 
   return (
     <>
-      <PageHeader title="My earnings" subtitle={`${name} · ${ctx.org.name}`} />
+      <PageHeader title="My earnings" subtitle={`${name} · ${ctx.org.name}`} actions={<AddSale />} />
 
       <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Stat label="Waiting to be paid" totals={addTotals(l.owed, o.owed)} emphasis />

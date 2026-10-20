@@ -1,5 +1,5 @@
 import "server-only";
-import { MANUAL_VIA } from "@/lib/manual-sales";
+import { BAND_GROUP_VIA, MANUAL_VIA } from "@/lib/manual-sales";
 import { and, asc, eq, isNull, lte, sql, type SQL } from "drizzle-orm";
 import { cache } from "react";
 import { db, schema } from "@/db";
@@ -75,8 +75,8 @@ export async function reRouteAll(orgId: string) {
     .from(sales)
     .where(eq(sales.orgId, orgId));
   const changed = rows.flatMap((s) => {
-    // Added by hand: its band was chosen, not matched.
-    if (s.routedVia === MANUAL_VIA) return [];
+    // Added by hand, or from a band's own group: its band was chosen, not matched.
+    if (s.routedVia === MANUAL_VIA || s.routedVia === BAND_GROUP_VIA) return [];
     const r = routeSale({ ...s, catalogNumber: s.catalogNumber ?? undefined, upc: s.upc ?? undefined, isrc: s.isrc ?? undefined }, catalog);
     return r.bandId !== s.bandId || r.releaseId !== s.releaseId || r.trackId !== s.trackId || r.via !== s.routedVia ? [{ id: s.id, r }] : [];
   });

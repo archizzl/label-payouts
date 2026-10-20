@@ -1,4 +1,4 @@
-import { asc, count, desc, eq } from "drizzle-orm";
+import { asc, desc, eq } from "drizzle-orm";
 import Link from "next/link";
 import { connection } from "next/server";
 import { Fading, SubmitButton } from "@/components/client";
@@ -7,10 +7,8 @@ import { Badge, Callout, Card, Empty, MoneyList, PageHeader } from "@/components
 import { db, schema } from "@/db";
 import { addBandFromArtist, assignArtistToBand, assignRouting, createReleaseFromSales, deleteImport } from "@/server/actions";
 import { bandcampSubdomain } from "@/lib/applications";
-import { bandScope, can } from "@/lib/permissions";
+import { can } from "@/lib/permissions";
 import { MANUAL_IMPORT } from "@/lib/manual-sales";
-import { ManualSaleForm } from "@/components/manual-sale";
-import { merchChoices, merchSources } from "@/server/manual-sales";
 import { plural } from "@/lib/plural";
 import { API_SYNC_PREFIX, bandcampCredentials } from "@/server/bandcamp-api";
 import { SalesTabs } from "@/components/sales-tabs";
@@ -159,21 +157,13 @@ export default async function ImportPage({ searchParams }: PageProps<"/sales/imp
   // A sync that found nothing new only marks when we last checked; it's not worth a history row.
   // Hand-added sales hang off one import of their own: they're in the sales list, not here.
   const history = allImports.filter((h) => h.filename !== MANUAL_IMPORT && !(h.addedCount === 0 && h.filename.startsWith(API_SYNC_PREFIX)));
-  const scope = bandScope(ctx.access, "sales");
-  const [usual] = await db
-    .select({ currency: schema.sales.currency })
-    .from(schema.sales)
-    .where(eq(schema.sales.orgId, orgId))
-    .groupBy(schema.sales.currency)
-    .orderBy(desc(count()))
-    .limit(1);
   const bandCount = bands.length;
   const apiReady = !!creds;
 
   return (
     <>
       <PageHeader title="Sales" />
-      <SalesTabs active="import" />
+      <SalesTabs active="import" canAdd={bands.length > 0} />
       {justImported && (
         <Fading clearParams={["imported"]}>
           <Callout tone="good">
@@ -211,18 +201,6 @@ export default async function ImportPage({ searchParams }: PageProps<"/sales/imp
           </ol>
         </details>
       </Card>
-
-      {bands.length > 0 && (
-        <Card title="Add a sale by hand">
-          <ManualSaleForm
-            bands={scope ? bands.filter((b) => scope.includes(b.id)) : bands}
-            merch={merchChoices(
-              await merchSources({ orgId, managed: ctx.managedBy ? { labelOrgId: ctx.managedBy.labelOrgId, bandId: ctx.managedBy.bandId } : null, onlyBands: scope }),
-            )}
-            currency={usual?.currency ?? "USD"}
-          />
-        </Card>
-      )}
 
       {noBand.length > 0 && (
         <Card title={<>Needs a band <Badge tone="warn">{plural(noBand.reduce((a, g) => a + g.count, 0), "sale")}</Badge></>}>
