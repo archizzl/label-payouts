@@ -32,6 +32,7 @@ function itemsFor(
   bandHref: string | null,
   hideOrders: boolean,
   bandLogin: boolean,
+  earnings: boolean,
 ): Item[] {
   // A band account the label made: its own books with the label's part for it (dashboard, sales,
   // payouts, receipts, splits), its part of the label's (orders, inventory, funds, catalog,
@@ -74,6 +75,7 @@ function itemsFor(
       ...all,
       ...(projects ? [{ href: "/projects", label: "projects" }] : []),
       ...labels,
+      ...(earnings ? [{ href: "/me", label: "my earnings" }] : []),
       { href: "/settings", label: "settings" },
       { href: "/account", label: "account" },
     ];
@@ -129,6 +131,7 @@ export function Nav({
   bandHref = null,
   hideOrders = false,
   bandLogin = false,
+  earnings = false,
 }: {
   user: { name: string; email: string };
   account: Account;
@@ -162,6 +165,8 @@ export function Nav({
   bandHref?: string | null;
   /** No Bandcamp API access or pickups yet: the Orders tab would only say how to connect. */
   hideOrders?: boolean;
+  /** An admin who's also paid in these books: their own earnings page. */
+  earnings?: boolean;
 }) {
   const path = usePathname();
   // "New sales" counts from your last look at Sales: once you've opened it, stop showing the number
@@ -173,7 +178,7 @@ export function Nav({
     if (key === "sales" && seenSales) return 0;
     return badges[key] ?? 0;
   };
-  const items = [...itemsFor(account, isAdmin, areas, labels, projects, managed, bandHref, hideOrders, bandLogin), ...(siteAdmin && showAdminLink && !viewing ? [{ href: "/admin", label: "admin" }] : [])];
+  const items = [...itemsFor(account, isAdmin, areas, labels, projects, managed, bandHref, hideOrders, bandLogin, earnings), ...(siteAdmin && showAdminLink && !viewing ? [{ href: "/admin", label: "admin" }] : [])];
   return (
     <header className="no-print border-b border-border bg-surface">
       <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 pt-4 pb-3 md:px-8">

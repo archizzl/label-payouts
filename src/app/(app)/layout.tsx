@@ -54,6 +54,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
         user={{ name: ctx.user.name, email: ctx.user.email }}
         managed={ctx.lens ? "/" : null}
         bandLogin={isBandLogin(ctx)}
+        earnings={!ctx.managedBy && !!ctx.person}
         bandHref={band ? `/bands/${band.id}` : null}
         hideOrders={!orders.inUse}
         viewing={!!ctx.viewingAs}
