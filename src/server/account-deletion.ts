@@ -25,9 +25,10 @@ export async function deleteAccountsWithBooks(ids: string[]) {
     .from(schema.expenseFiles)
     .innerJoin(schema.expenses, eq(schema.expenses.id, schema.expenseFiles.expenseId))
     .where(inArray(schema.expenses.orgId, orgIds));
+  const photos = await db.select({ storageKey: schema.merchPhotos.storageKey }).from(schema.merchPhotos).where(inArray(schema.merchPhotos.orgId, orgIds));
   // Everything in an account goes with it (every table's account reference cascades).
   await db.delete(schema.organization).where(inArray(schema.organization.id, orgIds));
-  await discardStoredFiles(files);
+  await discardStoredFiles([...files, ...photos]);
 }
 
 /**
