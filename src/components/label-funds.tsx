@@ -133,20 +133,28 @@ async function sourceDetails(orgId: string): Promise<SourceInfo[]> {
 
 /**
  * The label's own money and where it went: kept from sales, sent on to others (fundraisers,
- * donations), and what's left. With `bandId`, only transfers raised by that band.
+ * donations), and what's left. With `bandId`, only transfers raised by that band (named by release
+ * alone: the band's already the page's). `untitled`: the page's own title says what it is.
  */
-export async function LabelFunds({ bandId, showTotals = true }: { bandId?: number; showTotals?: boolean }) {
+export async function LabelFunds({ bandId, showTotals = true, untitled = false }: { bandId?: number; showTotals?: boolean; untitled?: boolean }) {
   const { orgId, access } = await getContext();
   const editable = can(access, "funds", "edit");
   const [funds, names, sources] = await Promise.all([labelFunds(orgId), nameMaps(orgId), sourceDetails(orgId)]);
   const transfers = bandId ? funds.transfers.filter((t) => t.bandId === bandId) : funds.transfers;
   const causes = bandId ? funds.causes.filter((c) => c.bandId === bandId) : funds.causes;
   const causeName = (c: { bandId: number | null; releaseId: number | null }) =>
-    [c.bandId && names.band.get(c.bandId), c.releaseId && names.release.get(c.releaseId)].filter(Boolean).join(" · ");
+    (bandId && c.releaseId
+      ? [names.release.get(c.releaseId)]
+      : [c.bandId && names.band.get(c.bandId), c.releaseId && names.release.get(c.releaseId)]
+    )
+      .filter(Boolean)
+      .join(" · ");
+  // No "How" column when nothing sent says how.
+  const anyHow = transfers.some((t) => t.method || t.reference);
   const currencies = [...funds.balance.keys()].sort();
 
   return (
-    <Card title={bandId ? "Label funds sent on" : showTotals ? "Label funds" : "Sent on to others"}>
+    <Card title={untitled ? undefined : bandId ? "Label funds sent on" : showTotals ? "Label funds" : "Sent on to others"}>
       {/* <p className="mb-4 text-sm text-muted">
         {bandId || !showTotals
           ? "Money the label kept from sales and then passed on to someone else."
@@ -198,11 +206,6 @@ export async function LabelFunds({ bandId, showTotals = true }: { bandId?: numbe
               })}
             </tbody>
           </table>
-          <p className="mt-2 text-xs text-muted">
-            {/* “Kept by the label” counts every sale where money went to the label: its cut, or all of it if a release is set up that way
-            (a 100% “kept by the label” deduction on the band page). A negative “still holding” means the label sent more than those
-            sales brought in. */}
-          </p>
         </div>
       )}
 
@@ -217,7 +220,7 @@ export async function LabelFunds({ bandId, showTotals = true }: { bandId?: numbe
                 <th>Sent to</th>
                 <th>From</th>
                 <th className="num">Amount</th>
-                <th>How</th>
+                {anyHow && <th>How</th>}
                 <th />
               </tr>
             </thead>
@@ -231,12 +234,13 @@ export async function LabelFunds({ bandId, showTotals = true }: { bandId?: numbe
                   </td>
                   <td className="text-sm">
                     {t.source ?? (causeName(t) ? null : <span className="text-muted">—</span>)}
-                    {causeName(t) && <div className={t.source ? "text-xs text-muted" : ""}>{causeName(t)}</div>}
+                    {/* (Not when the source's name already says it.) */}
+                    {causeName(t) && !t.source?.includes(causeName(t)) && <div className={t.source ? "text-xs text-muted" : ""}>{causeName(t)}</div>}
                   </td>
                   <td className="num font-medium">
                     <Money cents={t.amountCents} currency={t.currency} />
                   </td>
-                  <td className="text-xs text-muted">{[t.method, t.reference].filter(Boolean).join(" · ") || "—"}</td>
+                  {anyHow && <td className="text-xs text-muted">{[t.method, t.reference].filter(Boolean).join(" · ") || "—"}</td>}
                   <td className="text-right">
                     {editable && (
                     <div className="flex items-start justify-end gap-2">

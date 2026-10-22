@@ -44,7 +44,7 @@ export default async function FundsPage({ searchParams }: PageProps<"/funds">) {
     return (
       <>
         <PageHeader title="Label funds" />
-        <LabelFunds bandId={ctx.managedBy!.bandId} />
+        <LabelFunds bandId={ctx.managedBy!.bandId} untitled />
       </>
     );
   }
