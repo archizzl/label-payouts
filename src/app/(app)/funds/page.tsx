@@ -7,11 +7,16 @@ import { type BoardChart, breakdownChart, seriesChart } from "@/lib/chart-data";
 import { formatCents } from "@/lib/money";
 import { plural } from "@/lib/plural";
 import { loadLayout } from "@/server/chart-layouts";
-import { requireAccess } from "@/server/context";
+import { and, desc, eq, or } from "drizzle-orm";
+import { db, schema } from "@/db";
+import { summarize } from "@/lib/splits";
+import { type Context, ownBooksOf, requireAccess } from "@/server/context";
+import { computeAllTime } from "@/server/data";
+import { labelPartFor } from "@/server/own-books";
 import { nameMaps } from "@/server/data";
 import { LABEL_RELEASES_SOURCE, labelIncome, SHIPPING_SOURCE, type Totals } from "@/server/label-income";
 
-export const metadata = { title: "label funds" };
+export const metadata = { title: "funds" };
 
 /** Sales listed on a page of "Where it came from". */
 const PER_PAGE = 100;
@@ -39,12 +44,13 @@ function explain(source: string) {
 export default async function FundsPage({ searchParams }: PageProps<"/funds">) {
   await connection();
   const ctx = await requireAccess("funds");
-  // A band's own account: what the label sent on from its money.
+  // A band account the label made: its band fund, and what the label sent on from its money.
   if (ctx.lens) {
     return (
       <>
-        <PageHeader title="Label funds" />
-        <LabelFunds bandId={ctx.managedBy!.bandId} untitled />
+        <PageHeader title="Funds" />
+        <BandFund ctx={ctx} />
+        <LabelFunds bandId={ctx.managedBy!.bandId} />
       </>
     );
   }
@@ -256,6 +262,79 @@ export default async function FundsPage({ searchParams }: PageProps<"/funds">) {
         )}
       </Card>
     </>
+  );
+}
+
+/**
+ * A band's fund, for a band account the label made: what its sales put in (in the label's books for
+ * it, and its own), what the fund paid for, and what it holds.
+ */
+async function BandFund({ ctx }: { ctx: Context }) {
+  const m = ctx.managedBy!;
+  const own = await ownBooksOf(ctx);
+  const [label, { results }, spent] = await Promise.all([
+    labelPartFor(m.labelOrgId, m.bandId),
+    computeAllTime(own.orgId),
+    db
+      .select({ id: schema.expenses.id, date: schema.expenses.date, description: schema.expenses.description, amountCents: schema.expenses.amountCents, currency: schema.expenses.currency })
+      .from(schema.expenses)
+      .where(
+        and(
+          eq(schema.expenses.status, "approved"),
+          eq(schema.expenses.paidBy, "band_fund"),
+          or(and(eq(schema.expenses.orgId, m.labelOrgId), eq(schema.expenses.bandId, m.bandId)), eq(schema.expenses.orgId, own.orgId)),
+        ),
+      )
+      .orderBy(desc(schema.expenses.date)),
+  ]);
+  const wentIn: Totals = new Map();
+  for (const s of [label.summary, summarize(results)]) {
+    for (const cur of s.currencies) {
+      const cents = [...s.byCurrency[cur].byDestination].filter(([k]) => k === "band_fund" || k.startsWith("band_fund:")).reduce((a, [, v]) => a + v, 0);
+      if (cents) wentIn.set(cur, (wentIn.get(cur) ?? 0) + cents);
+    }
+  }
+  const paid: Totals = new Map();
+  for (const e of spent) paid.set(e.currency, (paid.get(e.currency) ?? 0) + e.amountCents);
+  const currencies = [...new Set([...wentIn.keys(), ...paid.keys()])].sort();
+  return (
+    <Card title="Band fund">
+      {currencies.length === 0 ? (
+        <Empty>Nothing in the band fund yet.</Empty>
+      ) : (
+        <>
+          {currencies.map((cur) => (
+            <div key={cur} className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-3">
+              <Tile label={`Came in from sales${currencies.length > 1 ? ` (${cur})` : ""}`} cents={wentIn.get(cur) ?? 0} currency={cur} />
+              <Tile label="Paid for expenses" cents={paid.get(cur) ?? 0} currency={cur} />
+              <Tile label="Held" cents={(wentIn.get(cur) ?? 0) - (paid.get(cur) ?? 0)} currency={cur} emphasis />
+            </div>
+          ))}
+          {spent.length > 0 && (
+            <div className="overflow-x-auto">
+              <table className="data">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Paid for</th>
+                    <th className="num">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {spent.map((e) => (
+                    <tr key={e.id}>
+                      <td className="whitespace-nowrap text-muted">{e.date}</td>
+                      <td>{e.description}</td>
+                      <td className="num">{formatCents(e.amountCents, e.currency)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
+    </Card>
   );
 }
 

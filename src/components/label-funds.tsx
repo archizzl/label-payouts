@@ -134,9 +134,9 @@ async function sourceDetails(orgId: string): Promise<SourceInfo[]> {
 /**
  * The label's own money and where it went: kept from sales, sent on to others (fundraisers,
  * donations), and what's left. With `bandId`, only transfers raised by that band (named by release
- * alone: the band's already the page's). `untitled`: the page's own title says what it is.
+ * alone: the band's already the page's).
  */
-export async function LabelFunds({ bandId, showTotals = true, untitled = false }: { bandId?: number; showTotals?: boolean; untitled?: boolean }) {
+export async function LabelFunds({ bandId, showTotals = true }: { bandId?: number; showTotals?: boolean }) {
   const { orgId, access } = await getContext();
   const editable = can(access, "funds", "edit");
   const [funds, names, sources] = await Promise.all([labelFunds(orgId), nameMaps(orgId), sourceDetails(orgId)]);
@@ -154,7 +154,7 @@ export async function LabelFunds({ bandId, showTotals = true, untitled = false }
   const currencies = [...funds.balance.keys()].sort();
 
   return (
-    <Card title={untitled ? undefined : bandId ? "Label funds sent on" : showTotals ? "Label funds" : "Sent on to others"}>
+    <Card title={bandId ? "Label funds sent on" : showTotals ? "Label funds" : "Sent on to others"}>
       {/* <p className="mb-4 text-sm text-muted">
         {bandId || !showTotals
           ? "Money the label kept from sales and then passed on to someone else."
