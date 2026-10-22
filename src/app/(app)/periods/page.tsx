@@ -143,7 +143,7 @@ export default async function PeriodsPage({ searchParams }: PageProps<"/periods"
         <Card>
           {owesFromLabel.size ? (
             <p>
-              {m!.labelName} still owes {ctx.org.name} <MoneyList totals={owesFromLabel} />.
+              {m!.labelName} owes {ctx.org.name} <MoneyList totals={owesFromLabel} />.
             </p>
           ) : (
             <p>All funds are paid out.</p>

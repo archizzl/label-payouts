@@ -121,7 +121,7 @@ export async function OutsideArtists() {
         {dismissed.length > 0 && (
           <details className="mt-3">
             <summary className="text-sm text-link">
-              {dismissed.length} not being paid (the label keeps their share)
+              {dismissed.length} not being paid
             </summary>
             <ul className="mt-2 divide-y divide-border border-y border-border">
               {dismissed.map(({ artist, tracks }) => (
