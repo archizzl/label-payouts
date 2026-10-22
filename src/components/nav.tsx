@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Area } from "@/lib/permissions";
 import { signOut, switchAccount } from "@/server/account-actions";
 import type { Account } from "@/server/context";
@@ -82,33 +82,63 @@ function itemsFor(
 }
 
 /** Pick which of your accounts (labels and bands) you're working in. */
-function AccountSwitcher({ account, accounts, photo }: { account: Account; accounts: Account[]; photo: string | null }) {
-  const form = useRef<HTMLFormElement>(null);
-  if (accounts.length < 2) {
-    return (
-      <span className="flex items-center gap-2 text-sm text-muted">
-        <Avatar name={account.name} src={photo} size={26} square />
-        <span className="hidden sm:inline">{account.name}</span>
-      </span>
-    );
-  }
+function AccountSwitcher({ account, accounts, photos }: { account: Account; accounts: Account[]; photos: Record<string, string> }) {
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+  // Closes on a click anywhere else, or Escape.
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: MouseEvent) => !box.current?.contains(e.target as Node) && setOpen(false);
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("mousedown", away);
+    document.addEventListener("keydown", esc);
+    return () => {
+      document.removeEventListener("mousedown", away);
+      document.removeEventListener("keydown", esc);
+    };
+  }, [open]);
+  const current = (
+    <>
+      <Avatar name={account.name} src={photos[account.id]} size={26} square />
+      <span className="hidden max-w-48 truncate sm:inline">{account.name}</span>
+    </>
+  );
+  if (accounts.length < 2) return <span className="flex items-center gap-2 text-sm text-muted">{current}</span>;
   return (
-    <form ref={form} action={switchAccount} className="flex items-center gap-2">
-      <Avatar name={account.name} src={photo} size={26} square />
-      <select
-        name="orgId"
-        defaultValue={account.id}
-        aria-label="Account"
-        className="!w-auto !py-1 text-sm"
-        onChange={() => form.current?.requestSubmit()}
+    <div ref={box} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={`${account.name}: switch group`}
+        className={`flex items-center gap-2 rounded-sm py-0.5 pr-1.5 pl-0.5 text-sm hover:bg-surface-2 hover:text-text ${open ? "bg-surface-2 text-text" : "text-muted"}`}
       >
-        {accounts.map((a) => (
-          <option key={a.id} value={a.id}>
-            {a.name}
-          </option>
-        ))}
-      </select>
-    </form>
+        {current}
+        <span aria-hidden className={`text-[10px] transition ${open ? "rotate-180" : ""}`}>
+          ▾
+        </span>
+      </button>
+      {open && (
+        <form action={switchAccount} className="absolute right-0 z-20 mt-1 max-h-[70vh] w-64 overflow-y-auto border border-border bg-surface py-1 shadow-lg" role="menu">
+          {accounts.map((a) => (
+            <button
+              key={a.id}
+              type="submit"
+              name="orgId"
+              value={a.id}
+              role="menuitem"
+              disabled={a.id === account.id}
+              className={`flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm hover:bg-surface-2 ${a.id === account.id ? "font-bold text-text" : "text-muted hover:text-text"}`}
+            >
+              <Avatar name={a.name} src={photos[a.id]} size={28} square />
+              <span className="min-w-0 flex-1 truncate">{a.name}</span>
+              {a.id === account.id && <span aria-hidden>✓</span>}
+            </button>
+          ))}
+        </form>
+      )}
+    </div>
   );
 }
 
@@ -204,7 +234,7 @@ export function Nav({
             </Link>
           )}
           {/* The group you're in (a label or band), and switching to another. */}
-          <AccountSwitcher account={account} accounts={accounts} photo={groupPhotos[account.id] ?? null} />
+          <AccountSwitcher account={account} accounts={accounts} photos={groupPhotos} />
           {!viewing && (
             <form action={signOut}>
               <button type="submit" className="text-sm text-link hover:underline">
