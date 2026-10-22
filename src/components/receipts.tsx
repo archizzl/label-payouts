@@ -427,13 +427,15 @@ export function ExpenseTable({
               <div className="flex flex-wrap items-start gap-2 pt-1">
                 {mode === "admin" && edit && (
                   <>
-                    <Disclosure summary="Edit">{edit(e)}</Disclosure>
-                    <form action={deleteExpense}>
-                      <input type="hidden" name="id" value={e.id} />
-                      <SubmitButton size="sm" variant="ghost" confirm={`Delete “${e.description}” and its receipts?`}>
-                        Delete
-                      </SubmitButton>
-                    </form>
+                    <Disclosure summary="Edit">
+                      {edit(e)}
+                      <form action={deleteExpense} className="mt-3 border-t border-border pt-3">
+                        <input type="hidden" name="id" value={e.id} />
+                        <SubmitButton size="sm" variant="danger" confirm={`Delete “${e.description}” and its receipts?`}>
+                          Delete
+                        </SubmitButton>
+                      </form>
+                    </Disclosure>
                   </>
                 )}
                 {mode === "member" && e.status === "pending" && e.submittedByUserId === userId && (
