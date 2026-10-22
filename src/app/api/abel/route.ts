@@ -27,6 +27,9 @@ import { describeChange } from "@/server/abel/tool";
 
 const NO_STORE = { "cache-control": "no-store" };
 
+/** How long one answer may take before Abel gives up (Gemini can stall, say when its credit runs out). */
+const ANSWER_TIMEOUT_MS = 90_000;
+
 /** Who's asking, if Abel is on for them; else the response to send. */
 async function who(): Promise<Context | Response> {
   let ctx: Context;
@@ -97,17 +100,25 @@ export async function POST(request: Request) {
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
-      const send = (e: AbelStreamEvent) => controller.enqueue(encoder.encode(`data: ${JSON.stringify(e)}\n\n`));
+      const send = (e: AbelStreamEvent) => {
+        // (After the person has left, there's nowhere to send it.)
+        if (!request.signal.aborted) controller.enqueue(encoder.encode(`data: ${JSON.stringify(e)}\n\n`));
+      };
       send({ type: "chat", chatId: chatId! });
+      // Stops the run when the person leaves, or when it's taking too long.
+      const stop = new AbortController();
+      const timer = setTimeout(() => stop.abort("timeout"), ANSWER_TIMEOUT_MS);
+      request.signal.addEventListener("abort", () => stop.abort("left"));
       try {
         for await (const event of runner.runAsync({
           userId: ctx.user.id,
           sessionId: String(chatId),
           newMessage,
           runConfig: createRunConfig({ streamingMode: StreamingMode.SSE, maxLlmCalls: MAX_LLM_CALLS }),
-          abortSignal: request.signal,
+          abortSignal: stop.signal,
         })) {
-          if (event.errorMessage) {
+          // (A stopped run ends with an "aborted" error of its own: the reason is said below.)
+          if (event.errorMessage && !stop.signal.aborted) {
             console.error(`abel: model error ${event.errorCode ?? ""}: ${event.errorMessage}`);
             send({ type: "error", message: "Abel couldn’t answer that just now. Try again." });
           }
@@ -127,11 +138,19 @@ export async function POST(request: Request) {
           }
         }
       } catch (e) {
-        if (isIntentMismatchError(e)) send({ type: "error", message: "That change isn’t waiting for an answer any more." });
+        if (stop.signal.aborted) {
+          // Timed out (said below) or they left.
+        } else if (isIntentMismatchError(e)) send({ type: "error", message: "That change isn’t waiting for an answer any more." });
         else {
           console.error("abel", e);
           send({ type: "error", message: "Something went wrong. Try again." });
         }
+      }
+      clearTimeout(timer);
+      // An aborted run may end quietly or with an error: either way, say why it stopped.
+      if (stop.signal.reason === "timeout") {
+        console.error(`abel: no answer within ${ANSWER_TIMEOUT_MS / 1000}s`);
+        send({ type: "error", message: "Abel took too long to answer. Try again." });
       }
       send({ type: "done" });
       controller.close();
