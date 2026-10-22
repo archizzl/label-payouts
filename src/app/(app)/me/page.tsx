@@ -106,9 +106,9 @@ export default async function MyEarningsPage({ searchParams }: PageProps<"/me">)
       <PageHeader title="My earnings" subtitle={`${person.name} · ${ctx.org.name}`} actions={myBands.length > 0 && <AddSale />} />
 
       <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <Stat label="Waiting to be paid" totals={owed} emphasis />
+        <Stat label="In a payout, not paid yet" totals={owed} emphasis />
         <Stat label="Received so far" totals={received} />
-        <Stat label="Earned since the last payout" totals={new Map(upcoming.map((u) => [u.cur, u.line!.total]))} />
+        <Stat label="Not in a payout yet" totals={new Map(upcoming.map((u) => [u.cur, u.line!.total]))} />
       </div>
       {upcoming.length > 0 && (
         <Callout tone="neutral">
@@ -268,9 +268,9 @@ async function BandAccountEarnings({ ctx, range }: { ctx: Context; range?: strin
       <PageHeader title="My earnings" subtitle={`${name} · ${ctx.org.name}`} actions={<AddSale />} />
 
       <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <Stat label="Waiting to be paid" totals={addTotals(l.owed, o.owed)} emphasis />
+        <Stat label="In a payout, not paid yet" totals={addTotals(l.owed, o.owed)} emphasis />
         <Stat label="Received so far" totals={addTotals(l.received, o.received)} />
-        <Stat label="Earned since the last payout" totals={upcoming} />
+        <Stat label="Not in a payout yet" totals={upcoming} />
       </div>
 
       <Card title="Payouts">

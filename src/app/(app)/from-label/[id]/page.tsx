@@ -46,9 +46,9 @@ export default async function FromLabelPage({ params, searchParams }: PageProps<
       {mine && (
         <Card title="Your earnings">
           <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <Stat label="Waiting to be paid" totals={mine.owed} emphasis />
+            <Stat label="In a payout, not paid yet" totals={mine.owed} emphasis />
             <Stat label="Received so far" totals={mine.received} />
-            <Stat label="Earned since the last payout" totals={mine.upcoming} />
+            <Stat label="Not in a payout yet" totals={mine.upcoming} />
           </div>
         </Card>
       )}
