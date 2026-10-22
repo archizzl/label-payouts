@@ -13,7 +13,7 @@ The app is labelmaker (this repo is `label-payouts`). It splits Bandcamp earning
 
 The live setup is described in DEPLOY.md. README.md covers what the app does, every `npm run` script and the folder layout.
 
-You can develop, test and **deploy this app yourself**. The owner has given standing permission. The commands below work from a fresh session.
+You can develop and test this app yourself. **Don't deploy unless the owner asks** in that request: commit, and the owner deploys. The commands below work from a fresh session.
 
 ## Run it locally
 
@@ -79,8 +79,8 @@ npm run deploy
 **When a task is done:**
 1. Type-check, lint and tests pass.
 2. Commit to `main` (one commit per change, with a clear message).
-3. Deploy without asking. For a very small change (a moved button, a spacing tweak), hold it for the next deploy or ask whether it's worth deploying now.
-4. Tell the owner what went out.
+3. Don't deploy. The owner deploys themselves; deploy only when they explicitly ask.
+4. Tell the owner what's committed.
 
 Don't push unless asked.
 
