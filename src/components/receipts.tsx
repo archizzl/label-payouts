@@ -4,7 +4,7 @@ import { Badge, Disclosure, Empty, Field, Money } from "@/components/ui";
 import type { schema } from "@/db";
 import { centsToDecimal } from "@/lib/money";
 import { deleteExpense, deleteExpenseFile, reviewExpense, saveExpense, setReimbursed, submitReceipt } from "@/server/expense-actions";
-import { coverageText, type Expense, owedReimbursement } from "@/server/expenses";
+import { coverageLines, type Expense, owedReimbursement } from "@/server/expenses";
 import type { Payee } from "./pay-person";
 import { ReimburseButtons } from "./reimburse-buttons";
 
@@ -179,9 +179,7 @@ export function ExpenseForm({
         <span>
           <b>Pay it back from sales</b>
           <span className="block text-muted">
-            Taken from sales not yet paid out (of the release, else the project’s releases, else the band), before they’re split,
-            until it’s covered. The money goes back to whoever paid. Unticked, and someone paid out of pocket, the {oneBand ? "band" : "label"}{" "}
-            reimburses them.
+            Take from sales not yet paid out until reimbursed
           </span>
         </span>
       </label>
@@ -290,7 +288,8 @@ export function SubmitReceiptForm({
 }
 
 function Files({ files, admin, removedAt }: { files: ReceiptFile[]; admin: boolean; removedAt?: string | null }) {
-  if (!files.length && removedAt) return <span className="text-xs text-muted">files downloaded and cleared {removedAt.slice(0, 10)}</span>;
+  // (Cleared files are mentioned under Details.)
+  if (!files.length && removedAt) return null;
   if (!files.length) return <span className="text-xs text-muted">no receipt attached</span>;
   return (
     <span className="flex flex-wrap gap-2">
@@ -334,6 +333,7 @@ export function ExpenseTable({
   payees,
   through,
   group = "label",
+  groupName,
 }: {
   rows: Expense[];
   files: Map<number, ReceiptFile[]>;
@@ -354,6 +354,8 @@ export function ExpenseTable({
   through?: (e: Expense) => string | undefined;
   /** Whose books the receipts are in (the label's ones excepted): a band's own group pays as "the band". */
   group?: "label" | "band";
+  /** That group's name (who pays people back), when known. */
+  groupName?: string;
 }) {
   if (!rows.length) return <Empty>No expenses yet.</Empty>;
   return (
@@ -380,12 +382,7 @@ export function ExpenseTable({
               <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
                 <Badge tone={STATUS[e.status].tone}>{STATUS[e.status].label}</Badge>
                 {owedReimbursement(e) && <Badge tone="warn">not reimbursed yet</Badge>}
-                {e.reimbursedAt && (
-                  <Badge tone="good">
-                    reimbursed {e.reimbursedAt.slice(0, 10)}
-                    {e.reimbursedMethod ? ` via ${e.reimbursedMethod}` : ""}
-                  </Badge>
-                )}
+                {e.reimbursedAt && <Badge tone="good">reimbursed</Badge>}
                 {e.reviewNote && <span>“{e.reviewNote}”</span>}
               </div>
               <Files files={files.get(e.id) ?? []} admin={mode === "admin"} removedAt={e.filesRemovedAt} />
@@ -448,7 +445,11 @@ export function ExpenseTable({
                   </form>
                 )}
                 <Disclosure summary="Details">
-                  <p className="text-sm">{coverageText(e, personName, label ? "label" : group)}</p>
+                  {coverageLines(e, personName, label ?? groupName ?? `the ${group}`).map((line) => (
+                    <p key={line} className="text-sm">
+                      {line}
+                    </p>
+                  ))}
                   {mode === "admin" && e.reimbursedAt && e.paidBy === "person" && !e.recoup && (
                     <form action={setReimbursed} className="mt-2">
                       <input type="hidden" name="id" value={e.id} />

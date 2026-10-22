@@ -188,6 +188,7 @@ export default async function MyEarningsPage({ searchParams }: PageProps<"/me">)
         </div>
         <ExpenseTable
           group={ctx.org.kind === "band" ? "band" : "label"}
+          groupName={ctx.org.name}
           rows={myExpenses}
           files={files}
           personName={(id) => (id === person.id ? "you" : names.person.get(id))}
@@ -341,6 +342,7 @@ async function BandAccountEarnings({ ctx, range }: { ctx: Context; range?: strin
         )}
         <ExpenseTable
           group="band"
+          groupName={ctx.org.name}
           rows={receipts}
           files={new Map([...ownFiles, ...labelFiles])}
           personName={(id) => (id === labelPerson?.id || id === ownPerson?.id ? "you" : (labelNames.person.get(id) ?? ownNames.person.get(id)))}

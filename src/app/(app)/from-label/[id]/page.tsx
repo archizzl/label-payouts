@@ -81,6 +81,7 @@ export default async function FromLabelPage({ params, searchParams }: PageProps<
           bandName={(id) => names.band.get(id)}
           projectName={(pid) => labelProjects.find((p) => p.id === pid)?.name}
           mode="readonly"
+          groupName={v.labelName}
         />
       </Card>
     </>

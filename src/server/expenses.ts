@@ -156,15 +156,24 @@ export async function expenseFileList(orgId: string) {
   return byExpense;
 }
 
-/** How an expense is covered, in words. `group`: whose books it's in (a band's own group pays as "the band"). */
-export function coverageText(e: Expense, personName: (id: number) => string | undefined, group: "label" | "band" = "label") {
-  const payer = e.paidBy === "label" ? `the ${group}` : e.paidBy === "band_fund" ? "the band fund" : (personName(e.paidByPersonId ?? 0) ?? "someone");
-  const paid = `Paid by ${payer}`;
-  if (e.status === "pending") return `${paid}; waiting for an admin`;
-  if (e.status === "rejected") return paid;
-  if (e.recoup) return `${paid}; paid back from sales${e.recoupFrom && e.recoupFrom !== e.date ? ` from ${e.recoupFrom}` : ""}`;
-  if (e.paidBy === "person") return `${paid}; the ${group} pays them back`;
-  return paid;
+/**
+ * Who paid for an expense and how it's covered, a line each. `group`: the name of whose books it's
+ * in (who pays people back), or "the label" / "the band".
+ */
+export function coverageLines(e: Expense, personName: (id: number) => string | undefined, group: string) {
+  const payer = e.paidBy === "label" ? group : e.paidBy === "band_fund" ? "the band fund" : (personName(e.paidByPersonId ?? 0) ?? "someone");
+  const lines = [`Paid by ${payer}`];
+  if (e.status === "pending") lines.push("Waiting for an admin");
+  else if (e.status === "rejected") return lines;
+  else if (e.recoup) lines.push(`Paid back from sales${e.recoupFrom && e.recoupFrom !== e.date ? ` from ${e.recoupFrom}` : ""}`);
+  else if (e.paidBy === "person")
+    lines.push(
+      e.reimbursedAt
+        ? `Reimbursed by ${group} on ${e.reimbursedAt.slice(0, 10)}${e.reimbursedMethod ? ` via ${e.reimbursedMethod}` : ""}`
+        : `To be reimbursed by ${group}`,
+    );
+  if (e.filesRemovedAt) lines.push(`Files downloaded and cleared ${e.filesRemovedAt.slice(0, 10)}`);
+  return lines;
 }
 
 /** An approved expense that someone fronted and the label still owes them (not paid back from sales). */
