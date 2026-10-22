@@ -1,6 +1,5 @@
-import Link from "next/link";
 import { ActionForm, SaveWhenChanged, SubmitButton } from "@/components/client";
-import { Card, Disclosure, Empty, Field, Money, MoneyList } from "@/components/ui";
+import { Card, Disclosure, Empty, Field, Money } from "@/components/ui";
 import { can } from "@/lib/permissions";
 import { db, schema } from "@/db";
 import { centsToDecimal } from "@/lib/money";
@@ -138,7 +137,6 @@ export async function LabelFunds({ bandId, showTotals = true }: { bandId?: numbe
   const editable = can(access, "funds", "edit");
   const [funds, names, sources] = await Promise.all([labelFunds(orgId), nameMaps(orgId), sourceDetails(orgId)]);
   const transfers = bandId ? funds.transfers.filter((t) => t.bandId === bandId) : funds.transfers;
-  const causes = bandId ? funds.causes.filter((c) => c.bandId === bandId) : funds.causes;
   const causeName = (c: { bandId: number | null; releaseId: number | null }) =>
     (bandId && c.releaseId
       ? [names.release.get(c.releaseId)]
@@ -168,43 +166,6 @@ export async function LabelFunds({ bandId, showTotals = true }: { bandId?: numbe
             <Stat label="Left in the label’s account" cents={funds.balance.get(cur) ?? 0} currency={cur} emphasis />
           </div>
         ))}
-
-      {causes.length > 0 && (
-        <div className="mb-6 overflow-x-auto">
-          <table className="data">
-            <thead>
-              <tr>
-                <th>Raised by</th>
-                <th className="num">Kept by the label</th>
-                <th className="num">Sent on</th>
-                <th className="num">Still holding</th>
-              </tr>
-            </thead>
-            <tbody>
-              {causes.map((c) => {
-                const holding = new Map<string, number>();
-                for (const cur of new Set([...c.raised.keys(), ...c.sent.keys()])) holding.set(cur, (c.raised.get(cur) ?? 0) - (c.sent.get(cur) ?? 0));
-                return (
-                  <tr key={`${c.bandId}-${c.releaseId}`}>
-                    <td>
-                      {c.releaseId ? <Link href={`/catalog/${c.releaseId}`}>{causeName(c)}</Link> : c.bandId ? <Link href={`/bands/${c.bandId}`}>{causeName(c)}</Link> : "—"}
-                    </td>
-                    <td className="num">
-                      <MoneyList totals={c.raised} />
-                    </td>
-                    <td className="num">
-                      <MoneyList totals={c.sent} />
-                    </td>
-                    <td className="num">
-                      <MoneyList totals={holding} />
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
 
       {transfers.length === 0 ? (
         <Empty>Nothing sent out yet.</Empty>
