@@ -69,6 +69,15 @@ export default async function CatalogPage({ searchParams }: PageProps<"/catalog"
         const rs = releases.filter((r) => r.bandId === b.id);
         const music = rs.filter((r) => r.kind !== "merch");
         const merch = rs.filter((r) => r.kind === "merch");
+        // Which split a release uses; nothing's said when it's the label-wide default.
+        const splitOf = (r: (typeof rs)[number]) => {
+          const split = splitReleases.has(r.id)
+            ? "custom split"
+            : r.kind !== "merch" && r.albumSplitMode === "average_tracks"
+              ? "average of tracks"
+              : fallbackSplit(r.bandId, r.kind === "merch");
+          return split === "label-wide default split" ? null : split;
+        };
         const grid = (items: typeof rs) => (
           <ul className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-4 md:grid-cols-5">
             {items.map((r) => (
@@ -90,13 +99,7 @@ export default async function CatalogPage({ searchParams }: PageProps<"/catalog"
                     .filter(Boolean)
                     .join(" · ")}
                 </div>
-                <div className="text-xs text-muted">
-                  {splitReleases.has(r.id)
-                    ? "custom split"
-                    : r.kind !== "merch" && r.albumSplitMode === "average_tracks"
-                      ? "average of tracks"
-                      : fallbackSplit(r.bandId, r.kind === "merch")}
-                </div>
+                {splitOf(r) && <div className="text-xs text-muted">{splitOf(r)}</div>}
               </li>
             ))}
           </ul>
