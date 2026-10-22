@@ -14,7 +14,7 @@ export type MerchChoice = { value: string; label: string; bandId: number | null;
  */
 export function ManualSaleFields({ bands, merch, currency }: { bands: { id: number; name: string }[]; merch: MerchChoice[]; currency: string }) {
   const [bandId, setBandId] = useState(bands.length === 1 ? String(bands[0].id) : "");
-  const [kind, setKind] = useState<string>("show");
+  const [kind, setKind] = useState<string>("merch");
   // The form resets itself after each add, which puts the select back to its first choice: put it
   // back to what's showing.
   const kindSelect = useRef<HTMLSelectElement>(null);
