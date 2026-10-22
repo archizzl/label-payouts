@@ -208,6 +208,11 @@ export default async function RulesPage({ searchParams }: PageProps<"/rules">) {
             </table>
           </div>
         )}
+        <div className="mt-3">
+          <Disclosure summary="+ Add deduction">
+            <DeductionForm people={peopleOpts} bands={bands} releases={releaseOpts} bandRequired />
+          </Disclosure>
+        </div>
       </Card>
 
       {/* <Card

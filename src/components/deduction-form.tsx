@@ -23,6 +23,7 @@ export function DeductionForm({
   releases,
   people,
   fixedBandId,
+  bandRequired = false,
 }: {
   deduction?: Deduction;
   bands: Option[];
@@ -30,6 +31,8 @@ export function DeductionForm({
   people: Option[];
   /** On a band's page: the deduction always belongs to that band. */
   fixedBandId?: number;
+  /** On the label Rules page: a band must be chosen for a band-level deduction. */
+  bandRequired?: boolean;
 }) {
   const d = existing;
   const [kind, setKind] = useState<Deduction["kind"]>(d?.kind ?? "percent");
@@ -114,10 +117,25 @@ export function DeductionForm({
         )}
       </div>
 
+      {bandRequired && !fixedBandId && (
+        <Field label="Band">
+          <select name="bandId" required defaultValue={d?.bandId ?? ""}>
+            <option value="" disabled>
+              Choose a band
+            </option>
+            {bands.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
+            ))}
+          </select>
+        </Field>
+      )}
+
       <details open={hasLimits} className="border-t border-border pt-3">
         <summary className="text-sm text-link">limit to certain sales or dates (optional)</summary>
         <div className="mt-3 grid gap-4 sm:grid-cols-2">
-          {!fixedBandId && (
+          {!fixedBandId && !bandRequired && (
             <Field label="Only for band">
               <select name="bandId" defaultValue={d?.bandId ?? ""}>
                 <option value="">All bands</option>
