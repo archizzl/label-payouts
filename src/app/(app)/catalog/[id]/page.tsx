@@ -11,7 +11,7 @@ import { Card, Disclosure, Empty, Field, MoneyList } from "@/components/ui";
 import { db, schema } from "@/db";
 import { addTracks, deleteRelease, deleteTrack, refreshReleaseFromBandcamp, saveRelease, saveTrack } from "@/server/actions";
 import { bandScope, can } from "@/lib/permissions";
-import { getContext, requireAccess } from "@/server/context";
+import { getContext, ownBooksOf, requireAccess } from "@/server/context";
 import { removeReleasePhoto, setReleasePhoto } from "@/server/merch-photo-actions";
 import { ownPhotoId } from "@/server/merch-photos";
 import { bandAssociatedPeople, costDeductionsFor, nameMaps, personOptionsFor, ruleFilter, rulesWhere } from "@/server/data";
@@ -49,6 +49,10 @@ export default async function ReleasePage({ params, searchParams }: PageProps<"/
   if (!release) notFound();
   const catalogScope = bandScope(ctx.access, "catalog");
   if (catalogScope && !catalogScope.includes(release.bandId)) notFound();
+  // Splits on an item: whoever can change splits, and a band account the label made on its own
+  // band's items (if it can change its own splits).
+  const ownBand = ctx.lens && ctx.managedBy && can((await ownBooksOf(ctx)).access, "rules", "edit") ? ctx.managedBy.bandId : null;
+  const canSplit = (bandId: number) => canMoney || bandId === ownBand;
   const [[band], bands, tracks, people, bandPeople, costDeductions, names, bandRules, labelRules, outsideRows, peopleRows, releaseRules, sales] =
     await Promise.all([
       db.select().from(schema.bands).where(eq(schema.bands.id, release.bandId)),
@@ -239,7 +243,7 @@ export default async function ReleasePage({ params, searchParams }: PageProps<"/
           people={people}
           scope={{ scope: "release", releaseId: id }}
           emptyText={isMerch ? "No split for this item yet. Uses the band’s splits." : "Uses the band’s splits."}
-          readOnly={!canMoney}
+          readOnly={!canSplit(release.bandId)}
         />
       </Card>
 
@@ -296,7 +300,7 @@ export default async function ReleasePage({ params, searchParams }: PageProps<"/
                     <div className="mb-3 ml-9 space-y-5 border border-border bg-surface-2 p-4">
                       <div>
                         <h3 className="mb-2 text-sm font-bold">split</h3>
-                        <SplitRules rules={rules} people={trackPeople} scope={{ scope: "track", trackId: t.id }} emptyText="No track split. Uses the release or band split." readOnly={!canMoney} />
+                        <SplitRules rules={rules} people={trackPeople} scope={{ scope: "track", trackId: t.id }} emptyText="No track split. Uses the release or band split." readOnly={!canSplit(t.bandId ?? release.bandId)} />
                       </div>
                       {canEdit && (
                       <div>

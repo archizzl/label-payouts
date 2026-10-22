@@ -18,7 +18,7 @@ import { fetchPage, upsertRelease } from "./bandcamp";
 import { bandcampCredentials } from "./bandcamp-api";
 import { requestCatalogSync } from "./catalog-requests";
 import { syncAccount, syncCatalog } from "./auto-sync";
-import { getContext, requireAccess, requireAdmin } from "./context";
+import { getContext, ownBooksOf, requireAccess, requireAdmin } from "./context";
 import { prepare, runSalesSync, saveSales } from "./sync";
 import { computePayoutPeriod, reRouteAll, strandedSales } from "./data";
 import { type PayoutScope, payoutName } from "./period-view";
@@ -479,9 +479,44 @@ export async function deleteTrack(fd: FormData) {
 
 // ---------- split rules ----------
 
+/**
+ * The band a release or track split is for, in these books (a track's own band, else its release's).
+ */
+async function itemBand(orgId: string, releaseId: number | null, trackId: number | null) {
+  if (trackId) {
+    const [t] = await db
+      .select({ bandId: tracks.bandId, releaseBand: releases.bandId })
+      .from(tracks)
+      .innerJoin(releases, eq(releases.id, tracks.releaseId))
+      .where(and(eq(tracks.orgId, orgId), eq(tracks.id, trackId)));
+    return t ? (t.bandId ?? t.releaseBand) : null;
+  }
+  if (!releaseId) return null;
+  const [r] = await db.select({ bandId: releases.bandId }).from(releases).where(and(eq(releases.orgId, orgId), eq(releases.id, releaseId)));
+  return r?.bandId ?? null;
+}
+
+/**
+ * Whose books a split goes in. A band account the label made sets splits in its own books, except
+ * one for one of its band's items (a release, merch or a track): that's the label's, since its
+ * catalog is. It may, if it can change its own splits: how its share is divided is the band's to
+ * say (the label's cut and other withholdings come off first, and other bands' items stay the label's).
+ */
+async function splitBooks(scope: string, releaseId: number | null, trackId: number | null): Promise<string | null> {
+  const ctx = await getContext();
+  if (ctx.lens && ctx.managedBy && (scope === "release" || scope === "track")) {
+    const own = await ownBooksOf(ctx);
+    if (!can(own.access, "rules", "edit")) redirect("/me");
+    // (null: another band's item.)
+    return (await itemBand(ctx.orgId, releaseId, trackId)) === ctx.managedBy.bandId ? ctx.orgId : null;
+  }
+  return (await requireAccess("rules", "edit")).orgId;
+}
+
 export async function saveSplitRule(_: ActionState, fd: FormData): Promise<ActionState> {
-  const { orgId } = await requireAccess("rules", "edit");
   const scope = str(fd, "scope") as "label_default" | "band_default" | "band_item_type" | "release" | "track";
+  const orgId = await splitBooks(scope, optInt(fd, "releaseId"), optInt(fd, "trackId"));
+  if (!orgId) return { error: "That item isn’t your band’s." };
   if (!["label_default", "band_default", "band_item_type", "release", "track"].includes(scope)) return { error: "Bad scope" };
   const shares = (JSON.parse(str(fd, "shares") || "[]") as { personId: number; bps: number }[]).filter((s) => s.bps > 0);
   const total = shares.reduce((a, s) => a + s.bps, 0);
@@ -527,7 +562,13 @@ export async function saveSplitRule(_: ActionState, fd: FormData): Promise<Actio
 }
 
 export async function deleteSplitRule(fd: FormData) {
-  const { orgId } = await requireAccess("rules", "edit");
+  const ctx = await getContext();
+  // A band account the label made: a split on one of its band's items is in the label's books.
+  const [inLabel] = ctx.lens
+    ? await db.select().from(splitRules).where(and(eq(splitRules.orgId, ctx.orgId), eq(splitRules.id, int(fd, "ruleId"))))
+    : [];
+  const orgId = inLabel ? await splitBooks(inLabel.scope, inLabel.releaseId, inLabel.trackId) : (await requireAccess("rules", "edit")).orgId;
+  if (!orgId) throw new Error("That item isn’t your band’s.");
   await db.delete(splitRules).where(and(eq(splitRules.orgId, orgId), eq(splitRules.id, int(fd, "ruleId"))));
   done();
 }

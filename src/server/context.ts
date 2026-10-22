@@ -183,8 +183,9 @@ export const accountContext = cache(async (): Promise<Context> => {
 /**
  * What a band account sees of the label's books: its own band's part. It changes what isn't about
  * money: its orders, inventory, catalog and people. Not the band itself (saveBand), and nothing that
- * moves money: splits and costs need "rules", and the catalog fields sales are matched by (Bandcamp
- * URL, ISRC, catalog number) stay the label's (saveRelease, saveTrack, addTracks).
+ * moves money: splits and costs need "rules" (except splits on its own band's items: splitBooks in
+ * src/server/actions.ts), and the catalog fields sales are matched by (Bandcamp URL, ISRC, catalog
+ * number) stay the label's (saveRelease, saveTrack, addTracks).
  */
 const LENS_ACCESS = {
   permissions: { sales: "view", orders: "edit", inventory: "edit", payouts: "view", funds: "view", receipts: "view", catalog: "edit", roster: "edit" },
