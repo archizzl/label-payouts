@@ -178,7 +178,7 @@ export default async function Dashboard() {
   return (
     <>
       <PageHeader
-        title="Dashboard"
+        title={ctx.org.name}
         actions={
           <>
             <LinkButton href="/sales/import" variant={next === "import" ? "primary" : "secondary"}>
