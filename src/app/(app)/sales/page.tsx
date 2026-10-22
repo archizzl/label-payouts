@@ -14,13 +14,13 @@ import { saleAdder } from "@/server/manual-sales";
 import { onLabelSince } from "@/server/own-books";
 import { DeleteManualSale } from "@/components/manual-sale";
 import { SaleOrder } from "@/components/sale-order";
+import { Pager } from "@/components/pager";
 import { MANUAL_VIA } from "@/lib/manual-sales";
 import { markSeen } from "@/server/nav-badges";
 import {
   browseSales,
   filterQuery,
   DEFAULT_PAGE_SIZE,
-  PAGE_SIZES,
   parseSalesFilter,
   type SalesFilter,
   type SortKey,
@@ -78,7 +78,6 @@ export default async function SalesPage({ searchParams }: PageProps<"/sales">) {
     f.buyer
   );
   const main = summary.totals[0];
-  const pages = Math.max(1, Math.ceil(page.count / f.per));
   const cur = summary.main;
 
   // The customizable charts under the list: what's available, and what's shown until someone changes it.
@@ -256,7 +255,7 @@ export default async function SalesPage({ searchParams }: PageProps<"/sales">) {
                 </tbody>
               </table>
             </div>
-            <Pager f={f} count={page.count} pages={pages} />
+            <Pager page={f.page} per={f.per} count={page.count} href={(change) => filterQuery(f, change) || "/sales"} />
           </>
         )}
       </Card>
@@ -447,62 +446,6 @@ function Filters({
 }
 
 /** "Showing 26–50 of 102", page links, and how many rows to show per page. */
-function Pager({ f, count, pages }: { f: SalesFilter; count: number; pages: number }) {
-  const first = (f.page - 1) * f.per + 1;
-  const last = Math.min(count, f.page * f.per);
-  // Page numbers: the first, the last, and two either side of this one.
-  const shown = [...new Set([1, f.page - 2, f.page - 1, f.page, f.page + 1, f.page + 2, pages])].filter((n) => n >= 1 && n <= pages).sort((a, b) => a - b);
-  const href = (change: Partial<Record<keyof SalesFilter, number>>) => filterQuery(f, change) || "/sales";
-  return (
-    <nav className="mt-4 flex flex-wrap items-center justify-between gap-x-6 gap-y-2 text-sm" aria-label="Pages">
-      <span className="text-muted">
-        Showing {first}–{last} of {count.toLocaleString("en-US")}
-      </span>
-      {pages > 1 && (
-        <span className="flex flex-wrap items-center gap-1">
-          {f.page > 1 && (
-            <Link href={href({ page: f.page - 1 })} className="px-1.5">
-              ← Previous
-            </Link>
-          )}
-          {shown.map((n, i) => (
-            <span key={n} className="flex items-center gap-1">
-              {i > 0 && n - shown[i - 1] > 1 && <span className="text-muted">…</span>}
-              {n === f.page ? (
-                <span aria-current="page" className="rounded-sm bg-surface-2 px-2 py-0.5 font-bold">
-                  {n}
-                </span>
-              ) : (
-                <Link href={href({ page: n })} className="px-2 py-0.5">
-                  {n}
-                </Link>
-              )}
-            </span>
-          ))}
-          {f.page < pages && (
-            <Link href={href({ page: f.page + 1 })} className="px-1.5">
-              Next →
-            </Link>
-          )}
-        </span>
-      )}
-      <span className="flex items-center gap-2 text-muted">
-        Rows per page:
-        {PAGE_SIZES.map((n) =>
-          n === f.per ? (
-            <span key={n} className="font-bold text-text">
-              {n}
-            </span>
-          ) : (
-            <Link key={n} href={href({ per: n, page: 1 })}>
-              {n}
-            </Link>
-          ),
-        )}
-      </span>
-    </nav>
-  );
-}
 
 function SortHeader({ f, k, label, num = false }: { f: SalesFilter; k: SortKey; label: string; num?: boolean }) {
   const on = f.sort === k;

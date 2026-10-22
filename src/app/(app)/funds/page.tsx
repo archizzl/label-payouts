@@ -1,6 +1,7 @@
 import { connection } from "next/server";
 import { ChartBoard } from "@/components/chart-board";
 import { LabelFunds } from "@/components/label-funds";
+import { PAGE_SIZES, Pager } from "@/components/pager";
 import Link from "next/link";
 import { buttonClass, Card, Empty, MoneyList, PageHeader } from "@/components/ui";
 import { type BoardChart, breakdownChart, seriesChart } from "@/lib/chart-data";
@@ -18,8 +19,8 @@ import { LABEL_RELEASES_SOURCE, labelIncome, SHIPPING_SOURCE, type Totals } from
 
 export const metadata = { title: "funds" };
 
-/** Sales listed on a page of "Where it came from". */
-const PER_PAGE = 100;
+/** Sales listed on a page of "Where it came from", unless another size is picked (as on Sales). */
+const PER_PAGE = 10;
 
 /** "Where it came from" filters, from the URL. */
 function incomeFilter(sp: Record<string, string | string[] | undefined>) {
@@ -27,7 +28,16 @@ function incomeFilter(sp: Record<string, string | string[] | undefined>) {
     const v = sp[k];
     return (Array.isArray(v) ? v[0] : v)?.trim() || undefined;
   };
-  return { q: one("q"), from: one("from"), to: one("to"), source: one("source"), band: one("band"), page: Math.max(1, Number(one("page")) || 1) };
+  const per = Number(one("per"));
+  return {
+    q: one("q"),
+    from: one("from"),
+    to: one("to"),
+    source: one("source"),
+    band: one("band"),
+    page: Math.max(1, Number(one("page")) || 1),
+    per: (PAGE_SIZES as readonly number[]).includes(per) ? per : PER_PAGE,
+  };
 }
 
 /** Why each source of label money is there, in a few words. */
@@ -110,9 +120,9 @@ export default async function FundsPage({ searchParams }: PageProps<"/funds">) {
   const shownTotal: Totals = new Map();
   for (const l of shown) shownTotal.set(l.currency, (shownTotal.get(l.currency) ?? 0) + l.cents);
   const filtered = !!(f.q || f.from || f.to || f.source || f.band);
-  const pages = Math.max(1, Math.ceil(shown.length / PER_PAGE));
-  const pageHref = (page: number) => {
+  const pageHref = ({ page = f.page, per = f.per }: { page?: number; per?: number }) => {
     const p = new URLSearchParams(Object.entries({ q: f.q, from: f.from, to: f.to, source: f.source, band: f.band }).filter((e): e is [string, string] => !!e[1]));
+    if (per !== PER_PAGE) p.set("per", String(per));
     if (page > 1) p.set("page", String(page));
     return `/funds${p.size ? `?${p}` : ""}#came-from`;
   };
@@ -138,6 +148,7 @@ export default async function FundsPage({ searchParams }: PageProps<"/funds">) {
 
       <Card title="Where it came from">
         <form action="/funds#came-from" id="came-from" className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-6">
+          {f.per !== PER_PAGE && <input type="hidden" name="per" value={f.per} />}
           <input name="q" type="search" defaultValue={f.q} placeholder="Search sales" aria-label="Search sales" className="col-span-2" />
           <input name="from" type="date" defaultValue={f.from} aria-label="From" />
           <input name="to" type="date" defaultValue={f.to} aria-label="To" />
@@ -188,7 +199,7 @@ export default async function FundsPage({ searchParams }: PageProps<"/funds">) {
                   </tr>
                 </thead>
                 <tbody>
-                  {shown.slice((f.page - 1) * PER_PAGE, f.page * PER_PAGE).map((l, i) => (
+                  {shown.slice((f.page - 1) * f.per, f.page * f.per).map((l, i) => (
                     <tr key={`${l.saleId}-${l.source}-${i}`}>
                       <td className="whitespace-nowrap text-muted">{l.date}</td>
                       <td className="num font-medium">{formatCents(l.cents, l.currency)}</td>
@@ -201,15 +212,7 @@ export default async function FundsPage({ searchParams }: PageProps<"/funds">) {
                 </tbody>
               </table>
             </div>
-            {pages > 1 && (
-              <div className="mt-3 flex items-center gap-3 text-sm">
-                {f.page > 1 && <Link href={pageHref(f.page - 1)}>← Newer</Link>}
-                <span className="text-muted">
-                  Page {f.page} of {pages}
-                </span>
-                {f.page < pages && <Link href={pageHref(f.page + 1)}>Older →</Link>}
-              </div>
-            )}
+            <Pager page={f.page} per={f.per} count={shown.length} href={pageHref} />
           </>
         )}
       </Card>
