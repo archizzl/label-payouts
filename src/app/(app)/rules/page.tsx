@@ -3,17 +3,19 @@ import Link from "next/link";
 import { connection } from "next/server";
 import { SubmitButton } from "@/components/client";
 import { DeductionForm, DeductionList, describeDeduction } from "@/components/deductions";
+import { ItemSplits } from "@/components/item-splits";
 import { SplitRules } from "@/components/split-rules";
 import { Card, Disclosure, Empty, Field, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
 import { deleteRoutingOverride, rerouteAction, saveDeduction, setLabelKeepsNothing } from "@/server/actions";
+import { can } from "@/lib/permissions";
 import { requireAccess } from "@/server/context";
 import { nameMaps, ownBand, ruleFilter, rulesWhere } from "@/server/data";
 import { redirect } from "next/navigation";
 
 export const metadata = { title: "rules" };
 
-export default async function RulesPage() {
+export default async function RulesPage({ searchParams }: PageProps<"/rules">) {
   await connection();
   const ctx = await requireAccess("rules");
   const { orgId } = ctx;
@@ -138,6 +140,19 @@ export default async function RulesPage() {
             )}
           </p>
         )} */}
+      </Card>
+
+      <div id="item-splits" className="scroll-mt-4" />
+      <Card title="Splits for one item">
+        <ItemSplits
+          orgId={orgId}
+          items={releases}
+          picked={Number((await searchParams).item) || null}
+          path="/rules"
+          keep={{}}
+          bandName={bands.length > 1 ? (id) => names.band.get(id) : undefined}
+          readOnly={!can(ctx.access, "rules", "edit")}
+        />
       </Card>
 
       <Card title="Label-wide deductions">

@@ -11,6 +11,7 @@ import { ItemCosts } from "@/components/item-cost";
 import { MoneyRules } from "@/components/money-rules";
 import { PhysicalFormatsTable, costsFor } from "@/components/physical-formats";
 import { LabelDefaultSummary, SplitRules, SharesSummary, currentRule } from "@/components/split-rules";
+import { ItemSplits } from "@/components/item-splits";
 import type { PersonOption } from "@/components/split-editor";
 import { Badge, Callout, Card, Disclosure, Empty, Field, LinkButton, Money, MoneyList, PageHeader, RolesList } from "@/components/ui";
 import { db, schema } from "@/db";
@@ -124,6 +125,20 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
   const releaseRules = new Map(
     await Promise.all(releases.map(async (r) => [r.id, currentRule(await rulesWhere(orgId, ruleFilter("release", { releaseId: r.id })))] as const)),
   );
+  // Its items, for their own splits: a band account the label made sets those in the label's books,
+  // where its catalog is (splitBooks in src/server/actions.ts).
+  const itemBooks =
+    tab !== "money"
+      ? { orgId, items: [] }
+      : lens && ctx.managedBy
+        ? {
+            orgId: ctx.managedBy.labelOrgId,
+            items: await db
+              .select({ id: schema.releases.id, title: schema.releases.title, bandId: schema.releases.bandId, kind: schema.releases.kind })
+              .from(schema.releases)
+              .where(and(eq(schema.releases.orgId, ctx.managedBy.labelOrgId), eq(schema.releases.bandId, ctx.managedBy.bandId))),
+          }
+        : { orgId, items: releases };
   const itemTypeRules = new Map(
     await Promise.all(
       ITEM_CATEGORIES.map(async (c) => [c.value, await rulesWhere(orgId, ruleFilter("band_item_type", { bandId: id, itemCategory: c.value }))] as const),
@@ -472,6 +487,18 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
                 );
               })}
             </div>
+          </Card>
+
+          <div id="item-splits" className="scroll-mt-4" />
+          <Card title="Splits for one item">
+            <ItemSplits
+              orgId={itemBooks.orgId}
+              items={itemBooks.items}
+              picked={Number(sp.item) || null}
+              path={`/bands/${id}`}
+              keep={{ tab: "money" }}
+              readOnly={!can(ctx.access, "rules", "edit")}
+            />
           </Card>
 
           <div id="band-deductions" />
