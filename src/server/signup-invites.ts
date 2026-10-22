@@ -4,9 +4,10 @@ import { and, desc, eq, gt, isNull, sql } from "drizzle-orm";
 import { db, schema } from "@/db";
 
 /*
- * Who may create a login: only someone with a signup invite (made by a site admin on /admin), or
- * someone invited into an existing label or band account (the team invite links). Checked by Better
- * Auth itself whenever a user would be created (src/server/auth.ts), so no sign-up route can skip it.
+ * Signup invites (made by a site admin on /admin). Anyone can create a login, but one made with an
+ * invite skips the application a new label or band account otherwise needs (src/server/applications.ts).
+ * Checked by Better Auth itself whenever a user would be created (src/server/auth.ts), so a used,
+ * revoked or someone else's invite is refused on every sign-up route.
  */
 
 const { signupInvites, invitation } = schema;
