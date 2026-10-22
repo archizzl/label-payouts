@@ -6,6 +6,7 @@ import { useRef, useState } from "react";
 import type { Area } from "@/lib/permissions";
 import { signOut, switchAccount } from "@/server/account-actions";
 import type { Account } from "@/server/context";
+import { Avatar } from "./avatar";
 import { SyncIndicator } from "./sync-indicator";
 
 /** A small record, our own mark. */
@@ -31,7 +32,6 @@ function itemsFor(
   managed: string | null,
   bandHref: string | null,
   hideOrders: boolean,
-  bandLogin: boolean,
   earnings: boolean,
 ): Item[] {
   // A band account the label made: its own books with the label's part for it (dashboard, sales,
@@ -51,7 +51,6 @@ function itemsFor(
       { href: "/directory", label: "directory" },
       // The band's own login runs it (who signs in, its password); everyone else has their own account.
       ...(isAdmin ? [{ href: "/settings", label: "settings" }] : []),
-      ...(bandLogin ? [] : [{ href: "/account", label: "account" }]),
     ];
   }
   const all: (Item & { area?: Area })[] = [
@@ -77,22 +76,15 @@ function itemsFor(
       ...labels,
       ...(earnings ? [{ href: "/me", label: "my earnings" }] : []),
       { href: "/settings", label: "settings" },
-      { href: "/account", label: "account" },
     ];
   // Members: their own earnings, plus whatever their member type lets them see.
-  return [{ href: "/me", label: "my earnings" }, ...all.filter((i) => i.area && areas.includes(i.area)), { href: "/account", label: "account" }];
+  return [{ href: "/me", label: "my earnings" }, ...all.filter((i) => i.area && areas.includes(i.area))];
 }
 
 /** Pick which of your accounts (labels and bands) you're working in. */
-function AccountSwitcher({ account, accounts, bare = false }: { account: Account; accounts: Account[]; bare?: boolean }) {
+function AccountSwitcher({ account, accounts }: { account: Account; accounts: Account[] }) {
   const form = useRef<HTMLFormElement>(null);
-  if (accounts.length < 2) {
-    return (
-      <span className="text-sm text-muted">
-        {account.name} {!bare && <span className="text-xs">({account.kind})</span>}
-      </span>
-    );
-  }
+  if (accounts.length < 2) return <span className="text-sm text-muted">{account.name}</span>;
   return (
     <form ref={form} action={switchAccount}>
       <select
@@ -104,7 +96,7 @@ function AccountSwitcher({ account, accounts, bare = false }: { account: Account
       >
         {accounts.map((a) => (
           <option key={a.id} value={a.id}>
-            {a.name} ({a.kind})
+            {a.name}
           </option>
         ))}
       </select>
@@ -133,7 +125,7 @@ export function Nav({
   bandLogin = false,
   earnings = false,
 }: {
-  user: { name: string; email: string };
+  user: { name: string; email: string; image?: string | null };
   account: Account;
   accounts: Account[];
   isAdmin: boolean;
@@ -178,7 +170,7 @@ export function Nav({
     if (key === "sales" && seenSales) return 0;
     return badges[key] ?? 0;
   };
-  const items = [...itemsFor(account, isAdmin, areas, labels, projects, managed, bandHref, hideOrders, bandLogin, earnings), ...(siteAdmin && showAdminLink && !viewing ? [{ href: "/admin", label: "admin" }] : [])];
+  const items = [...itemsFor(account, isAdmin, areas, labels, projects, managed, bandHref, hideOrders, earnings), ...(siteAdmin && showAdminLink && !viewing ? [{ href: "/admin", label: "admin" }] : [])];
   return (
     <header className="no-print border-b border-border bg-surface">
       <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 pt-4 pb-3 md:px-8">
@@ -188,9 +180,19 @@ export function Nav({
         </Link>
         <div className="flex flex-wrap items-center gap-3">
           <SyncIndicator active={syncing} syncedAt={syncedAt} catalogBusy={catalogBusy} />
-          {/* A band's own account is just the band, then the login's name (unless that's the band's too). */}
-          <AccountSwitcher account={account} accounts={accounts} bare={!!managed} />
-          {(!managed || user.name !== account.name) && <span className="hidden text-sm text-muted sm:inline">{user.name}</span>}
+          <AccountSwitcher account={account} accounts={accounts} />
+          {/* You, with your photo: your Account page. (A band's shared login is the band: no page, no photo.) */}
+          {bandLogin || viewing ? (
+            (!managed || user.name !== account.name) && <span className="hidden text-sm text-muted sm:inline">{user.name}</span>
+          ) : (
+            <Link
+              href="/account"
+              className={`flex items-center gap-2 text-sm hover:no-underline ${path.startsWith("/account") ? "text-text" : "text-muted hover:text-text"}`}
+            >
+              <Avatar name={user.name} src={user.image} size={26} />
+              <span className="hidden sm:inline">{user.name}</span>
+            </Link>
+          )}
           {!viewing && (
             <form action={signOut}>
               <button type="submit" className="text-sm text-link hover:underline">

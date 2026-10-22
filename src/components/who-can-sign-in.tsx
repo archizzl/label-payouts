@@ -1,4 +1,5 @@
 import { and, asc, eq } from "drizzle-orm";
+import { Avatar } from "@/components/avatar";
 import { CopyButton, SubmitButton } from "@/components/client";
 import { Badge, Card } from "@/components/ui";
 import { db, schema } from "@/db";
@@ -92,9 +93,12 @@ export async function WhoCanSignIn({ ctx }: { ctx: Context }) {
                   return (
                     <tr key={member.id} className="group">
                       <td>
-                        <div className="font-medium">
-                          {managed ? (loginNames.get(user.id) ?? ctx.org.name) : user.name}{" "}
-                          {self && <span className="text-xs font-normal text-muted">(you)</span>}
+                        <div className="flex items-center gap-2 font-medium">
+                          <Avatar name={managed ? (loginNames.get(user.id) ?? ctx.org.name) : user.name} src={user.image} size={24} />
+                          <span>
+                            {managed ? (loginNames.get(user.id) ?? ctx.org.name) : user.name}{" "}
+                            {self && <span className="text-xs font-normal text-muted">(you)</span>}
+                          </span>
                         </div>
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                           <span className="text-xs text-muted">{user.email}</span>

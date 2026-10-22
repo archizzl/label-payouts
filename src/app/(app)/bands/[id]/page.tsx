@@ -30,7 +30,8 @@ import { getContext, ownBooksOf, requireAccess } from "@/server/context";
 import { projectsEnabled } from "@/server/features";
 import { accountExpenses, expenseFileList } from "@/server/expenses";
 import { accountProjects, projectNumbers } from "@/server/projects";
-import { loginEmails } from "@/server/people";
+import { loginEmails, personPhotos } from "@/server/people";
+import { Avatar } from "@/components/avatar";
 import { bandAssociatedPeople, bandMembers, computeAllTime, labelHost, nameMaps, ruleFilter, rulesWhere } from "@/server/data";
 
 /** The tab's title: the band's name. */
@@ -86,7 +87,7 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
     sp.tab === "people" && ctx.org.kind === "label" && ctx.isAdmin && !band.isLabel
       ? await ensureBandAccounts(orgId).then(() => linkForLabelBand(orgId, id))
       : undefined;
-  const [members, allPeople, releases, allReleases, orgDeductions, names, defaultRules, labelRules, bandPeople, periodRows, { summary }, bandExpenses, expenseFiles, allProjects, projectTotals, loginOf] =
+  const [members, allPeople, releases, allReleases, orgDeductions, names, defaultRules, labelRules, bandPeople, periodRows, { summary }, bandExpenses, expenseFiles, allProjects, projectTotals, loginOf, photoOf] =
     await Promise.all([
       bandMembers(orgId, id),
       db.select().from(schema.people).where(eq(schema.people.orgId, orgId)).orderBy(asc(schema.people.name)),
@@ -108,6 +109,7 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
       showProjects ? accountProjects(orgId) : [],
       showProjects ? projectNumbers(orgId) : new Map<number, never>(),
       loginEmails(orgId),
+      personPhotos(orgId),
     ]);
   const bandProjects = allProjects.filter((p) => p.bandId === id);
   const personOptions: PersonOption[] = [
@@ -545,9 +547,12 @@ export default async function BandPage({ params, searchParams }: PageProps<"/ban
                       // On a phone: the name (and edit), then the rest under it.
                       className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 px-2.5 py-2 hover:bg-surface-2 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,1.1fr)_minmax(0,1.5fr)_minmax(0,1.3fr)_auto] sm:gap-3 ${m.active ? "" : "opacity-50"}`}
                     >
-                      <span className="min-w-0 font-medium [overflow-wrap:anywhere]">
-                        {m.person.name}
-                        {!m.active && <span className="ml-2 text-xs font-normal text-muted">(former member)</span>}
+                      <span className="flex min-w-0 items-center gap-2 font-medium [overflow-wrap:anywhere]">
+                        <Avatar name={m.person.name} src={photoOf(m.person.id)} size={24} />
+                        <span className="min-w-0">
+                          {m.person.name}
+                          {!m.active && <span className="ml-2 text-xs font-normal text-muted">(former member)</span>}
+                        </span>
                       </span>
                       <span className="col-span-2 sm:col-span-1">
                         <RolesList roles={m.roles} />

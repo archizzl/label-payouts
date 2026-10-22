@@ -5,7 +5,8 @@ import { ActionForm, SaveWhenChanged, SubmitButton } from "@/components/client";
 import { Card, Field, PageHeader } from "@/components/ui";
 import { DeleteLogin } from "@/components/delete-login";
 import { soleAccounts } from "@/server/account-deletion";
-import { changeMyPassword, leaveAccount, saveMyDetails } from "@/server/account-actions";
+import { changeMyPassword, leaveAccount, saveMyDetails, saveMyPhoto } from "@/server/account-actions";
+import { Avatar } from "@/components/avatar";
 import { redirect } from "next/navigation";
 import { accountsFor, isBandLogin, realContext } from "@/server/context";
 import { myPeople } from "@/server/people";
@@ -23,13 +24,14 @@ export default async function AccountPage() {
   // Signed in as a band: nothing personal here, and its password is under Settings.
   if (isBandLogin(real)) redirect("/settings");
   const { user } = real;
-  const [mine, accounts, madeByLabels] = await Promise.all([
+  const [mine, accounts, madeByLabels, [{ image }]] = await Promise.all([
     myPeople(user.id),
     accountsFor(user.id),
     db
       .select({ orgId: schema.accountLinks.bandOrgId })
       .from(schema.accountLinks)
       .where(and(eq(schema.accountLinks.managed, true), eq(schema.accountLinks.status, "active"))),
+    db.select({ image: schema.user.image }).from(schema.user).where(eq(schema.user.id, user.id)),
   ]);
   // Only ever a band's own login (in the band accounts labels make): it goes by the band's name, and
   // the band's details are under Settings.
@@ -40,6 +42,28 @@ export default async function AccountPage() {
   return (
     <>
       <PageHeader title="Account" subtitle={user.email} />
+
+      {!bandLoginOnly && (
+        <Card title="Photo">
+          <div className="flex flex-wrap items-center gap-4">
+            <Avatar name={user.name} src={image} size={72} />
+            <div className="space-y-2">
+              <ActionForm action={saveMyPhoto} className="flex flex-wrap items-center gap-2">
+                <input type="file" name="photo" accept="image/jpeg,image/png,image/gif,image/webp" required aria-label="Photo" className="text-xs" />
+                <SubmitButton size="sm">{image ? "Replace photo" : "Upload photo"}</SubmitButton>
+              </ActionForm>
+              {image && (
+                <ActionForm action={saveMyPhoto}>
+                  <input type="hidden" name="remove" value="1" />
+                  <SubmitButton variant="ghost" size="sm" confirm="Remove your photo?">
+                    Remove photo
+                  </SubmitButton>
+                </ActionForm>
+              )}
+            </div>
+          </div>
+        </Card>
+      )}
 
       {!bandLoginOnly && (
         <Card title="Your details">
@@ -89,7 +113,6 @@ export default async function AccountPage() {
           {accounts.map((a) => (
             <li key={a.id} className="flex flex-wrap items-center gap-3">
               <span className="font-medium">{a.name}</span>
-              <span className="text-muted">{a.kind}</span>
               {accounts.length > 1 && (
                 <ActionForm action={leaveAccount} className="ml-auto">
                   <input type="hidden" name="orgId" value={a.id} />

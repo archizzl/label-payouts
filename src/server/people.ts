@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNotNull } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { counterpartIds } from "./own-books";
 
@@ -230,6 +230,26 @@ export async function loginEmails(orgId: string) {
   const byPerson = new Map(direct.map((r) => [r.personId, r.email]));
   /** Their login in this band (or, outside a band, in the label). */
   return (personId: number, bandId: number | null) => (bandId != null ? byBand.get(`${bandId}:${personId}`) : undefined) ?? byPerson.get(personId) ?? null;
+}
+
+/** Each of a label's people's profile photo: from their login, linked to the books or in a band's own account. */
+export async function personPhotos(orgId: string) {
+  const [viaBand, direct] = await Promise.all([
+    db
+      .select({ personId: schema.bandLoginPeople.personId, image: schema.user.image })
+      .from(schema.bandLoginPeople)
+      .innerJoin(schema.accountLinks, eq(schema.accountLinks.bandOrgId, schema.bandLoginPeople.orgId))
+      .innerJoin(schema.user, eq(schema.user.id, schema.bandLoginPeople.userId))
+      .where(and(eq(schema.accountLinks.labelOrgId, orgId), eq(schema.accountLinks.managed, true), isNotNull(schema.user.image))),
+    db
+      .select({ personId: people.id, image: schema.user.image })
+      .from(people)
+      .innerJoin(schema.user, eq(schema.user.id, people.userId))
+      .where(and(eq(people.orgId, orgId), isNotNull(schema.user.image))),
+  ]);
+  const photos = new Map<number, string>();
+  for (const r of [...viaBand, ...direct]) if (r.personId != null && r.image) photos.set(r.personId, r.image);
+  return (personId: number) => photos.get(personId) ?? null;
 }
 
 /** Your name and how you're paid, as set on Account or when joining. */

@@ -976,3 +976,24 @@ export const bandLoginPeople = pgTable(
   },
   (t) => [uniqueIndex("band_login_people_org_user").on(t.orgId, t.userId), uniqueIndex("band_login_people_org_person").on(t.orgId, t.personId)],
 );
+
+/**
+ * Profile photos people upload for themselves (on Account). Kept like receipt files: in R2 on the
+ * live site, in the database locally. The account's own image points at /account/photo/[id]
+ * (src/server/profile-photos.ts).
+ */
+export const profilePhotos = pgTable(
+  "profile_photos",
+  {
+    id: id(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    contentType: text("content_type").notNull(),
+    size: integer("size").notNull(),
+    data: bytea("data"),
+    storageKey: text("storage_key"),
+    createdAt: text("created_at").notNull().default(now),
+  },
+  (t) => [index("profile_photos_user").on(t.userId)],
+);

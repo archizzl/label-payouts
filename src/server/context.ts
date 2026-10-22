@@ -22,7 +22,8 @@ export type AccountKind = "label" | "band";
 export type Account = { id: string; name: string; slug: string; kind: AccountKind; role: Role };
 
 export type Context = {
-  user: { id: string; name: string; email: string };
+  /** Who's signed in (image: their profile photo, src/server/profile-photos.ts). */
+  user: { id: string; name: string; email: string; image?: string | null };
   /** The account they're working in. */
   org: Account;
   orgId: string;
@@ -262,7 +263,7 @@ export const realContext = cache(async (): Promise<Context> => {
       .where(and(eq(schema.people.orgId, org.id), eq(schema.people.userId, session.user.id))),
     isAdmin ? null : memberTypeFor(org.id, session.user.id),
     org.kind === "band" ? managingLabel(org.id) : null,
-    db.select({ name: schema.user.name }).from(schema.user).where(eq(schema.user.id, session.user.id)),
+    db.select({ name: schema.user.name, image: schema.user.image }).from(schema.user).where(eq(schema.user.id, session.user.id)),
     org.id !== session.session.activeOrganizationId
       ? // Remember it, so the next request doesn't have to guess.
         db.update(schema.session).set({ activeOrganizationId: org.id }).where(eq(schema.session.id, session.session.id))
@@ -270,7 +271,7 @@ export const realContext = cache(async (): Promise<Context> => {
   ]);
   const { access, memberType } = await accessFrom(org.id, isAdmin, type, person?.id ?? null);
   return {
-    user: { id: session.user.id, name: saved?.name ?? session.user.name, email: session.user.email },
+    user: { id: session.user.id, name: saved?.name ?? session.user.name, email: session.user.email, image: saved?.image ?? null },
     org,
     orgId: org.id,
     role: org.role,

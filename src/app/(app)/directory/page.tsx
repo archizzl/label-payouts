@@ -18,7 +18,8 @@ import { type Context, requireAccess } from "@/server/context";
 import { labelHost } from "@/server/data";
 import { type BandAccountSummary, bandAccountSummaries, ensureBandAccounts } from "@/server/band-accounts";
 import { MemberTypesCard } from "@/components/member-types";
-import { loginEmails, possibleDuplicates } from "@/server/people";
+import { loginEmails, personPhotos, possibleDuplicates } from "@/server/people";
+import { Avatar } from "@/components/avatar";
 
 export const metadata = { title: "directory" };
 
@@ -49,7 +50,7 @@ export default async function DirectoryPage() {
   // Bands' own accounts (label admins): bands added since (or from before sub-accounts) get theirs.
   const showAccounts = ctx.isAdmin && ctx.org.kind === "label";
   if (showAccounts) await ensureBandAccounts(orgId);
-  const [allBands, everyone, memberships, payoutRows, duplicates, outsideRows, accounts, loginOf] = await Promise.all([
+  const [allBands, everyone, memberships, payoutRows, duplicates, outsideRows, accounts, loginOf, photoOf] = await Promise.all([
     db.select().from(schema.bands).where(eq(schema.bands.orgId, orgId)).orderBy(asc(schema.bands.name)),
     db.select().from(schema.people).where(eq(schema.people.orgId, orgId)).orderBy(asc(schema.people.name)),
     db
@@ -68,6 +69,7 @@ export default async function DirectoryPage() {
     db.select().from(schema.outsideArtists).where(eq(schema.outsideArtists.orgId, orgId)),
     showAccounts ? bandAccountSummaries(orgId) : new Map<number, BandAccountSummary>(),
     loginEmails(orgId),
+    personPhotos(orgId),
   ]);
   const bands = scope ? allBands.filter((b) => scope.includes(b.id)) : allBands;
   // A band account is one band: its directory is that band and its people.
@@ -151,6 +153,7 @@ export default async function DirectoryPage() {
       bandsOf={memberships.filter((m) => m.personId === p.id)}
       contactFor={contactFor(p.id)}
       login={loginOf(p.id, membership?.band.id ?? null)}
+      photo={photoOf(p.id)}
       signIn={(() => {
         const l = logins.find((x) => x.user.id === p.userId);
         return l ? controlsFor(l) : undefined;
@@ -387,6 +390,7 @@ function PersonRow({
   bandsOf,
   contactFor,
   login,
+  photo,
   signIn,
   money,
   everyone,
@@ -402,6 +406,8 @@ function PersonRow({
   contactFor: string[];
   /** The email they sign in with (none: no login yet). */
   login: string | null;
+  /** Their profile photo, from their login. */
+  photo: string | null;
   /** A band that runs its own account: what their login can do here, and removing it. */
   signIn?: React.ReactNode;
   money: { owed: Totals; paid: Totals };
@@ -418,14 +424,17 @@ function PersonRow({
   const cells = (
     <>
       {/* (A long name breaks inside its column rather than running into the next.) */}
-      <span className="min-w-0 font-medium [overflow-wrap:anywhere]">
-        {p.name}
-        {!active && <span className="ml-2 text-xs font-normal text-muted">(former member)</span>}
-        {p.holdsLabelAccount && (
-          <span className="mt-0.5 block">
-            <Badge tone="accent">label account</Badge>
-          </span>
-        )}
+      <span className="flex min-w-0 items-start gap-2">
+        <Avatar name={p.name} src={photo} size={24} />
+        <span className="min-w-0 font-medium [overflow-wrap:anywhere]">
+          {p.name}
+          {!active && <span className="ml-2 text-xs font-normal text-muted">(former member)</span>}
+          {p.holdsLabelAccount && (
+            <span className="mt-0.5 block">
+              <Badge tone="accent">label account</Badge>
+            </span>
+          )}
+        </span>
       </span>
       <span className={`${UNDER} text-xs`}>
         {roles && roles.length > 0 && <RolesList roles={roles} />}

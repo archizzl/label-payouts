@@ -51,7 +51,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
       {staleCookie && <FixSignIn />}
       {ctx.viewingAs && <ViewingAsBar viewing={ctx.viewingAs} />}
       <Nav
-        user={{ name: ctx.user.name, email: ctx.user.email }}
+        user={{ name: ctx.user.name, email: ctx.user.email, image: ctx.user.image ?? null }}
         managed={ctx.lens ? "/" : null}
         bandLogin={isBandLogin(ctx)}
         earnings={!ctx.managedBy && !!ctx.person}

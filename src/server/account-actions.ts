@@ -19,6 +19,8 @@ import { bandcampPattern } from "@/lib/routing";
 import { cleanCashtag, cleanVenmoHandle } from "@/lib/paypal-export";
 import { bandcampCredentials, forgetBandcampSignIn, myBands } from "./bandcamp-api";
 import { encryptSecret } from "./secrets";
+import { photoFrom } from "./merch-photos";
+import { clearOldPhotos, removeProfilePhoto, setProfilePhoto } from "./profile-photos";
 
 /*
  * Logins and accounts: signing up and in, creating a label or band account, switching between
@@ -539,6 +541,7 @@ export async function deleteMyLogin(_: FormState, fd: FormData): Promise<FormSta
   // and own preferences go with it, and links from the books are cleared.
   (await cookies()).delete(VIEW_AS_COOKIE);
   await auth.api.signOut({ headers: await headers() });
+  await clearOldPhotos(user.id, null);
   await db.delete(schema.user).where(eq(schema.user.id, user.id));
   redirect("/login");
 }
@@ -567,6 +570,28 @@ export async function deleteAccount(_: FormState, fd: FormData): Promise<FormSta
  * Your details, everywhere at once: your login's name (top right) and, on every payee record that's
  * yours (see myPeople), the same name and how you're paid.
  */
+/** Your own profile photo (Account): upload one, replacing any before, or take it off. */
+export async function saveMyPhoto(_: FormState, fd: FormData): Promise<FormState> {
+  const session = await getSession();
+  if (!session) redirect("/login");
+  // (Not while viewing as someone else.)
+  await accountContext();
+  try {
+    if (str(fd, "remove") === "1") {
+      await removeProfilePhoto(session.user.id);
+      revalidatePath("/", "layout");
+      return { ok: "Photo removed." };
+    }
+    const file = photoFrom(fd);
+    if (!file) return { error: "Choose a photo." };
+    await setProfilePhoto(session.user.id, file);
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
+  revalidatePath("/", "layout");
+  return { ok: "Photo saved." };
+}
+
 export async function saveMyDetails(_: FormState, fd: FormData): Promise<FormState> {
   const session = await getSession();
   if (!session) redirect("/login");
