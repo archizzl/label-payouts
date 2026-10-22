@@ -159,6 +159,21 @@ describe("Abel's tools", () => {
   });
 });
 
+describe("Abel's tools on OpenRouter", () => {
+  it("all convert to JSON Schema", async () => {
+    const { toJsonSchema } = await import("../abel/openrouter");
+    const { orgId, userId } = await setup();
+    as(orgId, userId, ADMIN);
+    for (const t of await tool.toolsFor(who, agent.ABEL_TOOLS, null)) {
+      const declaration = (t as unknown as { _getDeclaration(): { parameters: unknown } })._getDeclaration();
+      const schema = toJsonSchema(declaration.parameters);
+      expect(schema.type, t.name).toBe("object");
+      // No Gemini-style types ("STRING") left anywhere.
+      expect(JSON.stringify(schema), t.name).not.toMatch(/"type":"[A-Z]/);
+    }
+  });
+});
+
 describe("Abel's chats", () => {
   it("are only found in their own account, by the person who started them", async () => {
     const { orgId, userId } = await setup();

@@ -4,6 +4,7 @@ import { db, schema } from "@/db";
 import { AREAS, can, describePermissions } from "@/lib/permissions";
 import type { Context } from "../context";
 import { type BaseLlm, Gemini, LlmAgent } from "./adk";
+import { OpenRouterLlm } from "./openrouter";
 import { READ_TOOLS } from "./read-tools";
 import { type AbelTool, toolsFor } from "./tool";
 import { WRITE_TOOLS } from "./write-tools";
@@ -18,13 +19,26 @@ export const ABEL_TOOLS: AbelTool[] = [...READ_TOOLS, ...WRITE_TOOLS];
 /** Gemini's model for Abel (ABEL_MODEL to change it). Google keeps older models from new projects, so this moves on now and then. */
 const DEFAULT_MODEL = "gemini-3.8-flash";
 
+/** On OpenRouter: Gemini, and Claude when Gemini is busy (ABEL_MODEL: a comma-separated list to change it). */
+const DEFAULT_OPENROUTER_MODELS = ["google/gemini-3.8-flash", "anthropic/claude-haiku-5.5"];
+
 /** How many model calls one message may take (each tool round is one). */
 export const MAX_LLM_CALLS = 10;
 
 /** Messages one person may send Abel a day, across their groups. */
 export const DAILY_MESSAGES = 200;
 
-const model = (): BaseLlm => new Gemini({ model: process.env.ABEL_MODEL || DEFAULT_MODEL, apiKey: process.env.GEMINI_API_KEY });
+/** OpenRouter when it has a key, else Gemini directly. */
+function model(): BaseLlm {
+  if (process.env.OPENROUTER_API_KEY) {
+    const models = (process.env.ABEL_MODEL ?? "")
+      .split(",")
+      .map((m) => m.trim())
+      .filter(Boolean);
+    return new OpenRouterLlm(models.length ? models : DEFAULT_OPENROUTER_MODELS, process.env.OPENROUTER_API_KEY);
+  }
+  return new Gemini({ model: process.env.ABEL_MODEL || DEFAULT_MODEL, apiKey: process.env.GEMINI_API_KEY });
+}
 
 function instruction(ctx: Context) {
   const sections = ctx.access.admin

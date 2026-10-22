@@ -55,9 +55,9 @@ npx wrangler secret put CRON_SECRET
 - **APP_ENCRYPTION_KEY:** the **same value as in `.env.development.local`**. Your saved Bandcamp API secret, the Bandcamp sign-in, and buyers' email fingerprints are encrypted with it. A different key breaks them.
 - **CRON_SECRET:** a new long random value. It lets the hourly Bandcamp sync in.
 
-For Abel, the assistant, also set its Gemini API key (from Google AI Studio). Without it Abel stays hidden, even for groups that have its feature flag:
+For Abel, the assistant, also set its OpenRouter API key (or `GEMINI_API_KEY` instead, to use Gemini directly; with both, it uses OpenRouter). Without either Abel stays hidden, even for groups that have its feature flag:
 ```bash
-npx wrangler secret put GEMINI_API_KEY
+npx wrangler secret put OPENROUTER_API_KEY
 ```
 
 `BETTER_AUTH_URL` and `SITE_ADMIN_EMAILS` are plain settings in `wrangler.jsonc` under `"vars"`. Set `BETTER_AUTH_URL` once you know the address (step 8).

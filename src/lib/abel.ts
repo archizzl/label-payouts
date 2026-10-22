@@ -21,7 +21,7 @@ export type AbelStreamEvent =
   | { type: "error"; message: string }
   | { type: "done" };
 
-/** What to tell the person when Gemini turns a request down (its HTTP status, as ADK reports it). */
+/** What to tell the person when the AI service turns a request down (its HTTP status, as ADK reports it). */
 export function modelErrorMessage(code: string | undefined): string {
   switch (code) {
     case "429":
@@ -29,11 +29,11 @@ export function modelErrorMessage(code: string | undefined): string {
     case "502":
     case "503":
     case "504":
-      return "Gemini, the AI service Abel runs on, is busy right now. Try again in a minute.";
+      return "The AI service Abel runs on is busy right now. Try again in a minute.";
     case "402":
-      return "Abel’s Gemini account is out of credit.";
+      return "Abel’s AI account is out of credit.";
     case "404":
-      return "Abel’s Gemini model isn’t available any more.";
+      return "Abel’s AI model isn’t available any more.";
     default:
       return "Abel couldn’t answer that just now. Try again.";
   }
