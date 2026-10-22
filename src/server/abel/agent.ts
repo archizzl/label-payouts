@@ -15,13 +15,16 @@ import { WRITE_TOOLS } from "./write-tools";
 
 export const ABEL_TOOLS: AbelTool[] = [...READ_TOOLS, ...WRITE_TOOLS];
 
+/** Gemini's model for Abel (ABEL_MODEL to change it). Google keeps older models from new projects, so this moves on now and then. */
+const DEFAULT_MODEL = "gemini-3.8-flash";
+
 /** How many model calls one message may take (each tool round is one). */
 export const MAX_LLM_CALLS = 10;
 
 /** Messages one person may send Abel a day, across their groups. */
 export const DAILY_MESSAGES = 200;
 
-const model = (): BaseLlm => new Gemini({ model: process.env.ABEL_MODEL || "gemini-flash-latest", apiKey: process.env.GEMINI_API_KEY });
+const model = (): BaseLlm => new Gemini({ model: process.env.ABEL_MODEL || DEFAULT_MODEL, apiKey: process.env.GEMINI_API_KEY });
 
 function instruction(ctx: Context) {
   const sections = ctx.access.admin

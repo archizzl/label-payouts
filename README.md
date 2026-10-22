@@ -57,7 +57,7 @@ To try a change in the real Cloudflare runtime against a throwaway database, run
 | `SITE_ADMIN_EMAILS` | Comma-separated emails of site admins (the admin dashboard, invite links, approving groups). |
 | `BANDCAMP_API` | Keep it `off` locally. Bandcamp allows one API sign-in per client, and the live site holds it. |
 | `GEMINI_API_KEY` | Abel's Gemini API key (from Google AI Studio). Without it Abel stays hidden. |
-| `ABEL_MODEL` | Optional: which Gemini model Abel uses (`gemini-flash-latest` by default). |
+| `ABEL_MODEL` | Optional: which Gemini model Abel uses (`gemini-3.8-flash` by default; Google's error says which model to use when one is retired). |
 | `DATABASE_URL` | Leave it out locally: `npm run dev` runs its own Postgres. |
 
 Never create `.env`, `.env.local` or `.env.production*`: the Cloudflare build bakes them into the live app, and `npm run deploy` refuses to run while they exist.

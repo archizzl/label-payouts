@@ -1,7 +1,7 @@
 import { and, desc, eq } from "drizzle-orm";
 import { isRedirectError } from "next/dist/client/components/redirect-error";
 import { db, schema } from "@/db";
-import type { AbelChatListItem, AbelStreamEvent } from "@/lib/abel";
+import { type AbelChatListItem, type AbelStreamEvent, modelErrorMessage } from "@/lib/abel";
 import { type Context, getContext } from "@/server/context";
 import { featureOn } from "@/server/features";
 import { ABEL_TOOLS, abelFor, MAX_LLM_CALLS, overDailyLimit } from "@/server/abel/agent";
@@ -120,7 +120,7 @@ export async function POST(request: Request) {
           // (A stopped run ends with an "aborted" error of its own: the reason is said below.)
           if (event.errorMessage && !stop.signal.aborted) {
             console.error(`abel: model error ${event.errorCode ?? ""}: ${event.errorMessage}`);
-            send({ type: "error", message: "Abel couldn’t answer that just now. Try again." });
+            send({ type: "error", message: modelErrorMessage(event.errorCode) });
           }
           const text = (event.content?.parts ?? [])
             .filter((p) => p.text && !p.thought)
