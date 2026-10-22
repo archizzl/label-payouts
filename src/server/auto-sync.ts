@@ -82,6 +82,7 @@ export type SyncResult = { ran: boolean; summary: string; errors: string[] };
 export const UP_TO_DATE = "Up to date.";
 
 import { plural } from "@/lib/plural";
+import { bandcampAddressProblem } from "@/lib/routing";
 
 /**
  * Artists, releases and merch from the account's public Bandcamp pages: new ones in, a few older
@@ -191,7 +192,7 @@ export async function syncAccount(orgId: string, { force = false } = {}): Promis
     }
   }
 
-  if (settings.bandcampUrl) await fromPublicPages(orgId, settings.bandcampUrl, org?.kind ?? null, step, found, errors, false);
+  if (settings.bandcampUrl && !bandcampAddressProblem(settings.bandcampUrl)) await fromPublicPages(orgId, settings.bandcampUrl, org?.kind ?? null, step, found, errors, false);
 
   if (creds && accounts.length) {
     await step("Merch", async () => {
@@ -245,6 +246,8 @@ export async function syncAccount(orgId: string, { force = false } = {}): Promis
 export async function syncCatalog(orgId: string, scope: CatalogScope = {}): Promise<{ summary: string; errors: string[] }> {
   const [settings] = await db.select().from(accountSettings).where(eq(accountSettings.orgId, orgId));
   if (!settings?.bandcampUrl) return { summary: "No Bandcamp address.", errors: [] };
+  // An address that's no Bandcamp page (Settings says so): nothing to read, and no error every run.
+  if (bandcampAddressProblem(settings.bandcampUrl)) return { summary: "The Bandcamp address isn’t a Bandcamp page.", errors: [] };
   const managed = await managingLabel(orgId);
   if (managed && !managed.ownBooks) return { summary: "Own books are off.", errors: [] };
   const [org] = await db.select().from(schema.organization).where(eq(schema.organization.id, orgId));

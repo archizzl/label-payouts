@@ -15,7 +15,7 @@ import { applyMyDetails, normalizeEmail } from "./people";
 import { deleteAccountsWithBooks, soleAccounts } from "./account-deletion";
 import { ownBand, reRouteAll } from "./data";
 import { renameSubAccount } from "./band-accounts";
-import { bandcampPattern } from "@/lib/routing";
+import { bandcampAddressProblem, bandcampPattern } from "@/lib/routing";
 import { cleanCashtag, cleanVenmoHandle } from "@/lib/paypal-export";
 import { bandcampCredentials, forgetBandcampSignIn, myBands } from "./bandcamp-api";
 import { encryptSecret } from "./secrets";
@@ -124,6 +124,8 @@ export async function createAccount(_: FormState, fd: FormData): Promise<FormSta
 /** Setting up a new account, step 1: where it is (Bandcamp, Spotify, Apple Music). Then: are you in it? */
 export async function saveSetupLinks(_: FormState, fd: FormData): Promise<FormState> {
   const { orgId } = await requireAdmin();
+  const problem = bandcampAddressProblem(str(fd, "bandcampUrl"));
+  if (problem) return { error: problem };
   const values = {
     bandcampUrl: str(fd, "bandcampUrl").slice(0, 300) || null,
     spotifyUrl: str(fd, "spotifyUrl").slice(0, 300) || null,
@@ -201,7 +203,11 @@ export async function saveAccountSettings(_: FormState, fd: FormData): Promise<F
  */
 async function writeAccountSettings(orgId: string, managedBy: Context["managedBy"], fd: FormData): Promise<string | null> {
   const values: Partial<typeof schema.accountSettings.$inferInsert> = {};
-  if (fd.has("bandcampUrl")) values.bandcampUrl = str(fd, "bandcampUrl") || null;
+  if (fd.has("bandcampUrl")) {
+    const problem = bandcampAddressProblem(str(fd, "bandcampUrl"));
+    if (problem) return problem;
+    values.bandcampUrl = str(fd, "bandcampUrl") || null;
+  }
   if (fd.has("spotifyUrl")) values.spotifyUrl = str(fd, "spotifyUrl") || null;
   if (fd.has("appleMusicUrl")) values.appleMusicUrl = str(fd, "appleMusicUrl") || null;
   let changedAccess = false;

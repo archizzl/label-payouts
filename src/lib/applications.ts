@@ -3,6 +3,8 @@
  * it can be tested on its own.
  */
 
+import { bandcampAddressProblem } from "./routing";
+
 export type ApplicationInput = {
   kind: "label" | "band";
   name: string;
@@ -58,6 +60,8 @@ export function readApplication(f: {
   const name = clean(f.name, 120);
   if (!name) return { ok: false, error: `Give your ${kind}'s name.` };
   const bandcampUrl = f.bandcampUrl.trim() ? normalizeUrl(f.bandcampUrl) : null;
+  const problem = bandcampAddressProblem(f.bandcampUrl);
+  if (problem) return { ok: false, error: problem };
   if (f.bandcampUrl.trim() && !bandcampUrl) return { ok: false, error: "That Bandcamp address doesn't look right." };
   const website = f.website.trim() ? normalizeUrl(f.website) : null;
   if (f.website.trim() && !website) return { ok: false, error: "That website address doesn't look right." };
@@ -72,7 +76,7 @@ export function readApplication(f: {
   const artistsOut: ApplicationInput["artists"] = [];
   for (const a of artists) {
     const url = a.url.trim() ? normalizeUrl(a.url) : null;
-    if (a.url.trim() && !url) return { ok: false, error: `${a.name}'s Bandcamp address doesn't look right.` };
+    if ((a.url.trim() && !url) || bandcampAddressProblem(a.url)) return { ok: false, error: `${a.name}'s Bandcamp address doesn't look right.` };
     artistsOut.push({ name: a.name, bandcampUrl: url });
   }
 

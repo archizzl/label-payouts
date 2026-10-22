@@ -17,6 +17,7 @@ import { accountContext, type Context, isBandLogin, requireAdmin } from "@/serve
 import { unlink } from "@/server/link-actions";
 import { labelsForBandAccount } from "@/server/links";
 import { labelReach } from "@/server/own-books";
+import { bandcampAddressProblem } from "@/lib/routing";
 
 export const metadata = { title: "settings" };
 
@@ -135,6 +136,12 @@ export default async function SettingsPage() {
 
 type Settings = typeof schema.accountSettings.$inferSelect;
 
+/** A saved Bandcamp address that isn't a Bandcamp page (from before addresses were checked): nothing syncs from it. */
+function savedAddressProblem(address: string | null | undefined) {
+  const problem = bandcampAddressProblem(address);
+  return problem ? <span className="text-bad">{problem} Nothing syncs from it until it’s fixed.</span> : undefined;
+}
+
 /** The account's Bandcamp address and API access (and a label's name, given `labelName`). */
 function BandcampCard({ settings, labelName }: { settings: Settings | undefined; labelName?: string }) {
   return (
@@ -145,7 +152,7 @@ function BandcampCard({ settings, labelName }: { settings: Settings | undefined;
             <input name="name" required defaultValue={labelName} />
           </Field>
         )}
-        <Field label="Bandcamp address">
+        <Field label="Bandcamp address" hint={savedAddressProblem(settings?.bandcampUrl)}>
           <input name="bandcampUrl" defaultValue={settings?.bandcampUrl ?? ""} placeholder="mylabel.bandcamp.com" />
         </Field>
         <Field label="Spotify">
@@ -302,7 +309,7 @@ function BandSettingsCard({
         <Field label="Other artist spellings" hint="Comma-separated.">
           <input name="aliases" defaultValue={band.aliases.join(", ")} />
         </Field>
-        <Field label="Bandcamp address">
+        <Field label="Bandcamp address" hint={savedAddressProblem(settings?.bandcampUrl)}>
           <input name="bandcampUrl" defaultValue={settings?.bandcampUrl ?? ""} placeholder="yourband.bandcamp.com" />
         </Field>
         <Field label="Spotify">

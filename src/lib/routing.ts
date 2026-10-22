@@ -183,3 +183,25 @@ export function routeSale(sale: RoutableSale, catalog: Catalog): RouteResult {
   if (release) return { bandId, releaseId: release.id, trackId: null, via };
   return { bandId, releaseId: null, trackId: null, via };
 }
+
+/** Sites that are never a Bandcamp page: email, and where else bands are. */
+const NOT_BANDCAMP = [
+  "gmail.com", "googlemail.com", "yahoo.com", "hotmail.com", "outlook.com", "live.com", "icloud.com", "me.com", "aol.com",
+  "proton.me", "protonmail.com", "spotify.com", "open.spotify.com", "music.apple.com", "apple.com", "youtube.com",
+  "soundcloud.com", "instagram.com", "facebook.com", "tiktok.com", "x.com", "twitter.com", "linktr.ee",
+];
+
+/**
+ * What's wrong with a Bandcamp address someone typed, if anything (null: nothing, or it's blank).
+ * Bandcamp pages can be on a custom domain, so anything that looks like a web address passes, except
+ * an email address, bandcamp.com itself, or a site that's never Bandcamp.
+ */
+export function bandcampAddressProblem(address: string | null | undefined): string | null {
+  if (!address?.trim()) return null;
+  if (address.includes("@")) return "That’s an email address. Enter the Bandcamp page’s address (yourname.bandcamp.com).";
+  const host = normalizeUrl(address).split("/")[0];
+  if (!/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(host)) return "That Bandcamp address doesn’t look right.";
+  if (host === "bandcamp.com") return "Enter your own page’s address (yourname.bandcamp.com).";
+  if (NOT_BANDCAMP.some((d) => host === d || host.endsWith(`.${d}`))) return `${host} isn’t a Bandcamp page.`;
+  return null;
+}
