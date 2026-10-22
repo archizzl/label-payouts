@@ -281,6 +281,13 @@
       "when": 1792352804134,
       "tag": "0039_stock_moves_for_sales",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1792680399850,
+      "tag": "0040_merch_photos",
+      "breakpoints": true
     }
   ]
 }

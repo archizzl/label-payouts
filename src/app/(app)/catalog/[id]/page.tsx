@@ -12,6 +12,8 @@ import { db, schema } from "@/db";
 import { addTracks, deleteRelease, deleteTrack, refreshReleaseFromBandcamp, saveRelease, saveTrack } from "@/server/actions";
 import { bandScope, can } from "@/lib/permissions";
 import { getContext, requireAccess } from "@/server/context";
+import { removeReleasePhoto, setReleasePhoto } from "@/server/merch-photo-actions";
+import { ownPhotoId } from "@/server/merch-photos";
 import { bandAssociatedPeople, costDeductionsFor, nameMaps, personOptionsFor, ruleFilter, rulesWhere } from "@/server/data";
 
 /** The tab's title: the release's (or merch item's) name. */
@@ -193,9 +195,34 @@ export default async function ReleasePage({ params, searchParams }: PageProps<"/
           </div>
           {release.syncedAt && <p className="mt-2 text-xs text-muted">Last read from Bandcamp {release.syncedAt.slice(0, 10)}.</p>}
         </div>
-        {release.artUrl && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={release.artUrl} alt={`${release.title} cover`} className="aspect-square w-full bg-surface-2 object-cover sm:w-72" />
+        {isMerch && canEdit && (!release.artUrl || ownPhotoId(release.artUrl)) ? (
+          // Merch with no photo from Bandcamp: one can be uploaded.
+          <div className="w-full space-y-2 sm:w-72">
+            {release.artUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={release.artUrl} alt={release.title} className="aspect-square w-full bg-surface-2 object-cover" />
+            ) : (
+              <div className="flex aspect-square w-full items-center justify-center bg-surface-2 text-xs text-muted">no photo</div>
+            )}
+            <ActionForm action={setReleasePhoto} className="flex flex-wrap items-center gap-2">
+              <input type="hidden" name="id" value={id} />
+              <input type="file" name="photo" accept="image/jpeg,image/png,image/gif,image/webp" required aria-label="Photo" className="!w-full text-xs" />
+              <SubmitButton size="sm">{release.artUrl ? "Replace photo" : "Upload photo"}</SubmitButton>
+            </ActionForm>
+            {release.artUrl && (
+              <ActionForm action={removeReleasePhoto}>
+                <input type="hidden" name="id" value={id} />
+                <SubmitButton variant="ghost" size="sm" confirm="Remove this photo?">
+                  Remove photo
+                </SubmitButton>
+              </ActionForm>
+            )}
+          </div>
+        ) : (
+          release.artUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={release.artUrl} alt={`${release.title} cover`} className="aspect-square w-full bg-surface-2 object-cover sm:w-72" />
+          )
         )}
       </div>
 

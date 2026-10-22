@@ -9,6 +9,7 @@ import { formatCents } from "@/lib/money";
 import { bandScope, can } from "@/lib/permissions";
 import { requireAccess } from "@/server/context";
 import { addFromCatalog, adjustInventory, archiveInventoryItem, saveInventoryItem } from "@/server/inventory-actions";
+import { merchPhotoUrl } from "@/server/merch-photos";
 
 export const metadata = { title: "inventory" };
 
@@ -53,9 +54,10 @@ export default async function InventoryPage({ searchParams }: PageProps<"/invent
         .limit(1000)
     : [];
   const movesOf = (id: number) => moves.filter((m) => m.itemId === id).slice(0, 10);
-  // Each item's photo: its catalog item's (a merch photo, or a release's cover for its formats).
+  // Each item's photo: its catalog item's (a merch photo, or a release's cover for its formats), or
+  // one uploaded for it.
   const art = new Map(releaseRows.filter((r) => r.artUrl).map((r) => [r.id, r.artUrl!]));
-  const photoOf = (i: Item) => (i.releaseId ? (art.get(i.releaseId) ?? null) : null);
+  const photoOf = (i: Item) => (i.releaseId ? (art.get(i.releaseId) ?? null) : i.photoId ? merchPhotoUrl(i.photoId) : null);
   // Catalog items to link to: each format of a release, and each merch item.
   const catalog: CatalogOption[] = releaseRows
     .filter((r) => inScope(r.bandId))
@@ -363,6 +365,16 @@ function ItemForm({
       <Field label="Notes" className="sm:col-span-3">
         <input name="notes" defaultValue={item?.notes ?? ""} maxLength={1000} />
       </Field>
+      <Field label="Photo (items not in the catalog)" className="sm:col-span-2">
+        <input type="file" name="photo" accept="image/jpeg,image/png,image/gif,image/webp" className="text-xs" />
+      </Field>
+      {item?.photoId ? (
+        <label className="flex items-center gap-1.5 self-end pb-2 text-sm">
+          <input type="checkbox" name="removePhoto" value="1" /> Remove its photo
+        </label>
+      ) : (
+        <div />
+      )}
       <div className="sm:col-span-3">
         {item ? (
           <SaveWhenChanged>

@@ -57,6 +57,16 @@ export async function storeReceiptFiles(orgId: string, uploads: ReceiptUpload[])
   return out;
 }
 
+/** Put one file where uploads are kept (R2 under this prefix, or its bytes for the database). */
+export async function storeFile(prefix: string, file: File, contentType: string): Promise<{ storageKey: string | null; data: Uint8Array | null }> {
+  const bytes = await file.arrayBuffer();
+  const store = bucket();
+  if (!store) return { storageKey: null, data: new Uint8Array(bytes) };
+  const storageKey = `${prefix}/${randomUUID()}`;
+  await store.put(storageKey, bytes, { httpMetadata: { contentType } });
+  return { storageKey, data: null };
+}
+
 /** How much an account's receipt files take up, in bytes. */
 export async function receiptBytesUsed(orgId: string): Promise<number> {
   const [row] = await db.select({ used: sum(schema.expenseFiles.size) }).from(schema.expenseFiles).where(eq(schema.expenseFiles.orgId, orgId));

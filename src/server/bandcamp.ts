@@ -4,6 +4,7 @@ import { db, schema } from "@/db";
 import { parseBandPhoto } from "@/lib/bandcamp-label";
 import type { ReleaseDetails } from "@/lib/bandcamp-release";
 import { matchesBandPattern, normalizeText, normalizeUrl } from "@/lib/routing";
+import { ownPhotoId } from "./merch-photos";
 
 const { bands, releases, tracks, outsideArtists } = schema;
 
@@ -172,7 +173,8 @@ export async function upsertRelease(orgId: string, d: ReleaseDetails, bandId: nu
       bandcampId: d.bandcampId || null,
       kind: d.kind,
       upc: d.upc,
-      artUrl: d.artUrl,
+      // A photo uploaded here stays until Bandcamp has one of its own.
+      artUrl: d.artUrl ?? (ownPhotoId(existing?.artUrl) ? existing.artUrl : null),
       about: d.about,
       credits: d.credits,
       tags: d.tags,

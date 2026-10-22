@@ -815,10 +815,31 @@ export const inventoryItems = pgTable(
     /** Where it's kept. */
     location: text("location"),
     notes: text("notes"),
+    /** A photo uploaded for it (stock that isn't in the catalog). */
+    photoId: integer("photo_id").references((): AnyPgColumn => merchPhotos.id, { onDelete: "set null" }),
     archived: boolean("archived").notNull().default(false),
     createdAt: text("created_at").notNull().default(now),
   },
   (t) => [index("inventory_items_org").on(t.orgId)],
+);
+
+/**
+ * Photos uploaded for merch that has none from Bandcamp (or isn't on Bandcamp at all). Kept like
+ * receipt files: in R2 on the live site, in the database locally. Shown through /merch/photo/[id];
+ * a catalog item's art_url points there (src/server/merch-photos.ts).
+ */
+export const merchPhotos = pgTable(
+  "merch_photos",
+  {
+    id: id(),
+    orgId: orgId(),
+    contentType: text("content_type").notNull(),
+    size: integer("size").notNull(),
+    data: bytea("data"),
+    storageKey: text("storage_key"),
+    createdAt: text("created_at").notNull().default(now),
+  },
+  (t) => [index("merch_photos_org").on(t.orgId)],
 );
 
 /** A change to an item's count: received, used, sold, recounted… */

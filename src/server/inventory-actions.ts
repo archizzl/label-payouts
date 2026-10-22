@@ -7,6 +7,7 @@ import { applyMove, catalogCandidates, isMoveReason } from "@/lib/inventory";
 import { parseCents } from "@/lib/money";
 import { bandScope } from "@/lib/permissions";
 import { type Context, requireAccess } from "./context";
+import { deleteMerchPhoto, photoFrom, saveMerchPhoto } from "./merch-photos";
 
 /*
  * Inventory: adding and changing items, and their counts. Anyone who can change Inventory; members
@@ -92,13 +93,18 @@ export async function saveInventoryItem(_: InventoryState, fd: FormData): Promis
       location: str(fd, "location").slice(0, 200) || null,
       notes: str(fd, "notes").slice(0, 1000) || null,
     };
+    // Its own photo: only for stock outside the catalog (catalog items show the catalog's).
+    const before = id ? await ownItem(ctx, id) : null;
+    const file = !releaseId ? photoFrom(fd) : null;
+    const dropPhoto = !!before?.photoId && (!!releaseId || !!file || str(fd, "removePhoto") === "1");
+    const photoId = file ? await saveMerchPhoto(orgId, file) : dropPhoto ? null : (before?.photoId ?? null);
     if (id) {
-      await ownItem(ctx, id);
-      await db.update(inventoryItems).set(values).where(eq(inventoryItems.id, id));
+      await db.update(inventoryItems).set({ ...values, photoId }).where(eq(inventoryItems.id, id));
+      if (dropPhoto) await deleteMerchPhoto(orgId, before!.photoId);
     } else {
       const start = Math.max(0, optInt(fd, "onHand") ?? 0);
       await db.transaction(async (tx) => {
-        const [item] = await tx.insert(inventoryItems).values({ ...values, orgId, onHand: start }).returning({ id: inventoryItems.id });
+        const [item] = await tx.insert(inventoryItems).values({ ...values, photoId, orgId, onHand: start }).returning({ id: inventoryItems.id });
         if (start) {
           await tx.insert(inventoryMoves).values({ orgId, itemId: item.id, delta: start, reason: "recount", note: "Starting count", onHandAfter: start, byUserId: ctx.user.id });
         }
