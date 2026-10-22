@@ -7,23 +7,15 @@ import { buttonClass } from "./ui";
 export type Payee = { id: number; name: string; paypalMe: string | null; venmo: string | null; cashtag: string | null };
 
 /**
- * On the send-out form: pick someone from People to send label money to directly. Their name fills
- * "Sent to", and a button per way they can be paid opens that app with the amount and note filled
- * in, and records the send-out at the same time.
+ * On the send-out form, "Sent to": someone in the label (anyone in People: a manager, a PR person, a
+ * band member) or someone outside it, by name. Picking a person fills in their name, and a button
+ * per way they can be paid opens that app with the amount and note filled in, and records the
+ * send-out at the same time.
  */
-export function PayPerson({ people, defaultPersonId }: { people: Payee[]; defaultPersonId: number | null }) {
+export function SentTo({ people, defaultPersonId, defaultRecipient }: { people: Payee[]; defaultPersonId: number | null; defaultRecipient?: string }) {
   const [personId, setPersonId] = useState<number | null>(defaultPersonId);
   const person = people.find((p) => p.id === personId) ?? null;
-  const ways = person ? payMethods(person, 100, "USD", "").map((m) => m) : [];
-
-  const choose = (select: HTMLSelectElement) => {
-    const id = Number(select.value) || null;
-    const next = people.find((p) => p.id === id);
-    const recipient = select.form?.elements.namedItem("recipient") as HTMLInputElement | null;
-    // Fill "Sent to" if it's empty or still has the previously chosen person's name.
-    if (recipient && next && (!recipient.value || recipient.value === person?.name)) recipient.value = next.name;
-    setPersonId(id);
-  };
+  const ways = person ? payMethods(person, 100, "USD", "") : [];
 
   const pay = (button: HTMLButtonElement, kind: string, label: string) => {
     const form = button.form;
@@ -45,38 +37,36 @@ export function PayPerson({ people, defaultPersonId }: { people: Payee[]; defaul
   };
 
   return (
-    <div className="sm:col-span-3">
-      <div className="grid gap-4 sm:grid-cols-3">
-        <label>
-          <span className="mb-1 block text-sm">Pay a person (optional)</span>
-          <select name="personId" value={personId ?? ""} onChange={(e) => choose(e.currentTarget)}>
-            <option value="">Someone outside the label</option>
-            {people.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        {person && (
-          <div className="flex flex-wrap items-end gap-2 sm:col-span-2">
-            {ways.length ? (
-              ways.map((m) => (
-                <button key={m.kind} type="button" className={buttonClass("secondary")} onClick={(e) => pay(e.currentTarget, m.kind, m.label)}>
+    <div className="space-y-2">
+      <label className="block">
+        <span className="mb-1 block text-xs font-medium text-muted">Sent to</span>
+        <select name="personId" value={personId ?? ""} onChange={(e) => setPersonId(Number(e.currentTarget.value) || null)}>
+          <option value="">Someone outside the label</option>
+          {people.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      {person ? (
+        <>
+          <input type="hidden" name="recipient" value={person.name} />
+          {ways.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {ways.map((m) => (
+                <button key={m.kind} type="button" className={buttonClass("secondary", "sm")} onClick={(e) => pay(e.currentTarget, m.kind, m.label)}>
                   Pay with {m.label} &amp; record it
                 </button>
-              ))
-            ) : (
-              <span className="pb-2 text-sm text-muted">
-                {person.name} has no PayPal.me, Venmo or Cash App saved. Add one in the Directory, or pay them another way and record it.
-              </span>
-            )}
-          </div>
-        )}
-      </div>
-      {/* {person && ways.length > 0 && (
-        <p className="mt-1 text-xs text-muted">Opens the app with the amount and note filled in, and records this send-out. Venmo is US dollars only.</p>
-      )} */}
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-muted">No PayPal.me, Venmo or Cash App saved for {person.name}.</p>
+          )}
+        </>
+      ) : (
+        <input name="recipient" required defaultValue={defaultRecipient} placeholder="Mutual Aid NYC" aria-label="Who received it" />
+      )}
     </div>
   );
 }

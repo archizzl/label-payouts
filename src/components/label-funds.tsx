@@ -9,7 +9,7 @@ import { eq } from "drizzle-orm";
 import { getContext } from "@/server/context";
 import { labelFunds, nameMaps } from "@/server/data";
 import { incomeSources, labelIncome } from "@/server/label-income";
-import { PayPerson } from "./pay-person";
+import { SentTo } from "./pay-person";
 import { type SourceInfo, SourceSelect } from "./source-select";
 
 type Transfer = typeof schema.labelTransfers.$inferSelect;
@@ -35,9 +35,7 @@ async function TransferForm({ transfer, bandId, sources }: { transfer?: Transfer
   return (
     <ActionForm action={saveLabelTransfer} className="grid gap-4 sm:grid-cols-3">
       {transfer && <input type="hidden" name="id" value={transfer.id} />}
-      <Field label="Sent to">
-        <input name="recipient" required defaultValue={transfer?.recipient} placeholder="Mutual Aid NYC" />
-      </Field>
+      <SentTo people={payees} defaultPersonId={transfer?.personId ?? null} defaultRecipient={transfer?.recipient} />
       <Field label="Amount">
         <span className="flex gap-2">
           <input name="amount" required inputMode="decimal" defaultValue={transfer ? centsToDecimal(transfer.amountCents) : ""} placeholder="250.00" />
@@ -94,7 +92,6 @@ async function TransferForm({ transfer, bandId, sources }: { transfer?: Transfer
         <option value="Venmo" />
         <option value="Cash" />
       </datalist>
-      <PayPerson people={payees} defaultPersonId={transfer?.personId ?? null} />
       <div className="sm:col-span-3">
         {transfer ? (
           <SaveWhenChanged>
