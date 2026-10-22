@@ -3,6 +3,8 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "label-payouts",
   "main": "cloudflare/worker.ts",
+  // The app as OpenNext builds it (cloudflare/worker.ts imports it by this name; see open-next.d.ts there).
+  "alias": { "open-next-worker": "./.open-next/worker.js" },
   "compatibility_date": "2026-10-01",
   // About a third less code to load: quicker cold starts and uploads.
   "minify": true,
