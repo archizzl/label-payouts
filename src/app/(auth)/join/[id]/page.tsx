@@ -3,10 +3,17 @@ import { ConnectExistingForm, JoinBandForm } from "@/components/auth-forms";
 import { LinkButton } from "@/components/ui";
 import { connectableAccounts, hasSharedLogin, unclaimedMembers, unclaimedPeople, unusedBandAccount, usableInviteLink } from "@/server/band-invite-links";
 import { myDetails } from "@/server/people";
-import { getSession } from "@/server/context";
+import { getSession, groupPhotos } from "@/server/context";
+import { joinPreview } from "@/lib/join-preview";
 import { signOut } from "@/server/account-actions";
 
-export const metadata = { title: "join" };
+/** The link's preview where it's sent (a message, an email): join the group, with its photo. */
+export async function generateMetadata({ params }: PageProps<"/join/[id]">) {
+  const found = await usableInviteLink((await params).id);
+  if (!found) return { title: "join" };
+  const kind = found.band.kind === "band" ? ("band" as const) : ("label" as const);
+  return joinPreview(found.band.name, (await groupPhotos([{ id: found.band.id, kind }])).get(found.band.id));
+}
 
 /**
  * An invite link to a band's account, or a label's (see band-invite-links.ts): sign in or sign up

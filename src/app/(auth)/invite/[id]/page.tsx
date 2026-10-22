@@ -4,10 +4,21 @@ import { AcceptInviteForm } from "@/components/auth-forms";
 import { buttonClass, LinkButton } from "@/components/ui";
 import { signOut } from "@/server/account-actions";
 import { db, schema } from "@/db";
-import { getSession } from "@/server/context";
+import { getSession, groupPhotos } from "@/server/context";
+import { joinPreview } from "@/lib/join-preview";
 import { normalizeEmail } from "@/server/people";
 
-export const metadata = { title: "invite" };
+/** The link's preview where it's sent (a message, an email): join the group, with its photo. */
+export async function generateMetadata({ params }: PageProps<"/invite/[id]">) {
+  const [row] = await db
+    .select({ org: schema.organization, status: schema.invitation.status, expiresAt: schema.invitation.expiresAt })
+    .from(schema.invitation)
+    .innerJoin(schema.organization, eq(schema.invitation.organizationId, schema.organization.id))
+    .where(eq(schema.invitation.id, (await params).id));
+  if (!row || row.status !== "pending" || row.expiresAt < new Date()) return { title: "invite" };
+  const kind = row.org.kind === "band" ? ("band" as const) : ("label" as const);
+  return joinPreview(row.org.name, (await groupPhotos([{ id: row.org.id, kind }])).get(row.org.id));
+}
 
 /** Someone was invited to a label or band account: sign up or in with that email, then accept. */
 export default async function InvitePage({ params, searchParams }: PageProps<"/invite/[id]">) {

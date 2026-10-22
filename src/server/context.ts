@@ -112,7 +112,7 @@ export async function accountsFor(userId: string): Promise<Account[]> {
  * (the one that is the label); a band's on its band, or for a band account a label made, on the
  * label's row for that band (its own books' copy as a fallback).
  */
-export async function groupPhotos(accounts: Account[]): Promise<Map<string, string>> {
+export async function groupPhotos(accounts: Pick<Account, "id" | "kind">[]): Promise<Map<string, string>> {
   const ids = accounts.map((a) => a.id);
   if (!ids.length) return new Map();
   const [own, viaLabel] = await Promise.all([
