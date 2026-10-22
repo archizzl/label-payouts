@@ -9,7 +9,7 @@ import { onCloudflare } from "@/db";
 import { AREAS, can } from "@/lib/permissions";
 import { syncAccount, syncStatus } from "@/server/auto-sync";
 import { catalogSyncProgress, catalogSyncRequestedAt } from "@/server/catalog-requests";
-import { getContext, isBandLogin } from "@/server/context";
+import { getContext, groupPhotos, isBandLogin } from "@/server/context";
 import { ownBand } from "@/server/data";
 import { labelsForBandAccount } from "@/server/links";
 import { projectsEnabled } from "@/server/features";
@@ -21,7 +21,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
   const ctx = await getContext();
   // What syncs with Bandcamp: the account's own books (for a band account the label made too).
   const syncOrgId = ctx.managedBy ? ctx.org.id : ctx.orgId;
-  const [labels, sync, badges, projects, band, orders, catalogAsked, catalogProgress] = await Promise.all([
+  const [labels, sync, badges, projects, band, orders, catalogAsked, catalogProgress, photos] = await Promise.all([
     // A band account's admins see each label it's linked to (one the label made has it all on its own pages).
     ctx.isAdmin && ctx.org.kind === "band" && !ctx.managedBy ? labelsForBandAccount(ctx.orgId) : [],
     syncStatus(syncOrgId),
@@ -31,6 +31,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
     ordersInUse(ctx.orgId),
     ctx.viewingAs ? null : catalogSyncRequestedAt(ctx.orgId),
     ctx.viewingAs ? null : catalogSyncProgress(ctx.orgId),
+    groupPhotos([ctx.org, ...ctx.accounts]),
   ]);
 
   // Locally, opening the app keeps it in step with Bandcamp: at most once an hour, in the background,
@@ -60,6 +61,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
         viewing={!!ctx.viewingAs}
         account={ctx.org}
         accounts={ctx.accounts}
+        groupPhotos={Object.fromEntries(photos)}
         // A band login is an admin of its own small account (settings), not of the label's books.
         isAdmin={ctx.lens ? ctx.org.role !== "member" : ctx.isAdmin}
         areas={AREAS.filter((a) => can(ctx.access, a.key)).map((a) => a.key)}

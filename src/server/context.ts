@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray, isNotNull } from "drizzle-orm";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
@@ -105,6 +105,36 @@ export async function accountsFor(userId: string): Promise<Account[]> {
       role: (["owner", "admin"].includes(role) ? role : "member") as Role,
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/**
+ * Each group's photo: its Bandcamp profile photo, kept on its band. A label's is on its own band
+ * (the one that is the label); a band's on its band, or for a band account a label made, on the
+ * label's row for that band (its own books' copy as a fallback).
+ */
+export async function groupPhotos(accounts: Account[]): Promise<Map<string, string>> {
+  const ids = accounts.map((a) => a.id);
+  if (!ids.length) return new Map();
+  const [own, viaLabel] = await Promise.all([
+    db
+      .select({ orgId: schema.bands.orgId, isLabel: schema.bands.isLabel, imageUrl: schema.bands.imageUrl })
+      .from(schema.bands)
+      .where(and(inArray(schema.bands.orgId, ids), isNotNull(schema.bands.imageUrl))),
+    db
+      .select({ orgId: schema.accountLinks.bandOrgId, imageUrl: schema.bands.imageUrl })
+      .from(schema.accountLinks)
+      .innerJoin(schema.bands, eq(schema.bands.id, schema.accountLinks.labelBandId))
+      .where(and(inArray(schema.accountLinks.bandOrgId, ids), eq(schema.accountLinks.status, "active"), isNotNull(schema.bands.imageUrl))),
+  ]);
+  const out = new Map<string, string>();
+  for (const a of accounts) {
+    const photo =
+      a.kind === "label"
+        ? own.find((b) => b.orgId === a.id && b.isLabel)?.imageUrl
+        : (viaLabel.find((l) => l.orgId === a.id)?.imageUrl ?? own.find((b) => b.orgId === a.id)?.imageUrl);
+    if (photo) out.set(a.id, photo);
+  }
+  return out;
 }
 
 /**

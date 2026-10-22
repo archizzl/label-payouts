@@ -82,11 +82,19 @@ function itemsFor(
 }
 
 /** Pick which of your accounts (labels and bands) you're working in. */
-function AccountSwitcher({ account, accounts }: { account: Account; accounts: Account[] }) {
+function AccountSwitcher({ account, accounts, photo }: { account: Account; accounts: Account[]; photo: string | null }) {
   const form = useRef<HTMLFormElement>(null);
-  if (accounts.length < 2) return <span className="text-sm text-muted">{account.name}</span>;
+  if (accounts.length < 2) {
+    return (
+      <span className="flex items-center gap-2 text-sm text-muted">
+        <Avatar name={account.name} src={photo} size={26} square />
+        <span className="hidden sm:inline">{account.name}</span>
+      </span>
+    );
+  }
   return (
-    <form ref={form} action={switchAccount}>
+    <form ref={form} action={switchAccount} className="flex items-center gap-2">
+      <Avatar name={account.name} src={photo} size={26} square />
       <select
         name="orgId"
         defaultValue={account.id}
@@ -108,6 +116,7 @@ export function Nav({
   user,
   account,
   accounts,
+  groupPhotos = {},
   isAdmin,
   areas = [],
   badges = {},
@@ -128,6 +137,8 @@ export function Nav({
   user: { name: string; email: string; image?: string | null };
   account: Account;
   accounts: Account[];
+  /** Each group's photo (its Bandcamp profile photo), by id. */
+  groupPhotos?: Record<string, string>;
   isAdmin: boolean;
   /** For members: the sections their member type lets them see. */
   areas?: Area[];
@@ -180,7 +191,6 @@ export function Nav({
         </Link>
         <div className="flex flex-wrap items-center gap-3">
           <SyncIndicator active={syncing} syncedAt={syncedAt} catalogBusy={catalogBusy} />
-          <AccountSwitcher account={account} accounts={accounts} />
           {/* You, with your photo: your Account page. (A band's shared login is the band: no page, no photo.) */}
           {bandLogin || viewing ? (
             (!managed || user.name !== account.name) && <span className="hidden text-sm text-muted sm:inline">{user.name}</span>
@@ -193,6 +203,8 @@ export function Nav({
               <span className="hidden sm:inline">{user.name}</span>
             </Link>
           )}
+          {/* The group you're in (a label or band), and switching to another. */}
+          <AccountSwitcher account={account} accounts={accounts} photo={groupPhotos[account.id] ?? null} />
           {!viewing && (
             <form action={signOut}>
               <button type="submit" className="text-sm text-link hover:underline">
