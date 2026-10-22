@@ -7,6 +7,7 @@ import { DeleteLogin } from "@/components/delete-login";
 import { soleAccounts } from "@/server/account-deletion";
 import { changeMyPassword, leaveAccount, saveMyDetails, saveMyPhoto } from "@/server/account-actions";
 import { Avatar } from "@/components/avatar";
+import { PhotoButtons } from "@/components/photo-buttons";
 import { redirect } from "next/navigation";
 import { accountsFor, isBandLogin, realContext } from "@/server/context";
 import { myPeople } from "@/server/people";
@@ -47,20 +48,7 @@ export default async function AccountPage() {
         <Card title="Photo">
           <div className="flex flex-wrap items-center gap-4">
             <Avatar name={user.name} src={image} size={72} />
-            <div className="space-y-2">
-              <ActionForm action={saveMyPhoto} className="flex flex-wrap items-center gap-2">
-                <input type="file" name="photo" accept="image/jpeg,image/png,image/gif,image/webp" required aria-label="Photo" className="text-xs" />
-                <SubmitButton size="sm">{image ? "Replace photo" : "Upload photo"}</SubmitButton>
-              </ActionForm>
-              {image && (
-                <ActionForm action={saveMyPhoto}>
-                  <input type="hidden" name="remove" value="1" />
-                  <SubmitButton variant="ghost" size="sm" confirm="Remove your photo?">
-                    Remove photo
-                  </SubmitButton>
-                </ActionForm>
-              )}
-            </div>
+            <PhotoButtons action={saveMyPhoto} hasPhoto={!!image} />
           </div>
         </Card>
       )}

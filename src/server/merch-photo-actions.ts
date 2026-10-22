@@ -24,8 +24,12 @@ async function editableRelease(fd: FormData) {
   return { orgId: ctx.orgId, release: r };
 }
 
-/** Upload a photo for a catalog item that has none from Bandcamp (replacing one uploaded before). */
-export async function setReleasePhoto(_: PhotoState, fd: FormData): Promise<PhotoState> {
+/**
+ * Upload a photo for a catalog item that has none from Bandcamp (replacing one uploaded before), or
+ * with "remove", take it off.
+ */
+export async function setReleasePhoto(state: PhotoState, fd: FormData): Promise<PhotoState> {
+  if (fd.get("remove") === "1") return removeReleasePhoto(state, fd);
   try {
     const { orgId, release } = await editableRelease(fd);
     const file = photoFrom(fd);

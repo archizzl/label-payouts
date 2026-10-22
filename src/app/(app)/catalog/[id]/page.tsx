@@ -2,7 +2,7 @@ import { and, asc, eq } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
-import { ActionForm, SaveWhenChanged, SubmitButton } from "@/components/client";
+import { SaveWhenChanged, SubmitButton } from "@/components/client";
 import { ItemCosts } from "@/components/item-cost";
 import { SalesSection } from "@/components/sales-section";
 import { costsFor } from "@/components/physical-formats";
@@ -12,7 +12,8 @@ import { db, schema } from "@/db";
 import { addTracks, deleteRelease, deleteTrack, refreshReleaseFromBandcamp, saveRelease, saveTrack } from "@/server/actions";
 import { bandScope, can } from "@/lib/permissions";
 import { getContext, ownBooksOf, requireAccess } from "@/server/context";
-import { removeReleasePhoto, setReleasePhoto } from "@/server/merch-photo-actions";
+import { setReleasePhoto } from "@/server/merch-photo-actions";
+import { PhotoButtons } from "@/components/photo-buttons";
 import { ownPhotoId } from "@/server/merch-photos";
 import { bandAssociatedPeople, costDeductionsFor, nameMaps, personOptionsFor, ruleFilter, rulesWhere } from "@/server/data";
 
@@ -208,19 +209,7 @@ export default async function ReleasePage({ params, searchParams }: PageProps<"/
             ) : (
               <div className="flex aspect-square w-full items-center justify-center bg-surface-2 text-xs text-muted">no photo</div>
             )}
-            <ActionForm action={setReleasePhoto} className="flex flex-wrap items-center gap-2">
-              <input type="hidden" name="id" value={id} />
-              <input type="file" name="photo" accept="image/jpeg,image/png,image/gif,image/webp" required aria-label="Photo" className="!w-full text-xs" />
-              <SubmitButton size="sm">{release.artUrl ? "Replace photo" : "Upload photo"}</SubmitButton>
-            </ActionForm>
-            {release.artUrl && (
-              <ActionForm action={removeReleasePhoto}>
-                <input type="hidden" name="id" value={id} />
-                <SubmitButton variant="ghost" size="sm" confirm="Remove this photo?">
-                  Remove photo
-                </SubmitButton>
-              </ActionForm>
-            )}
+            <PhotoButtons action={setReleasePhoto} fields={{ id }} hasPhoto={!!release.artUrl} />
           </div>
         ) : (
           release.artUrl && (
