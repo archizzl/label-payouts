@@ -63,6 +63,30 @@ describe("adding a sale by hand", () => {
     ]);
   });
 
+  it("makes what's sold at once one order, which can be deleted item by item or whole", async () => {
+    const { band, lp, shirt } = await setup();
+    const sell = () =>
+      actions.addManualSale(null, form({ bandId: band.id, kind: "merch", [`each:${lp.id}:11`]: "25", [`sold:${lp.id}:11`]: 1, [`each:${shirt.id}:`]: "20", [`sold:${shirt.id}:`]: 2 }));
+    await sell();
+    await sell();
+    const sales = await db.select().from(schema.sales).where(eq(schema.sales.orgId, orgId)).orderBy(schema.sales.id);
+    expect(sales[0].transactionId).toBe(sales[1].transactionId);
+    expect(sales[2].transactionId).toBe(sales[3].transactionId);
+    expect(sales[0].transactionId).not.toBe(sales[2].transactionId);
+    expect(new Set(sales.map((s) => s.dedupeKey)).size).toBe(4);
+
+    const del = (id: number, whole: boolean) => {
+      const fd = new FormData();
+      fd.set("id", String(id));
+      if (whole) fd.set("whole", "1");
+      return actions.deleteManualSale(null, fd);
+    };
+    // One item of the first order; then the whole second one.
+    expect(await del(sales[0].id, false)).toEqual({ ok: "Deleted." });
+    expect(await del(sales[3].id, true)).toEqual({ ok: "Deleted." });
+    expect((await db.select().from(schema.sales).where(eq(schema.sales.orgId, orgId))).map((s) => s.id)).toEqual([sales[1].id]);
+  });
+
   it("takes something not in the catalog, and leaves out items none were sold of", async () => {
     const { band, lp } = await setup();
     const result = await actions.addManualSale(

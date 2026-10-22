@@ -19,14 +19,25 @@ export function ManualSaleForm({ bands, merch, currency }: { bands: { id: number
   );
 }
 
-/** On a hand-added sale in the list: take it back out (until it's paid out). */
-export function DeleteManualSale({ id }: { id: number }) {
+/** On a hand-added sale in the list: take it back out (until it's paid out), or the whole order it was part of. */
+export function DeleteManualSale({ id, orderItems = 1 }: { id: number; orderItems?: number }) {
   return (
-    <ActionForm action={deleteManualSale} className="mt-2">
-      <input type="hidden" name="id" value={id} />
-      <SubmitButton variant="ghost" size="sm" confirm="Delete this sale?">
-        Delete sale
-      </SubmitButton>
-    </ActionForm>
+    <div className="mt-2 flex flex-wrap gap-2">
+      <ActionForm action={deleteManualSale}>
+        <input type="hidden" name="id" value={id} />
+        <SubmitButton variant="ghost" size="sm" confirm={orderItems > 1 ? "Delete this item from the order?" : "Delete this sale?"}>
+          {orderItems > 1 ? "Delete this item" : "Delete sale"}
+        </SubmitButton>
+      </ActionForm>
+      {orderItems > 1 && (
+        <ActionForm action={deleteManualSale}>
+          <input type="hidden" name="id" value={id} />
+          <input type="hidden" name="whole" value="1" />
+          <SubmitButton variant="ghost" size="sm" confirm={`Delete the whole order (${orderItems} items)?`}>
+            Delete the whole order
+          </SubmitButton>
+        </ActionForm>
+      )}
+    </div>
   );
 }

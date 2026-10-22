@@ -13,6 +13,7 @@ import { ownBooksOf, requireAccess } from "@/server/context";
 import { saleAdder } from "@/server/manual-sales";
 import { onLabelSince } from "@/server/own-books";
 import { DeleteManualSale } from "@/components/manual-sale";
+import { SaleOrder } from "@/components/sale-order";
 import { MANUAL_VIA } from "@/lib/manual-sales";
 import { markSeen } from "@/server/nav-badges";
 import {
@@ -24,6 +25,7 @@ import {
   type SalesFilter,
   type SortKey,
   type SalesBooks,
+  type SaleRow,
   salesFilterOptions,
   summarizeSales,
 } from "@/server/sales-browse";
@@ -101,6 +103,96 @@ export default async function SalesPage({ searchParams }: PageProps<"/sales">) {
   ];
   const saved = await loadLayout("sales");
 
+  // One sale's row (inOrder: how many items its order has, when it's shown under the order's row).
+  const saleRow = (s: SaleRow, inOrder = 0) => (
+        <tr key={s.id} className={`align-top ${inOrder ? "bg-surface-2/40" : ""}`}>
+          <td className="whitespace-nowrap text-muted">{s.date}</td>
+          <td className={`min-w-48 ${inOrder ? "pl-7" : ""}`}>
+            <details>
+              <summary className="cursor-pointer">
+                {s.itemName || <span className="text-muted">(no name)</span>}
+                {s.packageName && <span className="text-xs text-muted"> · {s.packageName}</span>}
+              </summary>
+              <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs">
+                {Object.entries(s.raw)
+                  .filter(([k]) => !["item name", "date"].includes(k))
+                  .map(([k, v]) => (
+                    <div key={k} className="contents">
+                      <dt className="text-muted">{k}</dt>
+                      <dd className="break-all">{v}</dd>
+                    </div>
+                  ))}
+              </dl>
+              {s.buyerKey ? (
+                <p className="mt-1 text-xs">
+                  <span className="text-muted">buyer </span>
+                  {s.fanEmail ? `${s.fanName ? `${s.fanName} · ` : ""}${s.fanEmail} (on your mailing list)` : "not on your mailing list"}
+                  {s.buyerSales > 1 && !f.buyer && (
+                    <>
+                      {" · "}
+                      <Link href={filterQuery({ ...f, q: undefined }, { buyer: s.buyerKey, page: 1 })}>all {s.buyerSales} sales to this buyer</Link>
+                    </>
+                  )}
+                </p>
+              ) : null}
+              {s.releaseId && (
+                <Link href={`/catalog/${s.releaseId}`} className="mt-1 inline-block text-xs">
+                  {s.releaseTitle ?? "Release"} in the catalog →
+                </Link>
+              )}
+              {s.routedVia === MANUAL_VIA && s.payoutState === "none" && canDelete(s) && <DeleteManualSale id={s.id} orderItems={inOrder} />}
+            </details>
+          </td>
+          <td className="text-sm">
+            {m && s.bandId ? (
+              <>
+                {s.bandName}
+                {s.orgId === orgId && since && s.date < since && <div className="text-xs text-muted">before {m.labelName}</div>}
+              </>
+            ) : s.bandId ? (
+              <Link href={filterQuery(f, { band: s.bandId, page: 1 }) || "?"} className="hover:underline">
+                {s.bandName}
+              </Link>
+            ) : (
+              <Link href="/sales/import" className="text-bad">
+                not matched
+              </Link>
+            )}
+            {s.artist && s.artist !== s.bandName && <div className="text-xs text-muted">{s.artist}</div>}
+          </td>
+          <td className="text-sm">
+            <Link href={filterQuery(f, { type: s.category, page: 1 })} className="text-text hover:underline">
+              {s.itemType === "show" ? "Show" : (TYPE_LABEL[s.category] ?? s.category)}
+            </Link>
+          </td>
+          <td className="text-sm">
+            {s.country ? (
+              <Link href={filterQuery(f, { country: s.country, page: 1 })} className="text-text hover:underline">
+                {s.country}
+              </Link>
+            ) : (
+              <span className="text-muted">–</span>
+            )}
+          </td>
+          <td className="max-w-40 truncate text-sm" title={s.source}>
+            {s.source ? (
+              <Link href={filterQuery(f, { source: s.source, page: 1 })} className="text-text hover:underline">
+                {s.source}
+              </Link>
+            ) : (
+              <span className="text-muted">–</span>
+            )}
+          </td>
+          <td className="num">{s.quantity}</td>
+          <td className={`num ${s.netCents < 0 ? "text-bad" : ""}`}>
+            <Money cents={s.netCents} currency={s.currency} />
+          </td>
+          <td className="whitespace-nowrap text-sm">
+            <PayoutCell state={s.payoutState} periodId={s.periodId} />
+          </td>
+        </tr>
+  );
+
   return (
     <>
       <PageHeader
@@ -152,94 +244,15 @@ export default async function SalesPage({ searchParams }: PageProps<"/sales">) {
                   </tr>
                 </thead>
                 <tbody>
-                  {page.rows.map((s) => (
-                    <tr key={s.id} className="align-top">
-                      <td className="whitespace-nowrap text-muted">{s.date}</td>
-                      <td className="min-w-48">
-                        <details>
-                          <summary className="cursor-pointer">
-                            {s.itemName || <span className="text-muted">(no name)</span>}
-                            {s.packageName && <span className="text-xs text-muted"> · {s.packageName}</span>}
-                          </summary>
-                          <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs">
-                            {Object.entries(s.raw)
-                              .filter(([k]) => !["item name", "date"].includes(k))
-                              .map(([k, v]) => (
-                                <div key={k} className="contents">
-                                  <dt className="text-muted">{k}</dt>
-                                  <dd className="break-all">{v}</dd>
-                                </div>
-                              ))}
-                          </dl>
-                          {s.buyerKey ? (
-                            <p className="mt-1 text-xs">
-                              <span className="text-muted">buyer </span>
-                              {s.fanEmail ? `${s.fanName ? `${s.fanName} · ` : ""}${s.fanEmail} (on your mailing list)` : "not on your mailing list"}
-                              {s.buyerSales > 1 && !f.buyer && (
-                                <>
-                                  {" · "}
-                                  <Link href={filterQuery({ ...f, q: undefined }, { buyer: s.buyerKey, page: 1 })}>all {s.buyerSales} sales to this buyer</Link>
-                                </>
-                              )}
-                            </p>
-                          ) : null}
-                          {s.releaseId && (
-                            <Link href={`/catalog/${s.releaseId}`} className="mt-1 inline-block text-xs">
-                              {s.releaseTitle ?? "Release"} in the catalog →
-                            </Link>
-                          )}
-                          {s.routedVia === MANUAL_VIA && s.payoutState === "none" && canDelete(s) && <DeleteManualSale id={s.id} />}
-                        </details>
-                      </td>
-                      <td className="text-sm">
-                        {m && s.bandId ? (
-                          <>
-                            {s.bandName}
-                            {s.orgId === orgId && since && s.date < since && <div className="text-xs text-muted">before {m.labelName}</div>}
-                          </>
-                        ) : s.bandId ? (
-                          <Link href={filterQuery(f, { band: s.bandId, page: 1 }) || "?"} className="hover:underline">
-                            {s.bandName}
-                          </Link>
-                        ) : (
-                          <Link href="/sales/import" className="text-bad">
-                            not matched
-                          </Link>
-                        )}
-                        {s.artist && s.artist !== s.bandName && <div className="text-xs text-muted">{s.artist}</div>}
-                      </td>
-                      <td className="text-sm">
-                        <Link href={filterQuery(f, { type: s.category, page: 1 })} className="text-text hover:underline">
-                          {s.itemType === "show" ? "Show" : (TYPE_LABEL[s.category] ?? s.category)}
-                        </Link>
-                      </td>
-                      <td className="text-sm">
-                        {s.country ? (
-                          <Link href={filterQuery(f, { country: s.country, page: 1 })} className="text-text hover:underline">
-                            {s.country}
-                          </Link>
-                        ) : (
-                          <span className="text-muted">–</span>
-                        )}
-                      </td>
-                      <td className="max-w-40 truncate text-sm" title={s.source}>
-                        {s.source ? (
-                          <Link href={filterQuery(f, { source: s.source, page: 1 })} className="text-text hover:underline">
-                            {s.source}
-                          </Link>
-                        ) : (
-                          <span className="text-muted">–</span>
-                        )}
-                      </td>
-                      <td className="num">{s.quantity}</td>
-                      <td className={`num ${s.netCents < 0 ? "text-bad" : ""}`}>
-                        <Money cents={s.netCents} currency={s.currency} />
-                      </td>
-                      <td className="whitespace-nowrap text-sm">
-                        <PayoutCell state={s.payoutState} periodId={s.periodId} />
-                      </td>
-                    </tr>
-                  ))}
+                  {ordersOf(page.rows).map((order) =>
+                    order.length === 1 ? (
+                      saleRow(order[0])
+                    ) : (
+                      <SaleOrder key={`order-${order[0].id}`} head={<OrderCells order={order} />}>
+                        {order.map((x) => saleRow(x, order.length))}
+                      </SaleOrder>
+                    ),
+                  )}
                 </tbody>
               </table>
             </div>
@@ -517,5 +530,55 @@ function Tile({ label, value, hint }: { label: string; value: string; hint?: str
         {hint && <> · {hint}</>}
       </div>
     </div>
+  );
+}
+
+/**
+ * The rows on the page, with an order's items together: consecutive sales with the same transaction
+ * (a Bandcamp order with several items, or merch added by hand at once). Sorted by anything but the
+ * date, an order's items are far apart, so they're shown one by one.
+ */
+function ordersOf(rows: SaleRow[]): SaleRow[][] {
+  const out: SaleRow[][] = [];
+  for (const r of rows) {
+    const last = out.at(-1)?.[0];
+    if (last && r.transactionId && last.transactionId === r.transactionId && last.orgId === r.orgId && last.currency === r.currency) out.at(-1)!.push(r);
+    else out.push([r]);
+  }
+  // An order's items in the order they were bought (or added).
+  return out.map((o) => o.sort((a, b) => a.id - b.id));
+}
+
+const itemLabel = (s: SaleRow) => `${s.packageName ? `${s.itemName} ${s.packageName}` : s.itemName}${s.quantity > 1 ? ` ×${s.quantity}` : ""}`;
+
+/** An order's own row: what's in it and its totals. */
+function OrderCells({ order }: { order: SaleRow[] }) {
+  const first = order[0];
+  const unique = (xs: (string | null)[]) => [...new Set(xs.filter((x): x is string => !!x))];
+  const bandNames = unique(order.map((s) => s.bandName));
+  const types = unique(order.map((s) => (s.itemType === "show" ? "Show" : (TYPE_LABEL[s.category] ?? s.category))));
+  const states = unique(order.map((s) => s.payoutState));
+  const net = order.reduce((a, s) => a + s.netCents, 0);
+  return (
+    <>
+      <td className="whitespace-nowrap text-muted">{first.date}</td>
+      <td className="min-w-48">
+        <span className="mr-1 inline-block text-xs text-muted transition group-aria-expanded:rotate-90">▸</span>
+        {order.map(itemLabel).join(", ")}
+      </td>
+      <td className="text-sm">{bandNames.join(", ") || <span className="text-bad">not matched</span>}</td>
+      <td className="text-sm">{types.join(", ")}</td>
+      <td className="text-sm">{first.country ?? <span className="text-muted">–</span>}</td>
+      <td className="max-w-40 truncate text-sm" title={first.source}>
+        {first.source || <span className="text-muted">–</span>}
+      </td>
+      <td className="num">{order.reduce((a, s) => a + s.quantity, 0)}</td>
+      <td className={`num ${net < 0 ? "text-bad" : ""}`}>
+        <Money cents={net} currency={first.currency} />
+      </td>
+      <td className="whitespace-nowrap text-sm">
+        {states.length === 1 ? <PayoutCell state={first.payoutState} periodId={first.periodId} /> : <span className="text-muted">partly</span>}
+      </td>
+    </>
   );
 }

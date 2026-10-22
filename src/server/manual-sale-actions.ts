@@ -77,6 +77,9 @@ export async function addManualSale(_: ManualSaleState, fd: FormData): Promise<M
   const since = managedBy ? await onLabelSince(managedBy.labelOrgId, managedBy.bandId) : null;
   const books = managedBy && (!since || date >= since) ? { orgId: managedBy.labelOrgId, bandId: managedBy.bandId } : { orgId, bandId };
   const importId = await importNamed(books.orgId, MANUAL_IMPORT);
+  // Everything sold at once is one order (like a Bandcamp order with several items): one line each,
+  // so splits, costs and stock work item by item, shown together in the sales list.
+  const order = `manual:${randomUUID()}`;
   await db.transaction(async (tx) => {
     const added = await tx
       .insert(schema.sales)
@@ -97,7 +100,7 @@ export async function addManualSale(_: ManualSaleState, fd: FormData): Promise<M
             currency,
             netCents: l.netCents,
             quantity: l.quantity,
-            transactionId: key,
+            transactionId: order,
             routingKey: key,
             bandId: books.bandId,
             releaseId: l.release?.books === books.orgId ? l.release.id : null,
@@ -117,7 +120,7 @@ export async function addManualSale(_: ManualSaleState, fd: FormData): Promise<M
   return { ok: `Added ${lines[0].format ? `${lines[0].itemName}, ${lines[0].format}` : lines[0].itemName}.` };
 }
 
-/** Take back a sale that was added by hand, while it isn't part of a payout yet. */
+/** Take back a sale that was added by hand (or, with "whole", every item in its order), while it isn't part of a payout yet. */
 export async function deleteManualSale(_: ManualSaleState, fd: FormData): Promise<ManualSaleState> {
   const adder = await saleAdder();
   if (!adder) return { error: "Only a band’s members can delete its sales." };
@@ -126,7 +129,7 @@ export async function deleteManualSale(_: ManualSaleState, fd: FormData): Promis
   const id = Number(str(fd, "id"));
   // (A band's own group: its own books, or the label's for its band.)
   const [sale] = await db
-    .select({ id: schema.sales.id, orgId: schema.sales.orgId, bandId: schema.sales.bandId, via: schema.sales.routedVia })
+    .select({ id: schema.sales.id, orgId: schema.sales.orgId, bandId: schema.sales.bandId, via: schema.sales.routedVia, order: schema.sales.transactionId })
     .from(schema.sales)
     .where(eq(schema.sales.id, id));
   const ours =
@@ -134,14 +137,25 @@ export async function deleteManualSale(_: ManualSaleState, fd: FormData): Promis
     ((sale.orgId === orgId && adder.bands.some((b) => b.id === sale.bandId)) || (managedBy && sale.orgId === managedBy.labelOrgId && sale.bandId === managedBy.bandId));
   if (!sale || !ours) return { error: "That isn’t one of your band’s sales." };
   if (sale.via !== MANUAL_VIA) return { error: "Only sales added by hand can be deleted." };
-  if (await saleInPayout(sale.orgId, id)) return { error: "It’s part of a payout already, so it stays." };
+  const ids =
+    str(fd, "whole") === "1"
+      ? (
+          await db
+            .select({ id: schema.sales.id })
+            .from(schema.sales)
+            .where(and(eq(schema.sales.orgId, sale.orgId), eq(schema.sales.transactionId, sale.order), eq(schema.sales.routedVia, MANUAL_VIA)))
+        ).map((r) => r.id)
+      : [id];
+  for (const x of ids) if (await saleInPayout(sale.orgId, x)) return { error: ids.length > 1 ? "Part of it is in a payout already, so it stays." : "It’s part of a payout already, so it stays." };
   await db.transaction(async (tx) => {
-    // What it took off stock goes back.
-    const moves = await tx.select().from(schema.inventoryMoves).where(eq(schema.inventoryMoves.saleId, id));
-    for (const m of moves) {
-      await takeStock(tx, { id: m.itemId, orgId: m.orgId }, "other", -m.delta, { saleId: null, userId, note: "Back in stock: the sale was deleted" });
+    for (const x of ids) {
+      // What it took off stock goes back.
+      const moves = await tx.select().from(schema.inventoryMoves).where(eq(schema.inventoryMoves.saleId, x));
+      for (const m of moves) {
+        await takeStock(tx, { id: m.itemId, orgId: m.orgId }, "other", -m.delta, { saleId: null, userId, note: "Back in stock: the sale was deleted" });
+      }
+      await tx.delete(schema.sales).where(and(eq(schema.sales.orgId, sale.orgId), eq(schema.sales.id, x)));
     }
-    await tx.delete(schema.sales).where(and(eq(schema.sales.orgId, sale.orgId), eq(schema.sales.id, id)));
   });
   revalidatePath("/", "layout");
   return { ok: "Deleted." };
