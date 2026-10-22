@@ -35,7 +35,7 @@ export default async function InventoryPage({ searchParams }: PageProps<"/invent
       .orderBy(asc(schema.inventoryItems.name), asc(schema.inventoryItems.option)),
     db.select({ id: schema.bands.id, name: schema.bands.name }).from(schema.bands).where(eq(schema.bands.orgId, orgId)).orderBy(asc(schema.bands.name)),
     db
-      .select({ id: schema.releases.id, title: schema.releases.title, kind: schema.releases.kind, bandId: schema.releases.bandId, packages: schema.releases.packages })
+      .select({ id: schema.releases.id, title: schema.releases.title, kind: schema.releases.kind, bandId: schema.releases.bandId, packages: schema.releases.packages, artUrl: schema.releases.artUrl })
       .from(schema.releases)
       .where(eq(schema.releases.orgId, orgId))
       .orderBy(asc(schema.releases.title)),
@@ -53,6 +53,9 @@ export default async function InventoryPage({ searchParams }: PageProps<"/invent
         .limit(1000)
     : [];
   const movesOf = (id: number) => moves.filter((m) => m.itemId === id).slice(0, 10);
+  // Each item's photo: its catalog item's (a merch photo, or a release's cover for its formats).
+  const art = new Map(releaseRows.filter((r) => r.artUrl).map((r) => [r.id, r.artUrl!]));
+  const photoOf = (i: Item) => (i.releaseId ? (art.get(i.releaseId) ?? null) : null);
   // Catalog items to link to: each format of a release, and each merch item.
   const catalog: CatalogOption[] = releaseRows
     .filter((r) => inScope(r.bandId))
@@ -115,7 +118,7 @@ export default async function InventoryPage({ searchParams }: PageProps<"/invent
         {products.length === 0 ? (
           <Empty>Nothing yet.</Empty>
         ) : (
-          <ItemTable items={products} bandName={bandName} movesOf={movesOf} canEdit={canEdit} canCount={canCount} bands={bands} catalog={catalog} ownBandsOnly={!!scope} />
+          <ItemTable items={products} bandName={bandName} movesOf={movesOf} photoOf={photoOf} canEdit={canEdit} canCount={canCount} bands={bands} catalog={catalog} ownBandsOnly={!!scope} />
         )}
       </Card>
 
@@ -145,6 +148,7 @@ function ItemTable({
   items,
   bandName,
   movesOf,
+  photoOf,
   canEdit,
   canCount,
   bands,
@@ -154,6 +158,8 @@ function ItemTable({
   items: Item[];
   bandName: Map<number, string>;
   movesOf: (id: number) => Move[];
+  /** For sale only: a photo beside each item (a blank square when it has none, so the names line up). */
+  photoOf?: (i: Item) => string | null;
   canEdit: boolean;
   canCount: boolean;
   bands: Option[];
@@ -162,48 +168,58 @@ function ItemTable({
 }) {
   return (
     <ul className="divide-y divide-border border-b border-border">
-      {items.map((i) => (
-        <li key={i.id} className="grid gap-3 py-3 md:grid-cols-[minmax(0,1fr)_7rem]">
-          <div className="min-w-0 space-y-1">
-            <div className="flex flex-wrap items-baseline gap-x-2">
-              <span className="font-medium">{i.name}</span>
-              {i.option && <Badge>{i.option}</Badge>}
-              {isLow(i) && <Badge tone="warn">running low</Badge>}
-            </div>
-            <div className="text-xs text-muted">
-              {[i.bandId && bandName.get(i.bandId), i.sku && `SKU ${i.sku}`, i.location && `kept at ${i.location}`, i.priceCents !== null && `${formatCents(i.priceCents, i.currency)} each`, i.unitCostCents !== null && `costs ${formatCents(i.unitCostCents, i.currency)}`]
-                .filter(Boolean)
-                .join(" · ") || "–"}
-            </div>
-            {i.notes && <p className="text-xs text-muted">{i.notes}</p>}
-            <div className="flex flex-wrap items-start gap-2 pt-1">
-              {canCount && (
-                <Disclosure summary="Change count">
-                  <AdjustForm item={i} />
+      {items.map((i) => {
+        const photo = photoOf?.(i);
+        return (
+          <li key={i.id} className={`grid gap-3 py-3 ${photoOf ? "grid-cols-[3rem_minmax(0,1fr)] md:grid-cols-[3rem_minmax(0,1fr)_7rem]" : "md:grid-cols-[minmax(0,1fr)_7rem]"}`}>
+            {photoOf &&
+              (photo ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={photo.replace(/_(2|10|16)\.jpg$/, "_3.jpg")} alt="" loading="lazy" className="h-12 w-12 border border-border bg-surface-2 object-cover" />
+              ) : (
+                <div className="h-12 w-12 border border-border bg-surface-2" />
+              ))}
+            <div className="min-w-0 space-y-1">
+              <div className="flex flex-wrap items-baseline gap-x-2">
+                <span className="font-medium">{i.name}</span>
+                {i.option && <Badge>{i.option}</Badge>}
+                {isLow(i) && <Badge tone="warn">running low</Badge>}
+              </div>
+              <div className="text-xs text-muted">
+                {[i.bandId && bandName.get(i.bandId), i.sku && `SKU ${i.sku}`, i.location && `kept at ${i.location}`, i.priceCents !== null && `${formatCents(i.priceCents, i.currency)} each`, i.unitCostCents !== null && `costs ${formatCents(i.unitCostCents, i.currency)}`]
+                  .filter(Boolean)
+                  .join(" · ") || "–"}
+              </div>
+              {i.notes && <p className="text-xs text-muted">{i.notes}</p>}
+              <div className="flex flex-wrap items-start gap-2 pt-1">
+                {canCount && (
+                  <Disclosure summary="Change count">
+                    <AdjustForm item={i} />
+                  </Disclosure>
+                )}
+                <Disclosure summary="History">
+                  <History moves={movesOf(i.id)} />
                 </Disclosure>
-              )}
-              <Disclosure summary="History">
-                <History moves={movesOf(i.id)} />
-              </Disclosure>
-              {canEdit && (
-                <Disclosure summary="Edit">
-                  <ItemForm item={i} bands={bands} catalog={catalog} ownBandsOnly={ownBandsOnly} />
-                  <form action={archiveInventoryItem} className="mt-3">
-                    <input type="hidden" name="id" value={i.id} />
-                    <SubmitButton variant="ghost" size="sm" confirm={`Remove ${itemLabel(i)} from the inventory? Its history is kept.`}>
-                      Remove from inventory
-                    </SubmitButton>
-                  </form>
-                </Disclosure>
-              )}
+                {canEdit && (
+                  <Disclosure summary="Edit">
+                    <ItemForm item={i} bands={bands} catalog={catalog} ownBandsOnly={ownBandsOnly} />
+                    <form action={archiveInventoryItem} className="mt-3">
+                      <input type="hidden" name="id" value={i.id} />
+                      <SubmitButton variant="ghost" size="sm" confirm={`Remove ${itemLabel(i)} from the inventory? Its history is kept.`}>
+                        Remove from inventory
+                      </SubmitButton>
+                    </form>
+                  </Disclosure>
+                )}
+              </div>
             </div>
-          </div>
-          <div className="text-right">
-            <div className={`text-2xl font-bold tabular-nums ${isLow(i) ? "text-warn" : i.onHand === 0 ? "text-muted" : ""}`}>{i.onHand}</div>
-            <div className="text-xs text-muted">on hand{i.lowAt !== null ? ` · low at ${i.lowAt}` : ""}</div>
-          </div>
-        </li>
-      ))}
+            <div className={`text-right ${photoOf ? "col-start-2 md:col-start-auto" : ""}`}>
+              <div className={`text-2xl font-bold tabular-nums ${isLow(i) ? "text-warn" : i.onHand === 0 ? "text-muted" : ""}`}>{i.onHand}</div>
+              <div className="text-xs text-muted">on hand{i.lowAt !== null ? ` · low at ${i.lowAt}` : ""}</div>
+            </div>
+          </li>
+        );
+      })}
     </ul>
   );
 }
