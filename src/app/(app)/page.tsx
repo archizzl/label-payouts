@@ -1,4 +1,5 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
+import { Avatar } from "@/components/avatar";
 import Link from "next/link";
 import { Suspense } from "react";
 import { connection } from "next/server";
@@ -15,7 +16,7 @@ import { STATUS_LABEL, STATUS_TONE } from "@/lib/status";
 import { outsideArtistRows } from "@/components/outside-artists";
 import { SyncFooter } from "@/components/sync-status";
 import { setSetupHidden } from "@/server/actions";
-import { requireAccess } from "@/server/context";
+import { groupPhotos, requireAccess } from "@/server/context";
 import { computeAllTime } from "@/server/data";
 import { labelPartFor } from "@/server/own-books";
 import { BandProjects } from "@/components/band-projects";
@@ -178,7 +179,12 @@ export default async function Dashboard() {
   return (
     <>
       <PageHeader
-        title={ctx.org.name}
+        title={
+          <span className="flex items-center gap-3">
+            <Avatar name={ctx.org.name} src={(await groupPhotos([ctx.org])).get(ctx.org.id)} size={40} square />
+            {ctx.org.name}
+          </span>
+        }
         actions={
           <>
             <LinkButton href="/sales/import" variant={next === "import" ? "primary" : "secondary"}>
