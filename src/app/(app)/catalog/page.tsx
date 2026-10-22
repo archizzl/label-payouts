@@ -39,17 +39,6 @@ export default async function CatalogPage({ searchParams }: PageProps<"/catalog"
   const releases = scope ? allReleases.filter((r) => scope.includes(r.bandId)) : allReleases;
   const trackCounts = new Map(trackCountRows.map((r) => [r.releaseId, r.n]));
   const splitReleases = new Set(rules.map((r) => r.releaseId));
-  /** The split a release without its own uses: the band's merch split, its default, or the label-wide default. */
-  const fallbackSplit = (bandId: number, merch: boolean) =>
-    merch && rules.some((r) => r.scope === "band_item_type" && r.bandId === bandId && r.itemCategory === "merch")
-      ? "band merch split"
-      : rules.some((r) => r.scope === "band_default" && r.bandId === bandId)
-        ? "band default split"
-        : bands.find((b) => b.id === bandId)?.isLabel
-          ? "label keeps it"
-          : rules.some((r) => r.scope === "label_default")
-          ? "label-wide default split"
-          : "no split set";
   const shown = bands.filter((b) => !bandFilter || b.id === bandFilter);
   // A band's own group (or a label viewing as one): one band, nothing to choose or label.
   const oneBand = ctx.org.kind === "band" && bands.length <= 1;
@@ -69,15 +58,8 @@ export default async function CatalogPage({ searchParams }: PageProps<"/catalog"
         const rs = releases.filter((r) => r.bandId === b.id);
         const music = rs.filter((r) => r.kind !== "merch");
         const merch = rs.filter((r) => r.kind === "merch");
-        // Which split a release uses; nothing's said when it's the label-wide default.
-        const splitOf = (r: (typeof rs)[number]) => {
-          const split = splitReleases.has(r.id)
-            ? "custom split"
-            : r.kind !== "merch" && r.albumSplitMode === "average_tracks"
-              ? "average of tracks"
-              : fallbackSplit(r.bandId, r.kind === "merch");
-          return split === "label-wide default split" ? null : split;
-        };
+        // Only a split of the item's own is named.
+        const splitOf = (r: (typeof rs)[number]) => (splitReleases.has(r.id) ? "custom split" : null);
         const grid = (items: typeof rs) => (
           <ul className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-4 md:grid-cols-5">
             {items.map((r) => (
