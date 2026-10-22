@@ -21,8 +21,8 @@ export const MANUAL_SOURCE = "In person";
 
 /** What it was: a show (door money or a fee), merch, or anything else. */
 export const MANUAL_KINDS = [
-  { value: "show", label: "Show", category: "other", itemType: "show" },
   { value: "merch", label: "Merch", category: "merch", itemType: "package" },
+  { value: "show", label: "Show", category: "other", itemType: "show" },
   { value: "other", label: "Other", category: "other", itemType: "other" },
 ] as const;
 
