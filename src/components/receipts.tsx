@@ -379,7 +379,6 @@ export function ExpenseTable({
               </div>
               <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
                 <Badge tone={STATUS[e.status].tone}>{STATUS[e.status].label}</Badge>
-                <span>{coverageText(e, personName, label ? "label" : group)}</span>
                 {owedReimbursement(e) && <Badge tone="warn">not reimbursed yet</Badge>}
                 {e.reimbursedAt && (
                   <Badge tone="good">
@@ -407,54 +406,60 @@ export function ExpenseTable({
                   </SubmitButton>
                 </form>
               )}
-              {mode === "admin" && e.status === "approved" && e.paidBy === "person" && !e.recoup && (
+              {mode === "admin" && e.status === "approved" && e.paidBy === "person" && !e.recoup && !e.reimbursedAt && (
                 <form action={setReimbursed} className="flex flex-wrap items-center gap-2 pt-1">
                   <input type="hidden" name="id" value={e.id} />
-                  <input type="hidden" name="reimbursed" value={e.reimbursedAt ? "false" : "true"} />
-                  {e.reimbursedAt ? (
-                    <SubmitButton size="sm" variant="ghost">
-                      Undo reimbursed
-                    </SubmitButton>
-                  ) : (
-                    <>
-                      <ReimburseButtons
-                        payee={
-                          (e.paidByPersonId && payees?.get(e.paidByPersonId)) || {
-                            id: e.paidByPersonId ?? 0,
-                            name: personName(e.paidByPersonId ?? 0) ?? "them",
-                            paypalMe: null,
-                            venmo: null,
-                            cashtag: null,
-                          }
-                        }
-                        amountCents={e.amountCents}
-                        currency={e.currency}
-                        note={`Reimbursement: ${e.description}`}
-                      />
-                      <input name="reference" placeholder="Transaction ID (optional)" className="!w-44 !py-1 !text-xs" />
-                    </>
-                  )}
+                  <input type="hidden" name="reimbursed" value="true" />
+                  <ReimburseButtons
+                    payee={
+                      (e.paidByPersonId && payees?.get(e.paidByPersonId)) || {
+                        id: e.paidByPersonId ?? 0,
+                        name: personName(e.paidByPersonId ?? 0) ?? "them",
+                        paypalMe: null,
+                        venmo: null,
+                        cashtag: null,
+                      }
+                    }
+                    amountCents={e.amountCents}
+                    currency={e.currency}
+                    note={`Reimbursement: ${e.description}`}
+                  />
+                  <input name="reference" placeholder="Transaction ID (optional)" className="!w-44 !py-1 !text-xs" />
                 </form>
               )}
-              {mode === "admin" && edit && (
-                <div className="flex flex-wrap items-start gap-2 pt-1">
-                  <Disclosure summary="Edit">{edit(e)}</Disclosure>
+              <div className="flex flex-wrap items-start gap-2 pt-1">
+                {mode === "admin" && edit && (
+                  <>
+                    <Disclosure summary="Edit">{edit(e)}</Disclosure>
+                    <form action={deleteExpense}>
+                      <input type="hidden" name="id" value={e.id} />
+                      <SubmitButton size="sm" variant="ghost" confirm={`Delete “${e.description}” and its receipts?`}>
+                        Delete
+                      </SubmitButton>
+                    </form>
+                  </>
+                )}
+                {mode === "member" && e.status === "pending" && e.submittedByUserId === userId && (
                   <form action={deleteExpense}>
                     <input type="hidden" name="id" value={e.id} />
-                    <SubmitButton size="sm" variant="ghost" confirm={`Delete “${e.description}” and its receipts?`}>
-                      Delete
+                    <SubmitButton size="sm" variant="ghost" confirm="Withdraw this receipt?">
+                      Withdraw
                     </SubmitButton>
                   </form>
-                </div>
-              )}
-              {mode === "member" && e.status === "pending" && e.submittedByUserId === userId && (
-                <form action={deleteExpense}>
-                  <input type="hidden" name="id" value={e.id} />
-                  <SubmitButton size="sm" variant="ghost" confirm="Withdraw this receipt?">
-                    Withdraw
-                  </SubmitButton>
-                </form>
-              )}
+                )}
+                <Disclosure summary="Details">
+                  <p className="text-sm">{coverageText(e, personName, label ? "label" : group)}</p>
+                  {mode === "admin" && e.reimbursedAt && e.paidBy === "person" && !e.recoup && (
+                    <form action={setReimbursed} className="mt-2">
+                      <input type="hidden" name="id" value={e.id} />
+                      <input type="hidden" name="reimbursed" value="false" />
+                      <button type="submit" className="text-xs text-link hover:underline">
+                        Undo reimbursed
+                      </button>
+                    </form>
+                  )}
+                </Disclosure>
+              </div>
             </div>
             <span className="text-right font-medium tabular-nums">
               <Money cents={e.amountCents} currency={e.currency} />
