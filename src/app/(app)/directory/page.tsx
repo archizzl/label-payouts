@@ -1,4 +1,4 @@
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq, isNotNull } from "drizzle-orm";
 import Link from "next/link";
 import { connection } from "next/server";
 import { redirect } from "next/navigation";
@@ -30,7 +30,7 @@ type Totals = Map<string, number>;
 
 /** The person rows' columns (and the header above them). */
 /** A person's row: columns on a wide screen; on a phone or tablet, their name (and edit) then the rest under it. */
-const COLUMNS = "grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1.1fr)_minmax(0,1.4fr)_minmax(0,1.3fr)_5.5rem_5.5rem_3rem] lg:gap-3";
+const COLUMNS = "grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1.1fr)_minmax(0,1.4fr)_minmax(0,1.3fr)_5.5rem_5.5rem_5.5rem_3rem] lg:gap-3";
 /** Under the name on a phone; its own column on a wide screen. */
 const UNDER = "col-span-2 lg:col-span-1";
 /** The last column (edit): beside the name on a phone. */
@@ -50,7 +50,7 @@ export default async function DirectoryPage() {
   // Bands' own accounts (label admins): bands added since (or from before sub-accounts) get theirs.
   const showAccounts = ctx.isAdmin && ctx.org.kind === "label";
   if (showAccounts) await ensureBandAccounts(orgId);
-  const [allBands, everyone, memberships, payoutRows, duplicates, outsideRows, accounts, loginOf, photoOf] = await Promise.all([
+  const [allBands, everyone, memberships, payoutRows, duplicates, outsideRows, accounts, loginOf, photoOf, reimbursedRows] = await Promise.all([
     db.select().from(schema.bands).where(eq(schema.bands.orgId, orgId)).orderBy(asc(schema.bands.name)),
     db.select().from(schema.people).where(eq(schema.people.orgId, orgId)).orderBy(asc(schema.people.name)),
     db
@@ -70,6 +70,11 @@ export default async function DirectoryPage() {
     showAccounts ? bandAccountSummaries(orgId) : new Map<number, BandAccountSummary>(),
     loginEmails(orgId),
     personPhotos(orgId),
+    // What people paid for themselves and have been paid back (a receipt marked reimbursed).
+    db
+      .select({ personId: schema.expenses.paidByPersonId, bandId: schema.expenses.bandId, currency: schema.expenses.currency, amountCents: schema.expenses.amountCents })
+      .from(schema.expenses)
+      .where(and(eq(schema.expenses.orgId, orgId), eq(schema.expenses.status, "approved"), eq(schema.expenses.paidBy, "person"), isNotNull(schema.expenses.reimbursedAt))),
   ]);
   const bands = scope ? allBands.filter((b) => scope.includes(b.id)) : allBands;
   // A band account is one band: its directory is that band and its people.
@@ -92,7 +97,15 @@ export default async function DirectoryPage() {
   const pending = payoutRows.filter((r) => r.status === "pending");
   // Paid out, or kept in the label's account by whoever holds it: either way, it's theirs and settled.
   const paid = payoutRows.filter((r) => r.status !== "pending");
-  const money = new Map(people.map((p) => [p.id, { owed: sumBy(pending, p.id), paid: sumBy(paid, p.id) }]));
+  const reimbursedTo = (personId: number) => {
+    const m: Totals = new Map();
+    for (const r of reimbursedRows) {
+      if (r.personId !== personId || (scope && (r.bandId === null || !scope.includes(r.bandId)))) continue;
+      m.set(r.currency, (m.get(r.currency) ?? 0) + r.amountCents);
+    }
+    return m;
+  };
+  const money = new Map(people.map((p) => [p.id, { owed: sumBy(pending, p.id), paid: sumBy(paid, p.id), reimbursed: reimbursedTo(p.id) }]));
   const contactFor = (personId: number) => outsideRows.filter((a) => a.contactPersonId === personId).map((a) => a.name);
 
   // A band that runs its own account (its admins): who signs in is part of the list, with what they
@@ -244,6 +257,7 @@ export default async function DirectoryPage() {
                     <span className="hidden lg:block" />
                     <span className="hidden lg:block" />
                     <span className="hidden lg:block" />
+                    <span className="hidden lg:block" />
                   </div>
                 ))}
                 {runsLogins && (
@@ -354,6 +368,7 @@ function ColumnHeads() {
       <span>account</span>
       <span className="text-right">owed</span>
       <span className="text-right">paid / kept</span>
+      <span className="text-right">reimbursed</span>
       <span />
     </div>
   );
@@ -410,7 +425,7 @@ function PersonRow({
   photo: string | null;
   /** A band that runs its own account: what their login can do here, and removing it. */
   signIn?: React.ReactNode;
-  money: { owed: Totals; paid: Totals };
+  money: { owed: Totals; paid: Totals; reimbursed: Totals };
   everyone: Person[];
   /** The bands they can be added to (the ones on this page). */
   bands: Band[];
@@ -458,6 +473,10 @@ function PersonRow({
       <span className={`${UNDER} tabular-nums lg:text-right`}>
         <span className="text-xs text-muted lg:hidden">paid or kept </span>
         <MoneyList totals={money.paid} />
+      </span>
+      <span className={`${UNDER} tabular-nums lg:text-right`}>
+        <span className="text-xs text-muted lg:hidden">reimbursed </span>
+        <MoneyList totals={money.reimbursed} />
       </span>
     </>
   );
