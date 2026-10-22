@@ -16,6 +16,7 @@ import { bandcampApiOff } from "@/server/bandcamp-api";
 import { accountContext, type Context, isBandLogin, requireAdmin } from "@/server/context";
 import { unlink } from "@/server/link-actions";
 import { labelsForBandAccount } from "@/server/links";
+import { labelReach } from "@/server/own-books";
 
 export const metadata = { title: "settings" };
 
@@ -50,7 +51,7 @@ export default async function SettingsPage() {
         </Callout>
       )}
 
-      {band ? <BandSettingsCard band={band} settings={settings} api /> : <BandcampCard settings={settings} labelName={ctx.org.name} />}
+      {band ? <BandSettingsCard band={band} settings={settings} api="shown" /> : <BandcampCard settings={settings} labelName={ctx.org.name} />}
 
       {kind === "label" && people.length > 0 && (
         <div id="label-bank-account" className="scroll-mt-4">
@@ -183,22 +184,26 @@ function BandcampCard({ settings, labelName }: { settings: Settings | undefined;
  */
 async function SubAccountSettings({ ctx }: { ctx: Context }) {
   const m = ctx.managedBy!;
-  const [[band], [settings]] = await Promise.all([
+  const [[band], [settings], reach] = await Promise.all([
     db.select().from(schema.bands).where(and(eq(schema.bands.orgId, m.labelOrgId), eq(schema.bands.id, m.bandId))),
     db.select().from(schema.accountSettings).where(eq(schema.accountSettings.orgId, ctx.orgId)),
+    labelReach(ctx.orgId),
   ]);
+  // The label's Bandcamp API access already brings in the band's sales: its own is only for a
+  // separate Bandcamp account, so it's tucked away (unless it's already set up).
+  const tucked = !!reach?.reachesBand && !settings?.bandcampClientId;
   return (
     <>
       <PageHeader title="Settings" subtitle={ctx.org.name} />
       {/* The same form the label has for the band, without the label's own notes. Who signs in is in the Directory. */}
-      {band && <BandSettingsCard band={band} settings={settings} api />}
+      {band && <BandSettingsCard band={band} settings={settings} api={tucked ? "tucked" : "shown"} />}
       {bandcampApiOff() && (
         <Callout tone="neutral">
           The Bandcamp API is switched off on this copy (<code>BANDCAMP_API=off</code>), so it never takes the live site’s Bandcamp sign-in.
         </Callout>
       )}
       {/* Signed in as the band itself: its password is here (it has no Account page). */}
-      {isBandLogin(ctx) && (
+      {isBandLogin(ctx) && !ctx.viewingAs && (
         <Card title="Password">
           <p className="mb-3 text-sm text-muted">Signs in as {ctx.user.email}.</p>
           <ActionForm action={changeMyPassword} className="flex flex-wrap items-end gap-3">
@@ -268,7 +273,26 @@ function BandcampConnection({ settings }: { settings: Settings | undefined }) {
  * A band account's Settings, one form: the band's name and other spellings, where it is (its
  * Bandcamp address is also how its sales are matched to it), and (`api`) Bandcamp API access.
  */
-function BandSettingsCard({ band, settings, api }: { band: typeof schema.bands.$inferSelect; settings: Settings | undefined; api: boolean }) {
+function BandSettingsCard({
+  band,
+  settings,
+  api,
+}: {
+  band: typeof schema.bands.$inferSelect;
+  settings: Settings | undefined;
+  /** Bandcamp API access: its fields, the fields behind a link (the label's access covers the band), or none. */
+  api: "shown" | "tucked" | false;
+}) {
+  const apiFields = (
+    <>
+      <Field label="Client ID">
+        <input name="bandcampClientId" defaultValue={settings?.bandcampClientId ?? ""} {...NOT_A_LOGIN} />
+      </Field>
+      <Field label="Client secret" hint={settings?.bandcampClientSecret ? "Saved. Leave blank to keep it." : undefined}>
+        <SecretInput saved={!!settings?.bandcampClientSecret} />
+      </Field>
+    </>
+  );
   return (
     <Card title="Band">
       <ActionForm action={saveBandSettings} className="grid gap-4 sm:grid-cols-2">
@@ -287,16 +311,17 @@ function BandSettingsCard({ band, settings, api }: { band: typeof schema.bands.$
         <Field label="Apple Music">
           <input name="appleMusicUrl" type="url" defaultValue={settings?.appleMusicUrl ?? ""} />
         </Field>
-        {api && (
+        {api === "shown" && (
           <>
             <h3 className="mt-2 text-sm font-medium sm:col-span-2">Bandcamp API access (optional)</h3>
-            <Field label="Client ID">
-              <input name="bandcampClientId" defaultValue={settings?.bandcampClientId ?? ""} {...NOT_A_LOGIN} />
-            </Field>
-            <Field label="Client secret" hint={settings?.bandcampClientSecret ? "Saved. Leave blank to keep it." : undefined}>
-              <SecretInput saved={!!settings?.bandcampClientSecret} />
-            </Field>
+            {apiFields}
           </>
+        )}
+        {api === "tucked" && (
+          <details className="sm:col-span-2">
+            <summary className="text-sm text-link hover:underline">Connect a separate Bandcamp account</summary>
+            <div className="mt-3 grid gap-4 sm:grid-cols-2">{apiFields}</div>
+          </details>
         )}
         <div className="sm:col-span-2">
           <SaveWhenChanged>
@@ -304,7 +329,7 @@ function BandSettingsCard({ band, settings, api }: { band: typeof schema.bands.$
           </SaveWhenChanged>
         </div>
       </ActionForm>
-      {api && <BandcampConnection settings={settings} />}
+      {api === "shown" && <BandcampConnection settings={settings} />}
     </Card>
   );
 }

@@ -2,8 +2,7 @@ import "server-only";
 import { and, asc, desc, eq, gte, inArray, isNull, min, or, sql } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { BAND_GROUP_VIA, MANUAL_IMPORT, MANUAL_VIA } from "@/lib/manual-sales";
-import { possessive } from "@/lib/plural";
-import { routeSale } from "@/lib/routing";
+import { normalizeText, routeSale } from "@/lib/routing";
 import { managingLabel, subAccountFor } from "./band-accounts";
 import { computeAllTime, loadCatalog } from "./data";
 import { importNamed } from "./import-rows";
@@ -135,24 +134,39 @@ export async function shareDetails(personId: number, details: Partial<Shared>) {
 }
 
 /**
- * A warning when the band's own Bandcamp API access reaches a Bandcamp band the label's also reaches:
- * that band's sales could come into both books and be paid out twice. (The own books' sync leaves
- * out sales the label's books already have, but not ones it brings in before the label's sync does.) Goes by what each API access
- * last reported (Test connection and the hourly sync note it). Null when there's no overlap.
+ * For a band account the label made: the Bandcamp bands the label's API access reaches (as it last
+ * reported, from Test connection and the hourly sync), and whether one of them is this band (by its
+ * name or another spelling). Its own books never bring in those bands' sales: they come in through
+ * the label, and would otherwise be paid twice. Null for any other account.
  */
-export async function bothBooksWarning(bandOrgId: string): Promise<string | null> {
+export async function labelReach(bandOrgId: string) {
   const managed = await managingLabel(bandOrgId);
   if (!managed) return null;
-  const rows = await db
-    .select({ orgId: accountSettings.orgId, bands: accountSettings.bandcampBands })
-    .from(accountSettings)
-    .where(inArray(accountSettings.orgId, [bandOrgId, managed.labelOrgId]));
-  const own = rows.find((r) => r.orgId === bandOrgId)?.bands ?? [];
-  const labelIds = new Set((rows.find((r) => r.orgId === managed.labelOrgId)?.bands ?? []).map((b) => b.id));
-  const names = [...new Set(own.filter((b) => labelIds.has(b.id)).map((b) => b.name))];
+  const [[settings], [band]] = await Promise.all([
+    db.select({ bands: accountSettings.bandcampBands, clientId: accountSettings.bandcampClientId }).from(accountSettings).where(eq(accountSettings.orgId, managed.labelOrgId)),
+    db.select({ name: bands.name, aliases: bands.aliases }).from(bands).where(eq(bands.id, managed.bandId)),
+  ]);
+  const reached = settings?.bands ?? [];
+  const names = new Set(band ? [band.name, ...band.aliases].map(normalizeText) : []);
+  return {
+    labelName: managed.labelName,
+    ids: new Set(reached.map((b) => b.id)),
+    reachesBand: !!settings?.clientId && reached.some((b) => names.has(normalizeText(b.name))),
+  };
+}
+
+/**
+ * When the band's own API access reaches Bandcamp bands the label's also does: a note that their
+ * sales come in through the label instead (its sales sync leaves them out). Null when there's none.
+ */
+export async function labelReachNote(bandOrgId: string): Promise<string | null> {
+  const reach = await labelReach(bandOrgId);
+  if (!reach) return null;
+  const [row] = await db.select({ bands: accountSettings.bandcampBands }).from(accountSettings).where(eq(accountSettings.orgId, bandOrgId));
+  const names = [...new Set((row?.bands ?? []).filter((b) => reach.ids.has(b.id)).map((b) => b.name))];
   if (!names.length) return null;
   const list = names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
-  return `${possessive(managed.labelName)} Bandcamp API access also reaches ${list}, so ${names.length === 1 ? "its" : "their"} sales could come into both books and be paid out twice.`;
+  return `${list}${names.length === 1 ? "’s" : "’"} sales come in through ${reach.labelName}, so they’re left out here.`;
 }
 
 /**

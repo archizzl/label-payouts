@@ -197,10 +197,11 @@ function apiTime(d: Date) {
  * The raw sales report (every sale, refund and payout row) for each account the credentials manage.
  * For a label that includes all its artists. Rows are the API's own objects, one per item sold.
  */
-export async function salesReport(orgId: string, creds: BandcampCredentials, from: Date, to: Date) {
+export async function salesReport(orgId: string, creds: BandcampCredentials, from: Date, to: Date, skip: Set<number> = new Set()) {
   const accounts = await myBands(orgId, creds);
   const rows = new Map<string, Record<string, unknown>>();
-  for (const account of accounts) {
+  // (`skip`: Bandcamp bands whose sales come in some other way.)
+  for (const account of accounts.filter((a) => !skip.has(a.band_id))) {
     const { report } = await call<{ report: Record<string, unknown>[] }>(orgId, creds, "sales/4/sales_report", {
       band_id: account.band_id,
       start_time: apiTime(from),

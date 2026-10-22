@@ -8,7 +8,7 @@ import { db, schema } from "@/db";
 import { slugify } from "@/lib/slug";
 import { auth } from "./auth";
 import { accountContext, accountsFor, type Context, getSession, requireAdmin, VIEW_AS_COOKIE } from "./context";
-import { bothBooksWarning } from "./own-books";
+import { labelReachNote } from "./own-books";
 import { AREAS, type Area, normalizeBandAreas, normalizePermissions } from "@/lib/permissions";
 import { assignMemberType, memberTypeForInvite, parseRoleChoice, setInviteMemberType, setManagedBands } from "./member-types";
 import { applyMyDetails, normalizeEmail } from "./people";
@@ -284,10 +284,9 @@ export async function testBandcampConnection(): Promise<FormState> {
     revalidatePath("/settings");
     if (!bands.length) return { error: "Connected, but this API access doesn't reach any Bandcamp accounts." };
     const names = bands.map((b) => (b.member_bands?.length ? `${b.name} (with ${b.member_bands.length} artists)` : b.name)).join(", ");
-    // A band's own books: warn if the label's API access reaches the same Bandcamp band.
-    const warning = await bothBooksWarning(orgId);
-    if (warning) return { error: `Connected to ${names}. ${warning}` };
-    return { ok: `Connected. This API access reaches ${names}.` };
+    // A band's own books: the Bandcamp bands the label's API access reaches come in through the label.
+    const note = await labelReachNote(orgId);
+    return { ok: `Connected. This API access reaches ${names}.${note ? ` ${note}` : ""}` };
   } catch (e) {
     return { error: messageOf(e, "Couldn't reach Bandcamp.") };
   }

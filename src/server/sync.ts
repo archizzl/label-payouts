@@ -21,7 +21,7 @@ import { allBands, BLOCKED_MESSAGE, createBandFor, fetchPage, findBandFor, findE
 import { API_SYNC_PREFIX, bandcampCredentials, salesReport } from "./bandcamp-api";
 import { emailFingerprint } from "./secrets";
 import { loadCatalog, reRouteAll } from "./data";
-import { alreadyInLabelBooks, moveSalesToLabel } from "./own-books";
+import { alreadyInLabelBooks, labelReach, moveSalesToLabel } from "./own-books";
 
 /*
  * Bringing things in from Bandcamp: sales (through the API), and artists, releases and merch (from
@@ -123,7 +123,10 @@ export async function saveSales(orgId: string, filename: string, parsed: ParseRe
 export async function runSalesSync(orgId: string, from = "2000-01-01") {
   const creds = await bandcampCredentials(orgId);
   if (!creds) throw new Error("This group has no Bandcamp API access set up. Add it under Settings.");
-  const report = await salesReport(orgId, creds, new Date(`${from}T00:00:00Z`), new Date(Date.now() + 86_400_000));
+  // A band account the label made: Bandcamp bands the label's API access reaches come in through the
+  // label's books, never its own (they'd be paid twice).
+  const reach = await labelReach(orgId);
+  const report = await salesReport(orgId, creds, new Date(`${from}T00:00:00Z`), new Date(Date.now() + 86_400_000), reach?.ids);
   const all = parseBandcampApiReport(report.rows);
   if (all.missingColumns.length) throw new Error(`Bandcamp's report was missing ${all.missingColumns.join(", ")}.`);
   // A band's own books leave out sales the label's books already have, so they aren't paid twice.

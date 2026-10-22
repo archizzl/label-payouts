@@ -163,32 +163,34 @@ describe("a label-made band account's own books", () => {
     expect(saved.bandcampClientId).toBe("band-client");
   });
 
-  it("warns when the label's Bandcamp API access reaches the same Bandcamp band", async () => {
+  it("notes when the label's Bandcamp API access reaches the same Bandcamp band, and knows when it reaches the band itself", async () => {
     const { labelOrgId, bandOrgId } = await setup();
     await own.setOwnBooks(bandOrgId, true);
     const reached = (orgId: string, bands: { id: number; name: string }[]) =>
       db.insert(schema.accountSettings).values({ orgId, bandcampBands: bands }).onConflictDoUpdate({ target: schema.accountSettings.orgId, set: { bandcampBands: bands } });
 
-    expect(await own.bothBooksWarning(bandOrgId)).toBeNull(); // nothing checked yet
+    expect(await own.labelReachNote(bandOrgId)).toBeNull(); // nothing checked yet
     await reached(labelOrgId, [
       { id: 1, name: "Label" },
       { id: 2, name: "Other Band" },
     ]);
     await reached(bandOrgId, [{ id: 3, name: "Glass Harbor" }]);
-    expect(await own.bothBooksWarning(bandOrgId)).toBeNull();
+    expect(await own.labelReachNote(bandOrgId)).toBeNull();
 
     await reached(labelOrgId, [
       { id: 1, name: "Label" },
       { id: 3, name: "Glass Harbor" },
     ]);
-    expect(await own.bothBooksWarning(bandOrgId)).toBe(
-      "Label’s Bandcamp API access also reaches Glass Harbor, so its sales could come into both books and be paid out twice.",
-    );
+    expect(await own.labelReachNote(bandOrgId)).toBe("Glass Harbor’s sales come in through Label, so they’re left out here.");
     // Only for a band account's own books.
-    expect(await own.bothBooksWarning(labelOrgId)).toBeNull();
+    expect(await own.labelReachNote(labelOrgId)).toBeNull();
+    // It reaches the band itself only once the label has API access of its own.
+    expect((await own.labelReach(bandOrgId))?.reachesBand).toBe(false);
+    await db.update(schema.accountSettings).set({ bandcampClientId: "label-client" }).where(eq(schema.accountSettings.orgId, labelOrgId));
+    expect(await own.labelReach(bandOrgId)).toMatchObject({ labelName: "Label", reachesBand: true });
   });
 
-  it("Test connection notes the Bandcamp bands reached, and warns about the overlap", async () => {
+  it("Test connection notes the Bandcamp bands reached, and which come in through the label", async () => {
     const { labelOrgId, bandOrgId } = await setup();
     await own.setOwnBooks(bandOrgId, true);
     const secrets = await import("../secrets");
@@ -207,7 +209,7 @@ describe("a label-made band account's own books", () => {
     const actions = await import("../account-actions");
     signedIn = { orgId: bandOrgId, managedBy: { labelOrgId, labelName: "Label", ownBooks: true } };
     expect(await actions.testBandcampConnection()).toEqual({
-      error: "Connected to Glass Harbor. Label’s Bandcamp API access also reaches Glass Harbor, so its sales could come into both books and be paid out twice.",
+      ok: "Connected. This API access reaches Glass Harbor. Glass Harbor’s sales come in through Label, so they’re left out here.",
     });
     vi.unstubAllGlobals();
   });
@@ -235,16 +237,21 @@ describe("a label-made band account's own books", () => {
       item_url: `https://glassharbor.bandcamp.com/album/${id}`,
     });
     let report = [sale(1, "Through the label")];
+    // The label's API access reaches Glass Harbor (3); the band's own, its own Bandcamp account (9).
+    let reaches = [{ band_id: 3, name: "Glass Harbor", subdomain: "glassharbor" }];
+    const asked: number[] = [];
     vi.stubGlobal(
       "fetch",
-      vi.fn(async (url: string) => {
+      vi.fn(async (url: string, init?: RequestInit) => {
         if (url.includes("oauth_token")) return new Response(JSON.stringify({ access_token: "A", refresh_token: "R", expires_in: 3600 }));
-        if (url.includes("my_bands")) return new Response(JSON.stringify({ bands: [{ band_id: 3, name: "Glass Harbor", subdomain: "glassharbor" }] }));
+        if (url.includes("my_bands")) return new Response(JSON.stringify({ bands: reaches }));
+        asked.push(JSON.parse(String(init?.body ?? "{}")).band_id);
         return new Response(JSON.stringify({ report }));
       }),
     );
     const sync = await import("../sync");
     expect((await sync.runSalesSync(labelOrgId)).added).toBe(1);
+    reaches = [{ band_id: 9, name: "Glass Harbor (own)", subdomain: "glassharborown" }];
 
     report = [sale(1, "Through the label"), sale(2, "Only its own"), sale(3, "Before the label", "2 Jan 2026 10:00:00 GMT")];
     const result = await sync.runSalesSync(bandOrgId);
@@ -257,7 +264,17 @@ describe("a label-made band account's own books", () => {
     expect(theirs.map((x) => x.itemName)).toEqual(["Through the label", "Only its own"]);
     expect(new Set(theirs.map((x) => x.bandId))).toEqual(new Set([theirs[0].bandId]));
     // The label's own sync leaves nothing out.
+    reaches = [{ band_id: 3, name: "Glass Harbor", subdomain: "glassharbor" }];
     expect((await sync.runSalesSync(labelOrgId)).inLabelBooks.count).toBe(0);
+
+    // The band's access reaching Glass Harbor too: its sales are never asked for (the label's books have them).
+    reaches = [
+      { band_id: 3, name: "Glass Harbor", subdomain: "glassharbor" },
+      { band_id: 9, name: "Glass Harbor (own)", subdomain: "glassharborown" },
+    ];
+    asked.length = 0;
+    await sync.runSalesSync(bandOrgId);
+    expect(asked).toEqual([9]);
     vi.unstubAllGlobals();
   });
 
