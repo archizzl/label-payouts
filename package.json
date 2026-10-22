@@ -24,6 +24,7 @@
     "sync-catalog:unschedule": "node scripts/schedule-catalog-sync.mjs --remove"
   },
   "dependencies": {
+    "@google/adk": "2.3.0",
     "better-auth": "^1.7.6",
     "drizzle-orm": "^0.45.3",
     "fflate": "0.8.3",

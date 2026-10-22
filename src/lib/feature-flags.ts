@@ -9,6 +9,11 @@ export const FEATURE_FLAGS = [
     label: "Projects",
     description: "Albums, tours and other projects: what each cost and what its releases made back. Also the project picker on receipts.",
   },
+  {
+    key: "abel",
+    label: "Abel",
+    description: "Abel, the assistant: answers questions about the group's money, sales and orders, and makes changes once you confirm them.",
+  },
 ] as const;
 
 export type FeatureFlag = (typeof FEATURE_FLAGS)[number]["key"];

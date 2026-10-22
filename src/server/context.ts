@@ -458,13 +458,26 @@ export async function requireAccess(
   /** A band account may do this to its own band's part of the label's books (recounting stock, say). */
   { bandMay = false }: { bandMay?: boolean } = {},
 ): Promise<Context> {
-  let ctx = await getContext();
+  const ctx = await contextFor(area, level, { bandMay });
+  if (!ctx) redirect("/me");
+  return ctx;
+}
+
+/**
+ * requireAccess without the redirect: the context for this section, or null if they may not (Abel's
+ * tools). `from`: the request's context, if it's already at hand (getContext's cache doesn't reach API routes).
+ */
+export async function contextFor(
+  area: Area,
+  level: "view" | "edit" = "view",
+  { bandMay = false, from }: { bandMay?: boolean; from?: Context } = {},
+): Promise<Context | null> {
+  let ctx = from ?? (await getContext());
   // A band login may do this one thing to its band's part of the label's books.
   if (ctx.lens && bandMay) ctx = { ...ctx, access: { ...ctx.access, permissions: { ...ctx.access.permissions, [area]: level } } };
   // A band account the label made: these are its own books.
   if (ctx.lens && OWN_BOOKS_AREAS.includes(area)) ctx = await ownBooksOf(ctx);
-  if (!can(ctx.access, area, level)) redirect("/me");
-  return ctx;
+  return can(ctx.access, area, level) ? ctx : null;
 }
 
 /** For pages and actions only admins may use (settings, who can sign in): members are sent to their own earnings page. */

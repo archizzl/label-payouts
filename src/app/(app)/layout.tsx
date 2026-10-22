@@ -12,7 +12,9 @@ import { catalogSyncProgress, catalogSyncRequestedAt } from "@/server/catalog-re
 import { getContext, groupPhotos, isBandLogin } from "@/server/context";
 import { ownBand } from "@/server/data";
 import { labelsForBandAccount } from "@/server/links";
-import { projectsEnabled } from "@/server/features";
+import { featureOn, projectsEnabled } from "@/server/features";
+import { abelConfigured } from "@/server/abel/config";
+import { AbelPanel } from "@/components/abel/abel-panel";
 import { navBadges, ordersInUse } from "@/server/nav-badges";
 import { isSiteAdminEmail } from "@/server/site-admin";
 
@@ -21,7 +23,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
   const ctx = await getContext();
   // What syncs with Bandcamp: the account's own books (for a band account the label made too).
   const syncOrgId = ctx.managedBy ? ctx.org.id : ctx.orgId;
-  const [labels, sync, badges, projects, band, orders, catalogAsked, catalogProgress, photos] = await Promise.all([
+  const [labels, sync, badges, projects, band, orders, catalogAsked, catalogProgress, photos, abel] = await Promise.all([
     // A band account's admins see each label it's linked to (one the label made has it all on its own pages).
     ctx.isAdmin && ctx.org.kind === "band" && !ctx.managedBy ? labelsForBandAccount(ctx.orgId) : [],
     syncStatus(syncOrgId),
@@ -32,6 +34,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
     ctx.viewingAs ? null : catalogSyncRequestedAt(ctx.orgId),
     ctx.viewingAs ? null : catalogSyncProgress(ctx.orgId),
     groupPhotos([ctx.org, ...ctx.accounts]),
+    abelConfigured() ? featureOn("abel") : false,
   ]);
 
   // Locally, opening the app keeps it in step with Bandcamp: at most once an hour, in the background,
@@ -81,6 +84,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
           {ctx.viewingAs ? <ReadOnly reason={`You’re viewing as ${ctx.viewingAs.name}: nothing can be changed.`}>{children}</ReadOnly> : children}
         </div>
       </main>
+      {abel && <AbelPanel />}
       {/* <footer className="no-print border-t border-border px-4 py-5 text-center text-xs text-muted">
         labelmaker · an independent tool for indie labels, not affiliated with or endorsed by Bandcamp
       </footer> */}

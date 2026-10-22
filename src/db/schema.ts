@@ -997,3 +997,60 @@ export const profilePhotos = pgTable(
   },
   (t) => [index("profile_photos_user").on(t.userId)],
 );
+
+/**
+ * Chats with Abel, the assistant (src/server/abel): one per conversation, belonging to the person
+ * who started it in this account. `state` is the chat's own memory (ADK session state).
+ */
+export const abelChats = pgTable(
+  "abel_chats",
+  {
+    id: id(),
+    orgId: orgId(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    title: text("title").notNull().default(""),
+    state: jsonb("state").$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: text("created_at").notNull().default(now),
+    updatedAt: text("updated_at").notNull().default(now),
+  },
+  (t) => [index("abel_chats_org_user").on(t.orgId, t.userId, t.updatedAt)],
+);
+
+/** Everything said and done in a chat, in order (ADK events: messages, tool calls and their results). */
+export const abelEvents = pgTable(
+  "abel_events",
+  {
+    id: id(),
+    chatId: integer("chat_id")
+      .notNull()
+      .references(() => abelChats.id, { onDelete: "cascade" }),
+    orgId: orgId(),
+    /** Who wrote it: "user", or "abel". */
+    author: text("author").notNull(),
+    event: jsonb("event").$type<Record<string, unknown>>().notNull(),
+    createdAt: text("created_at").notNull().default(now),
+  },
+  (t) => [index("abel_events_chat").on(t.chatId, t.id), index("abel_events_org_author").on(t.orgId, t.author, t.createdAt)],
+);
+
+/** Every change Abel was asked to make, whether it was confirmed, and how it went. */
+export const abelActions = pgTable(
+  "abel_actions",
+  {
+    id: id(),
+    orgId: orgId(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    chatId: integer("chat_id").references(() => abelChats.id, { onDelete: "set null" }),
+    tool: text("tool").notNull(),
+    args: jsonb("args").$type<Record<string, unknown>>().notNull(),
+    /** "done" or "failed" (only confirmed changes run). */
+    status: text("status").notNull(),
+    result: text("result"),
+    createdAt: text("created_at").notNull().default(now),
+  },
+  (t) => [index("abel_actions_org").on(t.orgId, t.createdAt)],
+);

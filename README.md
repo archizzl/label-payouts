@@ -17,6 +17,7 @@ In the app, a label or band is a **group**, and a person's login is an **account
 - **Label funds** (`/funds`): what the label has kept from sales, what it has sent on, and what's left.
 - **Receipts:** expenses with photos or PDFs (stored in R2), who paid, and whether sales pay them back. Members can submit receipts; an admin approves them.
 - **Projects** (a feature flag, switched on per group from the admin dashboard): what an album, tour or video cost against what its releases made back.
+- **Abel** (a feature flag, switched on per group from the admin dashboard): an assistant in the corner of every page. It answers questions from the group's data (earnings, sales, payouts, orders, stock, splits) and makes changes (a sale added by hand, a payout, a split, an order shipped, a stock count) once the person confirms them on screen. It only sees and does what that person's account can. Built with Google's Agent Development Kit and Gemini (`src/server/abel`).
 - **Fans:** the mailing list, imported from Bandcamp's export. Built, but hidden from the nav for now.
 
 ## Signing up
@@ -55,6 +56,8 @@ To try a change in the real Cloudflare runtime against a throwaway database, run
 | `APP_ENCRYPTION_KEY` | Encrypts secrets stored in the database (each group's Bandcamp API secret). Without it they can't be read. |
 | `SITE_ADMIN_EMAILS` | Comma-separated emails of site admins (the admin dashboard, invite links, approving groups). |
 | `BANDCAMP_API` | Keep it `off` locally. Bandcamp allows one API sign-in per client, and the live site holds it. |
+| `GEMINI_API_KEY` | Abel's Gemini API key (from Google AI Studio). Without it Abel stays hidden. |
+| `ABEL_MODEL` | Optional: which Gemini model Abel uses (`gemini-flash-latest` by default). |
 | `DATABASE_URL` | Leave it out locally: `npm run dev` runs its own Postgres. |
 
 Never create `.env`, `.env.local` or `.env.production*`: the Cloudflare build bakes them into the live app, and `npm run deploy` refuses to run while they exist.
@@ -105,7 +108,8 @@ src/
                   feature-flags.ts
   server/         queries and server actions. context.ts: who's signed in, their group, role and
                   "view as"; data.ts: payout calculations; auth.ts: Better Auth; auto-sync.ts and
-                  sync.ts: Bandcamp sync; band-accounts.ts and links.ts: band groups and label links
+                  sync.ts: Bandcamp sync; band-accounts.ts and links.ts: band groups and label links;
+                  abel/: Abel, the assistant (its tools, chats and agent)
   instrumentation.ts   on startup: migrates the local database; on Cloudflare, checks the secrets are set
 cloudflare/worker.ts   the Worker: the OpenNext app plus the hourly cron trigger
 cloudflare/catalog-hub.ts   the Durable Object the Mac's catalog sync stays connected to, for Sync now
