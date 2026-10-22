@@ -6,23 +6,29 @@
  */
 import { existsSync, readdirSync } from "node:fs";
 import { homedir } from "node:os";
-import { delimiter, join } from "node:path";
+import { delimiter, dirname, join } from "node:path";
 
 const major = (v) => Number(String(v).replace(/^v/, "").split(".")[0]);
 
-export function envWithNode22(extra = {}) {
-  const env = { ...process.env, ...extra };
-  if (major(process.versions.node) >= 22) return env;
+/** The Node 22+ to run: this one if it's new enough, else the newest installed with nvm (null: none). */
+export function node22Path() {
+  if (major(process.versions.node) >= 22) return process.execPath;
   const root = join(process.env.NVM_DIR ?? join(homedir(), ".nvm"), "versions", "node");
   const found = existsSync(root)
     ? readdirSync(root)
         .filter((v) => major(v) >= 22)
         .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }))[0]
     : undefined;
-  if (!found) {
+  return found ? join(root, found, "bin", "node") : null;
+}
+
+export function envWithNode22(extra = {}) {
+  const env = { ...process.env, ...extra };
+  const node = node22Path();
+  if (!node) {
     console.error(`Wrangler needs Node 22 or newer (this is ${process.version}). Install it with: nvm install 22`);
     process.exit(1);
   }
-  env.PATH = `${join(root, found, "bin")}${delimiter}${env.PATH ?? ""}`;
+  if (node !== process.execPath) env.PATH = `${dirname(node)}${delimiter}${env.PATH ?? ""}`;
   return env;
 }

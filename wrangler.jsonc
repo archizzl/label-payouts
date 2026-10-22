@@ -20,6 +20,9 @@
   ],
   // "Sync now" requests for the catalog sync that runs on a Mac (npm run sync-catalog:schedule).
   "kv_namespaces": [{ "binding": "CATALOG_KV", "id": "cdc0461f45e14130b590ef665548ff7a" }],
+  // And where they reach the Mac straight away: it keeps a WebSocket open to this (cloudflare/catalog-hub.ts).
+  "durable_objects": { "bindings": [{ "name": "CATALOG_HUB", "class_name": "CatalogHub" }] },
+  "migrations": [{ "tag": "catalog-hub", "new_sqlite_classes": ["CatalogHub"] }],
   // Receipt photos and PDFs (src/server/receipt-store.ts). Private: served only through the app.
   "r2_buckets": [{ "binding": "RECEIPTS", "bucket_name": "label-payouts-receipts" }],
   // Served at labelmaker.ing (the domain is on this Cloudflare account).

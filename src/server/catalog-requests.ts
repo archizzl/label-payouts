@@ -7,7 +7,9 @@ import { onCloudflare } from "@/db";
  * live site can't run itself. A request is a key in Cloudflare KV (not the database, so the Mac's
  * once-a-minute check never wakes it): the Mac picks it up through /api/catalog-sync and clears it.
  * A request can be for some of the account's bands only (a band's own group asking for its part).
- * While it runs, the Mac reports how far it's got, for the page to show.
+ * While it runs, the Mac reports how far it's got, for the page to show. The request also goes
+ * straight to the Mac if it's connected (cloudflare/catalog-hub.ts), so it starts at once; the
+ * Mac's once-a-minute check through KV catches any it missed.
  * Off Cloudflare there's nothing to ask: the app's own sync reads the pages itself.
  */
 
@@ -26,6 +28,14 @@ export type CatalogProgress = { done: number; total: number; at: string };
 
 const key = (orgId: string) => `request:${orgId}`;
 const progressKey = (orgId: string) => `progress:${orgId}`;
+
+/** The Durable Object the Mac keeps a WebSocket open to. */
+type Hub = { idFromName(name: string): unknown; get(id: unknown): { fetch(url: string, init?: RequestInit): Promise<Response> } };
+
+function hub(): Hub | null {
+  if (!onCloudflare) return null;
+  return (getCloudflareContext().env as unknown as { CATALOG_HUB?: Hub }).CATALOG_HUB ?? null;
+}
 
 function kv(): KV | null {
   if (!onCloudflare) return null;
@@ -53,7 +63,17 @@ export async function requestCatalogSync(orgId: string, bandIds: number[] | null
   if (!store) return;
   const before = parse(await store.get(key(orgId)));
   const bands = before && (before.bandIds === null || bandIds === null) ? null : [...new Set([...(before?.bandIds ?? []), ...(bandIds ?? [])])];
-  await store.put(key(orgId), JSON.stringify({ at: new Date().toISOString(), bandIds: bandIds === null ? null : bands }));
+  const request: CatalogRequest = { at: new Date().toISOString(), bandIds: bandIds === null ? null : bands };
+  await store.put(key(orgId), JSON.stringify(request));
+  // Straight to the Mac, if it's connected.
+  const macs = hub();
+  if (macs) {
+    try {
+      await macs.get(macs.idFromName("mac")).fetch("https://hub/notify", { method: "POST", body: JSON.stringify({ type: "sync", orgId, ...request }) });
+    } catch (e) {
+      console.error("Couldn't reach the catalog hub:", e);
+    }
+  }
 }
 
 /** When this account asked for a catalog sync that hasn't happened yet, if it has. */

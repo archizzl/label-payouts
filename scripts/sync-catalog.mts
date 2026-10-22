@@ -5,10 +5,11 @@
  * merch, track lists, artwork, release dates, artists and their photos. The live site can't do this
  * itself: Bandcamp shows cloud servers a bot check instead of its pages.
  *
- * `npm run sync-catalog:schedule` runs it on its own: launchd starts it every minute with
- * --if-due, and it only does anything when 10 minutes have passed since the last run or someone
- * pressed "Sync now" on the live site (a request it checks with the site, not the database, so
- * quiet minutes never wake the database).
+ * `npm run sync-catalog:schedule` runs it on its own (scripts/catalog-watcher.mjs, kept running by
+ * launchd): every minute with --if-due, when it only does anything if 10 minutes have passed since
+ * the last run or someone pressed "Sync now" on the live site (a request it checks with the site,
+ * not the database, so quiet minutes never wake the database); and straight away when the site
+ * sends a Sync now down the watcher's connection, with --request '{"orgId":…,"bandIds":…}'.
  *
  * It never uses the Bandcamp API, so it can't disturb the live site's sign-in. The live database
  * is PRODUCTION_DATABASE_URL, from the shell or .deploy.local. With --local it updates the local
@@ -19,7 +20,7 @@ import { parseArgs } from "node:util";
 import { configuredDatabaseUrl, startLocalDatabase } from "./local-db.mjs";
 
 const { values: args } = parseArgs({
-  options: { account: { type: "string" }, local: { type: "boolean" }, "if-due": { type: "boolean" } },
+  options: { account: { type: "string" }, local: { type: "boolean" }, "if-due": { type: "boolean" }, request: { type: "string", multiple: true } },
 });
 
 /** How often the scheduled run syncs without being asked. Keep in step with CATALOG_SYNC_EVERY_MINUTES. */
@@ -74,7 +75,22 @@ async function clearRequest(orgId: string) {
   }).catch(() => {});
 }
 
-const waiting = await requests();
+// Requests the watcher was sent directly (they may not be in the site's list yet), with the site's.
+const given = (args.request ?? []).flatMap((r): Request[] => {
+  try {
+    const x = JSON.parse(r) as Partial<Request>;
+    return typeof x.orgId === "string" ? [{ orgId: x.orgId, at: x.at ?? startedAt, bandIds: x.bandIds ?? null }] : [];
+  } catch {
+    return [];
+  }
+});
+const waiting: Request[] = [];
+for (const r of [...given, ...(await requests())]) {
+  const same = waiting.find((w) => w.orgId === r.orgId);
+  if (!same) waiting.push(r);
+  // Some bands and some others: those bands; anything for all of it: all of it.
+  else same.bandIds = same.bandIds && r.bandIds ? [...new Set([...same.bandIds, ...r.bandIds])] : null;
+}
 const lastRun = existsSync(STATE) ? (JSON.parse(readFileSync(STATE, "utf8")) as { lastRun?: string }).lastRun : undefined;
 const due = !args["if-due"] || !lastRun || Date.parse(lastRun) < Date.now() - EVERY_MS;
 // Nothing to do this minute: stop before touching the database.
