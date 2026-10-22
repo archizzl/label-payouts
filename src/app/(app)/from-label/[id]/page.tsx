@@ -1,10 +1,11 @@
 import { and, eq } from "drizzle-orm";
+import { EarningsStats } from "@/components/earnings-stats";
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { ExpenseTable, expenseTotals } from "@/components/receipts";
 import { SalesSection } from "@/components/sales-section";
 import { BandPayouts } from "@/components/band-payouts";
-import { Card, Money, MoneyList, PageHeader } from "@/components/ui";
+import { Card, MoneyList, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
 import { computePayoutPeriod, nameMaps } from "@/server/data";
 import { accountExpenses, expenseFileList } from "@/server/expenses";
@@ -45,10 +46,8 @@ export default async function FromLabelPage({ params, searchParams }: PageProps<
 
       {mine && (
         <Card title="Your earnings">
-          <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <Stat label="In a payout, not paid yet" totals={mine.owed} emphasis />
-            <Stat label="Received so far" totals={mine.received} />
-            <Stat label="Not in a payout yet" totals={mine.upcoming} />
+          <div className="mb-4">
+            <EarningsStats owed={mine.owed} received={mine.received} upcoming={mine.upcoming} />
           </div>
         </Card>
       )}
@@ -128,15 +127,4 @@ async function myEarnings(labelOrgId: string, bandId: number, who: { id: number 
     if (line?.total) upcoming.set(cur, line.total);
   }
   return { person, owed, received, upcoming };
-}
-
-function Stat({ label, totals, emphasis }: { label: string; totals: Map<string, number>; emphasis?: boolean }) {
-  return (
-    <div className={`border-l-2 pl-3 ${emphasis ? "border-accent" : "border-border"}`}>
-      <div className="text-xs text-muted lowercase">{label}</div>
-      <div className={`mt-0.5 text-xl font-bold ${emphasis ? "text-accent" : ""}`}>
-        {totals.size ? <MoneyList totals={totals} /> : <Money cents={0} />}
-      </div>
-    </div>
-  );
 }

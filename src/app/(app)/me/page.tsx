@@ -1,10 +1,11 @@
 import { and, desc, eq, isNull } from "drizzle-orm";
+import { EarningsStats } from "@/components/earnings-stats";
 import { connection } from "next/server";
 import { SubmitButton } from "@/components/client";
 import { SalesSection } from "@/components/sales-section";
 import { ExpenseTable, SubmitReceiptForm } from "@/components/receipts";
 import Link from "next/link";
-import { Badge, buttonClass, Callout, Card, Disclosure, Empty, Money, MoneyList, PageHeader } from "@/components/ui";
+import { Badge, buttonClass, Callout, Card, Disclosure, Empty, Money, PageHeader } from "@/components/ui";
 import { db, schema } from "@/db";
 import { linkMyself } from "@/server/account-actions";
 import { type Context, getContext, ownBooksOf } from "@/server/context";
@@ -105,10 +106,8 @@ export default async function MyEarningsPage({ searchParams }: PageProps<"/me">)
     <>
       <PageHeader title="My earnings" subtitle={`${person.name} · ${ctx.org.name}`} actions={myBands.length > 0 && <AddSale />} />
 
-      <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <Stat label="In a payout, not paid yet" totals={owed} emphasis />
-        <Stat label="Received so far" totals={received} />
-        <Stat label="Not in a payout yet" totals={new Map(upcoming.map((u) => [u.cur, u.line!.total]))} />
+      <div className="mb-8">
+        <EarningsStats owed={owed} received={received} upcoming={new Map(upcoming.map((u) => [u.cur, u.line!.total]))} />
       </div>
       {upcoming.length > 0 && (
         <Callout tone="neutral">
@@ -267,10 +266,8 @@ async function BandAccountEarnings({ ctx, range }: { ctx: Context; range?: strin
     <>
       <PageHeader title="My earnings" subtitle={`${name} · ${ctx.org.name}`} actions={<AddSale />} />
 
-      <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <Stat label="In a payout, not paid yet" totals={addTotals(l.owed, o.owed)} emphasis />
-        <Stat label="Received so far" totals={addTotals(l.received, o.received)} />
-        <Stat label="Not in a payout yet" totals={upcoming} />
+      <div className="mb-8">
+        <EarningsStats owed={addTotals(l.owed, o.owed)} received={addTotals(l.received, o.received)} upcoming={upcoming} />
       </div>
 
       <Card title="Payouts">
@@ -365,16 +362,5 @@ async function BandAccountEarnings({ ctx, range }: { ctx: Context; range?: strin
         title={`${ctx.org.name} sales`}
       />
     </>
-  );
-}
-
-function Stat({ label, totals, emphasis }: { label: string; totals: Map<string, number>; emphasis?: boolean }) {
-  return (
-    <div className={`border-l-2 pl-3 ${emphasis ? "border-accent" : "border-border"}`}>
-      <div className="text-xs text-muted lowercase">{label}</div>
-      <div className={`mt-0.5 text-xl font-bold ${emphasis ? "text-accent" : ""}`}>
-        {totals.size ? <MoneyList totals={totals} /> : <Money cents={0} />}
-      </div>
-    </div>
   );
 }
