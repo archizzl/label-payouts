@@ -11,7 +11,7 @@ In the app, a label or band is a **group**, and a person's login is an **account
 - **Bandcamp sync.** With the group's Bandcamp API access (entered under **Settings**, the secret encrypted), the app pulls artists, releases, merch and sales in the background: when someone opens the app (at most once an hour), on the Worker's hourly cron, and straight away with **Sync now**. Bandcamp's public pages (track lists, artwork, photos) can't be read from Cloudflare, so the owner's Mac does that part (`npm run sync-catalog:schedule`): every 10 minutes, and straight away on **Sync now**, which the site sends down a WebSocket the Mac keeps open (a Durable Object, `cloudflare/catalog-hub.ts`).
 - **Sales.** Every sale, filterable and sortable, with charts and CSV export. Import Bandcamp's sales report CSV (UTF-8 or UTF-16) under **Sales → Import** when there's no API access; re-imports skip duplicates, and API and CSV imports never double-count. Sales the app can't match go into a queue; a choice made there is remembered. Sales can also be added by hand.
 - **Orders and inventory.** Open merch orders fetched live from Bandcamp (never stored, since they hold buyers' addresses), packing slips, pickups, and stock counts for merch, formats and supplies.
-- **Splits** per band, per item type, per release and per track, each with an effective date, plus a label-wide default under **Rules**.
+- **Splits** per band, per item type, per release and per track, each with an effective date, plus a label-wide default under **Funds → Rules**.
 - **Deductions:** a label cut, band funds, per-item and per-format costs, and recoupable fixed costs taken from sales until they're paid off.
 - **Payouts** (`/periods`): preview, finalize (locks the amounts), pay each person with a PayPal.me link or the PayPal bulk payout CSV, mark people paid, print a statement for each band.
 - **Label funds** (`/funds`): what the label has kept from sales, what it has sent on, and what's left.
@@ -93,8 +93,8 @@ npx vitest run      # tests (same as npm test)
 src/
   app/
     (app)/        the signed-in app: dashboard, sales, orders, inventory, periods (payouts),
-                  funds, receipts, directory, bands/[id] (tabs, including Money), catalog,
-                  rules, projects, fans, me (my earnings), from-label, settings, account
+                  funds (and rules, its Rules tab), receipts, directory, bands/[id] (tabs, including
+                  Money), catalog, projects, fans, me (my earnings), from-label, settings, account
     (auth)/       sign-in, sign-up, password reset, invites, join links, welcome (apply)
     (admin)/      the site admin dashboard (admin.labelmaker.ing)
     api/          Better Auth, the hourly cron sync, sync status, catalog sync requests

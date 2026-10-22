@@ -1,4 +1,6 @@
 import { connection } from "next/server";
+import { FundsTabs } from "@/components/funds-tabs";
+import { can } from "@/lib/permissions";
 import { ChartBoard } from "@/components/chart-board";
 import { LabelFunds } from "@/components/label-funds";
 import { PAGE_SIZES, Pager } from "@/components/pager";
@@ -129,7 +131,8 @@ export default async function FundsPage({ searchParams }: PageProps<"/funds">) {
 
   return (
     <>
-      <PageHeader title="Label funds"/>
+      <PageHeader title="Funds" />
+      <FundsTabs active="funds" funds rules={can(ctx.access, "rules")} />
 
       <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
         <Tile label="Left in the label’s account" cents={v(inc.balance)} currency={cur} emphasis />

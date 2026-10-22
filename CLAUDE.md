@@ -109,7 +109,7 @@ Never write to the live database by hand. Changes go through migrations and the 
 - **`src/app/(app)`:** the signed-in app.
   - The Directory (`/directory`) lists bands and their people, and who can sign in. `/bands` and `/people` redirect there.
   - Each band's page (`/bands/[id]`) has tabs, including Money (a band group's splits).
-  - Payouts are at `/periods`, label funds at `/funds`, splits for a label at `/rules`, a member's own earnings at `/me`.
+  - Payouts are at `/periods`, label funds at `/funds` with the label's splits and deductions (`/rules`) as its Rules tab, a member's own earnings at `/me`.
   - Also: sales (with `/sales/import` and `/sales/add`), orders, inventory, receipts, catalog, projects (feature flag), fans (hidden from the nav), from-label (a linked band's view of its label), settings, account.
   - The nav is `src/components/nav.tsx`; what members see is set by member types (`src/lib/permissions.ts`).
 - **`src/app/(auth)`:** sign-in, sign-up, password reset, invites, join links and the welcome/apply page.

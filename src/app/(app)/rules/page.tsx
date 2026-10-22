@@ -1,4 +1,5 @@
 import { asc, eq } from "drizzle-orm";
+import { FundsTabs } from "@/components/funds-tabs";
 import Link from "next/link";
 import { connection } from "next/server";
 import { SubmitButton } from "@/components/client";
@@ -51,7 +52,8 @@ export default async function RulesPage({ searchParams }: PageProps<"/rules">) {
 
   return (
     <>
-      <PageHeader title="Rules" />
+      <PageHeader title="Funds" />
+      <FundsTabs active="rules" funds={can(ctx.access, "funds")} rules />
 
       {/* {ctx.org.kind === "label" && (
         <div id="label-cut">

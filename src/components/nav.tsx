@@ -67,7 +67,6 @@ function itemsFor(
     { href: "/directory", label: "directory", area: "roster" },
     // { href: "/fans", label: "fans", area: "fans" },
     { href: "/catalog", label: "catalog", area: "catalog" },
-    ...(account.kind === "band" ? [] : [{ href: "/rules", label: "rules", area: "rules" as const }]),
   ];
   if (isAdmin)
     return [
@@ -77,8 +76,15 @@ function itemsFor(
       ...(earnings ? [{ href: "/me", label: "my earnings" }] : []),
       { href: "/settings", label: "settings" },
     ];
-  // Members: their own earnings, plus whatever their member type lets them see.
-  return [{ href: "/me", label: "my earnings" }, ...all.filter((i) => i.area && areas.includes(i.area))];
+  // Members: their own earnings, plus whatever their member type lets them see. Funds has Rules as
+  // a tab: someone who sees only the rules gets Funds opening on them.
+  const funds = account.kind === "label" && (areas.includes("funds") || areas.includes("rules"));
+  return [
+    { href: "/me", label: "my earnings" },
+    ...all
+      .filter((i) => i.area && (areas.includes(i.area) || (i.area === "funds" && funds)))
+      .map((i) => (i.area === "funds" && !areas.includes("funds") ? { ...i, href: "/rules" } : i)),
+  ];
 }
 
 /** Pick which of your accounts (labels and bands) you're working in. */
@@ -253,6 +259,8 @@ export function Nav({
               it.href === "/"
                 ? path === "/"
                 : path.startsWith(base(it.href)) ||
+                  // Rules is a tab of Funds.
+                  (it.label === "funds" && path.startsWith("/rules")) ||
                   (it.href === "/directory" && path.startsWith("/bands/") && !items.some((x) => path.startsWith(base(x.href)) && x.href.startsWith("/bands/")));
             const n = countFor(it.href);
             const what = { "/orders": "to ship or hand over", "/sales": "new", "/receipts": "to approve" }[it.href] ?? "";
