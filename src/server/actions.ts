@@ -17,7 +17,7 @@ import { deleteSubAccount, ensureBandAccounts, renameSubAccount } from "./band-a
 import { fetchPage, upsertRelease } from "./bandcamp";
 import { bandcampCredentials } from "./bandcamp-api";
 import { requestCatalogSync } from "./catalog-requests";
-import { syncAccount, syncCatalog } from "./auto-sync";
+import { syncAccount, syncCatalog, UP_TO_DATE } from "./auto-sync";
 import { getContext, ownBooksOf, requireAccess, requireAdmin } from "./context";
 import { prepare, runSalesSync, saveSales } from "./sync";
 import { computePayoutPeriod, reRouteAll, strandedSales } from "./data";
@@ -767,12 +767,18 @@ export async function syncWithBandcamp(_?: ActionState, fd?: FormData): Promise<
   }
   const { orgId } = await requireAdmin();
   // On the live site, artists and releases come from the catalog sync on a Mac: ask it to run now.
-  await requestCatalogSync(orgId);
+  // Here, the app reads every page itself (the hourly sync below only reads what's new).
+  if (onCloudflare) await requestCatalogSync(orgId);
+  const catalog = onCloudflare ? null : await syncCatalog(orgId);
   const result = await syncAccount(orgId, { force: true });
   done();
   if (!result.ran) return { error: result.summary };
-  if (!result.errors.length) return { ok: result.summary };
-  return { error: `${result.summary} Some of it didn't work: ${result.errors.join(" ")}` };
+  // What either brought in (or "Up to date." when neither did).
+  const found = [catalog?.summary, result.summary].filter((s): s is string => !!s && s !== UP_TO_DATE);
+  const summary = found.length ? found.join(" ") : UP_TO_DATE;
+  const errors = [...(catalog?.errors ?? []), ...result.errors];
+  if (!errors.length) return { ok: summary };
+  return { error: `${summary} Some of it didn't work: ${errors.join(" ")}` };
 }
 
 export async function deleteImport(fd: FormData) {

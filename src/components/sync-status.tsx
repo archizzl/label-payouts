@@ -26,7 +26,8 @@ export function ago(iso: string) {
 /**
  * Where the account stands with Bandcamp: what syncs when, when it last did and what that brought
  * in (or what went wrong), with a button to sync right now. The hourly sync also runs whenever
- * someone opens the app locally; on the live site, a Mac syncs the catalog every 10 minutes.
+ * someone opens the app locally; on the live site, a Mac syncs the catalog every 10 minutes (locally,
+ * Sync now does).
  */
 export async function SyncStatus({ orgId, onSettings = false }: { orgId: string; onSettings?: boolean }) {
   const s = await syncStatus(orgId);
@@ -93,7 +94,8 @@ export async function SyncStatus({ orgId, onSettings = false }: { orgId: string;
               ? minutesSince(requestedAt) > 5
                 ? <span className="text-warn">asked for {ago(requestedAt)}, not done yet. The Mac that runs this sync may be off or asleep.</span>
                 : "starting in a minute or two."
-              :`synced ${ago(s.catalogSyncedAt!)} (every ${CATALOG_SYNC_EVERY_MINUTES} minutes).`}
+              : // (On the live site a Mac reads them every few minutes; here, Sync now does.)
+                `synced ${ago(s.catalogSyncedAt!)}${onCloudflare ? ` (every ${CATALOG_SYNC_EVERY_MINUTES} minutes)` : ""}.`}
           </p>
         )}
       </div>
