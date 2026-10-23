@@ -148,6 +148,9 @@ table.data td {
   border-bottom: 1px solid var(--border);
   vertical-align: top;
 }
+table.data.dense td {
+  padding: 5px 10px;
+}
 table.data tbody tr:hover td {
   background: color-mix(in srgb, var(--surface-2) 60%, transparent);
 }

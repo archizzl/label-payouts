@@ -905,6 +905,30 @@ export const featureFlagPrefs = pgTable(
   (t) => [uniqueIndex("feature_flag_prefs_flag_user").on(t.flag, t.userId)],
 );
 
+/** Accounts (logins) given a flagged feature themselves, in whichever group they're working in. */
+export const featureFlagUsers = pgTable(
+  "feature_flag_users",
+  {
+    id: id(),
+    flag: text("flag").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+  },
+  (t) => [uniqueIndex("feature_flag_users_flag_user").on(t.flag, t.userId)],
+);
+
+/** Kinds of account given a flagged feature everywhere (FLAG_AUDIENCES in src/lib/feature-flags.ts). */
+export const featureFlagAudiences = pgTable(
+  "feature_flag_audiences",
+  {
+    id: id(),
+    flag: text("flag").notNull(),
+    audience: text("audience").notNull(),
+  },
+  (t) => [uniqueIndex("feature_flag_audiences_flag_audience").on(t.flag, t.audience)],
+);
+
 /**
  * Someone asking for a new label or band account. Anyone can create a login; their account is set
  * up when a site admin approves this (from the admin dashboard), with what they told us.

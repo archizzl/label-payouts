@@ -202,7 +202,8 @@ export function OpenLinkedSection() {
 function formChanged(form: HTMLFormElement) {
   for (const el of Array.from(form.elements)) {
     if (el instanceof HTMLInputElement) {
-      if (["hidden", "submit", "button", "reset"].includes(el.type)) continue;
+      // Inputs without a name (a list's filter box) aren't saved.
+      if (["hidden", "submit", "button", "reset"].includes(el.type) || !el.name) continue;
       if (el.type === "checkbox" || el.type === "radio") {
         if (el.checked !== el.defaultChecked) return true;
       } else if (el.type === "file") {
