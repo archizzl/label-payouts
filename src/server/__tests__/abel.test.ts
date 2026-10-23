@@ -159,6 +159,30 @@ describe("Abel's tools", () => {
   });
 });
 
+/** What Gemini accepts in a tool's schema (@google/genai's Schema): anything else and it turns down every request. */
+const GEMINI_SCHEMA_KEYS = new Set(["anyOf", "default", "description", "enum", "example", "format", "items", "maxItems", "maxLength", "maxProperties", "maximum", "minItems", "minLength", "minProperties", "minimum", "nullable", "pattern", "properties", "propertyOrdering", "required", "title", "type"]);
+
+function unsupportedKeys(schema: unknown, path = ""): string[] {
+  if (!schema || typeof schema !== "object") return [];
+  return Object.entries(schema as Record<string, unknown>).flatMap(([k, v]) => {
+    if (k === "properties") return Object.entries(v as Record<string, unknown>).flatMap(([p, ps]) => unsupportedKeys(ps, `${path}.${p}`));
+    if (k === "items") return unsupportedKeys(v, `${path}[]`);
+    if (k === "anyOf") return (v as unknown[]).flatMap((s, i) => unsupportedKeys(s, `${path}|${i}`));
+    return GEMINI_SCHEMA_KEYS.has(k) ? [] : [`${path || "(top)"}: ${k}`];
+  });
+}
+
+describe("Abel's tool schemas", () => {
+  it("use only what Gemini accepts", async () => {
+    const { orgId, userId } = await setup();
+    as(orgId, userId, ADMIN);
+    for (const t of await tool.toolsFor(who, agent.ABEL_TOOLS, null)) {
+      const declaration = (t as unknown as { _getDeclaration(): { parameters: unknown } })._getDeclaration();
+      expect(unsupportedKeys(declaration.parameters), t.name).toEqual([]);
+    }
+  });
+});
+
 describe("Abel's tools on OpenRouter", () => {
   it("all convert to JSON Schema", async () => {
     const { toJsonSchema } = await import("../abel/openrouter");

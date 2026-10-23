@@ -105,7 +105,7 @@ const saveSplit = abelTool({
     "Set a band's default split: each person's share in percent, adding up to 100. Starts from `from` (or always). Use list_people for ids. For splits on one release, track or item type, send them to /rules.",
   params: z.object({
     bandId: z.number().int(),
-    shares: z.array(z.object({ personId: z.number().int(), percent: z.number().positive().max(100) })).min(1),
+    shares: z.array(z.object({ personId: z.number().int(), percent: z.number().min(0.01).max(100) })).min(1),
     from: date.optional(),
   }),
   needs: { area: "rules", level: "edit" },
