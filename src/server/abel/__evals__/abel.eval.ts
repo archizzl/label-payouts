@@ -44,6 +44,7 @@ const CASES: Case[] = [
   { name: "best seller", turns: [{ say: "what's our best selling release?" }] },
   { name: "even split", turns: [{ say: "set flag day's split to even between its members" }] },
   { name: "label kept", turns: [{ say: "how much has the label kept in total?" }] },
+  { name: "label balance", turns: [{ say: "how much money does the label have?" }, { say: "are you sure it's 50.60 and not 94.85?" }] },
   { name: "tracks of an album", turns: [{ say: "what tracks are on the young jethros?" }] },
   { name: "deductions for a band", turns: [{ say: "what deductions apply to flag day?" }] },
   { name: "add a show", turns: [{ say: "record a $200 show for alex klint last friday" }] },

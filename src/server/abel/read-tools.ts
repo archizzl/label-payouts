@@ -9,6 +9,7 @@ import { type Context, ownBooksOf } from "../context";
 import { addTotals, earningsIn, type Totals } from "../earnings";
 import { accountExpenses } from "../expenses";
 import { labelFunds, nameMaps, ownBand, rulesWhere } from "../data";
+import { labelIncome } from "../label-income";
 import { loadOpenOrders } from "../merch-orders";
 import { owedByBand, owedTotal } from "../owed";
 import { periodView } from "../period-view";
@@ -276,18 +277,29 @@ const salesBreakdown = abelTool({
 
 const funds = abelTool({
   name: "label_funds",
-  description: "The label's own money: what it kept from sales, what it has sent on, what it spent, and the balance, with the money it sent on (and their ids).",
+  description:
+    "The label's own money, as the Funds page has it: what came in (its cut and other withholdings, its own share of label releases, and the shipping fans paid, which stays with the label for postage), by source and by band; what it sent on and spent; and what's left in its account. With the money it sent on (and their ids).",
   params: z.object({}),
   needs: { area: "funds" },
   available: (ctx) => !ctx.lens,
   run: async (ctx) => {
-    const f = await labelFunds(ctx.orgId);
+    // The Funds page's own numbers (labelIncome), so Abel and the page always agree.
+    const [inc, f] = await Promise.all([labelIncome(ctx.orgId), labelFunds(ctx.orgId)]);
+    const ranked = (m: Map<string, Totals>) =>
+      [...m]
+        .map(([name, t]) => ({ name, total: t }))
+        .sort((a, b) => Math.abs([...b.total.values()][0] ?? 0) - Math.abs([...a.total.values()][0] ?? 0))
+        .map(({ name, total }) => `${name}: ${money(total)}`);
     return {
-      kept: money(f.kept),
-      sentOn: money(f.sent),
-      spent: money(f.spent),
-      balance: money(f.balance),
+      leftInAccount: money(inc.balance),
+      cameIn: money(inc.income),
+      sentOn: money(inc.sent),
+      spent: money(inc.spent),
+      cameInBySource: ranked(inc.bySource),
+      cameInByBand: ranked(inc.byBand),
+      ...(inc.holderName && [...inc.holderShare.values()].some((c) => c) ? { accountHolderOwnShare: `${inc.holderName}: ${money(inc.holderShare)} of their own pay sits in the same account` } : {}),
       sendOuts: f.transfers.slice(0, 30).map((t) => ({ id: t.id, date: t.date, amount: formatCents(t.amountCents, t.currency), to: t.recipient, source: t.source, note: t.note })),
+      link: "/funds",
     };
   },
 });
