@@ -157,7 +157,7 @@ const payoutDetail = abelTool({
       name: view.period.name,
       from: view.period.startDate,
       to: view.period.endDate,
-      people: view.lines.map((l) => ({ name: l.name, amount: formatCents(l.amountCents, l.currency), status: l.status, paidAt: l.paidAt })),
+      people: view.lines.map((l) => ({ payoutLineId: l.payoutId, name: l.name, amount: formatCents(l.amountCents, l.currency), status: l.status, paidAt: l.paidAt })),
       bands: view.bands.map((b) => ({
         band: b.bandId ? (view.names.band.get(b.bandId) ?? `Band #${b.bandId}`) : "Not matched to a band",
         sales: b.saleCount,
@@ -261,7 +261,7 @@ const salesBreakdown = abelTool({
 
 const funds = abelTool({
   name: "label_funds",
-  description: "The label's own money: what it kept from sales, what it has sent on, what it spent, and the balance, with recent send-outs.",
+  description: "The label's own money: what it kept from sales, what it has sent on, what it spent, and the balance, with the money it sent on (and their ids).",
   params: z.object({}),
   needs: { area: "funds" },
   available: (ctx) => !ctx.lens,
@@ -272,28 +272,37 @@ const funds = abelTool({
       sentOn: money(f.sent),
       spent: money(f.spent),
       balance: money(f.balance),
-      recentSendOuts: f.transfers.slice(0, 10).map((t) => ({ date: t.date, amount: formatCents(t.amountCents, t.currency), to: t.recipient, note: t.note })),
+      sendOuts: f.transfers.slice(0, 30).map((t) => ({ id: t.id, date: t.date, amount: formatCents(t.amountCents, t.currency), to: t.recipient, source: t.source, note: t.note })),
     };
   },
 });
 
 const listBands = abelTool({
   name: "list_bands",
-  description: "The group's bands (with their ids) and their members.",
+  description: "The group's bands (with their ids) and, with withMembers, their members (with membership and person ids).",
   params: z.object({ withMembers: z.boolean().optional() }),
   needs: { area: "roster" },
   run: async (ctx, { withMembers }) => {
     const bands = (await bandsIn(ctx, "roster")).filter((b) => !b.isLabel);
     if (!withMembers) return bands.map((b) => ({ id: b.id, name: b.name }));
     const members = await db
-      .select({ bandId: schema.bandMemberships.bandId, name: schema.people.name, roles: schema.bandMemberships.roles, active: schema.bandMemberships.active })
+      .select({
+        membershipId: schema.bandMemberships.id,
+        personId: schema.people.id,
+        bandId: schema.bandMemberships.bandId,
+        name: schema.people.name,
+        roles: schema.bandMemberships.roles,
+        active: schema.bandMemberships.active,
+      })
       .from(schema.bandMemberships)
       .innerJoin(schema.people, eq(schema.people.id, schema.bandMemberships.personId))
       .where(eq(schema.bandMemberships.orgId, ctx.orgId));
     return bands.map((b) => ({
       id: b.id,
       name: b.name,
-      members: members.filter((m) => m.bandId === b.id).map((m) => `${m.name}${m.roles?.length ? ` (${m.roles.join(", ")})` : ""}${m.active ? "" : " (former)"}`),
+      members: members
+        .filter((m) => m.bandId === b.id)
+        .map((m) => ({ membershipId: m.membershipId, personId: m.personId, name: m.name, roles: m.roles, former: !m.active })),
     }));
   },
 });
@@ -398,14 +407,19 @@ const inventory = abelTool({
 
 const receipts = abelTool({
   name: "receipts",
-  description: "Receipts (expenses), newest first: date, what for, amount, who paid, status, and whether it's been paid back.",
-  params: z.object({ bandId: z.number().int().optional(), status: z.enum(["submitted", "approved", "rejected"]).optional() }),
+  description:
+    "Receipts (expenses), newest first: date, what for, amount, who paid, status (pending: waiting for review, approved, rejected), whether it's been paid back, and its files.",
+  params: z.object({ bandId: z.number().int().optional(), status: z.enum(["pending", "approved", "rejected"]).optional() }),
   needs: { area: "receipts" },
   available: (ctx) => !ctx.lens,
   run: async (ctx, { bandId, status }) => {
     const scope = bandScope(ctx.access, "receipts");
     if (bandId && !inBandScope(scope, [bandId])) return { error: "That isn't one of your bands." };
-    const [rows, names] = await Promise.all([accountExpenses(ctx.orgId, bandId ? { bandId } : undefined), nameMaps(ctx.orgId)]);
+    const [rows, names, files] = await Promise.all([
+      accountExpenses(ctx.orgId, bandId ? { bandId } : undefined),
+      nameMaps(ctx.orgId),
+      db.select({ id: schema.expenseFiles.id, expenseId: schema.expenseFiles.expenseId, name: schema.expenseFiles.filename }).from(schema.expenseFiles).where(eq(schema.expenseFiles.orgId, ctx.orgId)),
+    ]);
     return rows
       .filter((e) => (!scope || (e.bandId !== null && scope.includes(e.bandId))) && (!status || e.status === status))
       .slice(0, 30)
@@ -418,6 +432,8 @@ const receipts = abelTool({
         paidBy: e.paidBy === "person" ? (e.paidByPersonId ? (names.person.get(e.paidByPersonId) ?? "someone") : "someone") : "the label",
         status: e.status,
         paidBack: e.reimbursedAt,
+        recoupedFromSales: e.recoup,
+        files: files.filter((f) => f.expenseId === e.id).map((f) => ({ id: f.id, name: f.name })),
       }));
   },
 });

@@ -6,17 +6,27 @@ import { formatCents, parseCents } from "@/lib/money";
 import { MOVE_REASONS } from "@/lib/inventory";
 import { MANUAL_KINDS } from "@/lib/manual-sales";
 import { addManualSale } from "../manual-sale-actions";
-import { finalizePayout, markAllPaid, saveSplitRule } from "../actions";
+import { finalizePayout, markAllPaid } from "../actions";
 import { adjustInventory } from "../inventory-actions";
 import { markOrderShipped } from "../order-actions";
 import { saleAdder } from "../manual-sales";
 import type { Context } from "../context";
 import { nameMaps } from "../data";
 import { abelTool, form, viaAction } from "./tool";
+import { CATALOG_TOOLS } from "./actions/catalog";
+import { MONEY_TOOLS } from "./actions/money";
+import { RECEIPT_TOOLS } from "./actions/receipts";
+import { ROSTER_TOOLS } from "./actions/roster";
+import { RULES_TOOLS } from "./actions/rules";
+import { SALES_TOOLS } from "./actions/sales";
+import { SETTINGS_TOOLS } from "./actions/settings";
+import { STOCK_TOOLS } from "./actions/stock";
 
 /*
- * Changes Abel can make. Each asks the person to confirm first (the confirm card shows `summary`),
- * then runs the app's own server action, which checks their access again.
+ * Changes Abel can make: every action the app has that can be done without a file upload or a
+ * password, each available only to those whose access allows it. Each asks the person to confirm
+ * first (the confirm card shows `summary`), then runs the app's own server action, which checks
+ * their access again. The first few are here; the rest are in actions/, by area.
  */
 
 const bandName = async (ctx: Context, id: number) => (await nameMaps(ctx.orgId)).band.get(id) ?? `band #${id}`;
@@ -99,30 +109,6 @@ const markPaid = abelTool({
     }, "Marked paid."),
 });
 
-const saveSplit = abelTool({
-  name: "save_split",
-  description:
-    "Set a band's default split: each person's share in percent, adding up to 100. Starts from `from` (or always). Use list_people for ids. For splits on one release, track or item type, send them to /rules.",
-  params: z.object({
-    bandId: z.number().int(),
-    shares: z.array(z.object({ personId: z.number().int(), percent: z.number().min(0.01).max(100) })).min(1),
-    from: date.optional(),
-  }),
-  needs: { area: "rules", level: "edit" },
-  write: true,
-  summary: async (ctx, a) => {
-    const names = await nameMaps(ctx.orgId);
-    const shares = a.shares.map((s) => `${names.person.get(s.personId) ?? `person #${s.personId}`} ${s.percent}%`).join(", ");
-    return `Set ${names.band.get(a.bandId) ?? `band #${a.bandId}`}’s split: ${shares}${a.from ? `, from ${a.from}` : ""}`;
-  },
-  run: async (_ctx, a) => {
-    const shares = a.shares.map((s) => ({ personId: s.personId, bps: Math.round(s.percent * 100) }));
-    return viaAction(() =>
-      saveSplitRule(null, form({ scope: "band_default", bandId: a.bandId, shares: JSON.stringify(shares), effectiveFrom: a.from })),
-    );
-  },
-});
-
 const shipOrder = abelTool({
   name: "mark_order_shipped",
   description: "Mark an open merch order shipped on Bandcamp, with the carrier and tracking code if given. The buyer is emailed only if notifyBuyer is true.",
@@ -162,4 +148,18 @@ const changeStock = abelTool({
   run: async (_ctx, a) => viaAction(() => adjustInventory(null, form({ id: a.itemId, reason: a.reason, amount: a.amount, note: a.note }))),
 });
 
-export const WRITE_TOOLS = [addSale, createPayout, markPaid, saveSplit, shipOrder, changeStock];
+export const WRITE_TOOLS = [
+  addSale,
+  createPayout,
+  markPaid,
+  shipOrder,
+  changeStock,
+  ...RULES_TOOLS,
+  ...MONEY_TOOLS,
+  ...SALES_TOOLS,
+  ...ROSTER_TOOLS,
+  ...CATALOG_TOOLS,
+  ...STOCK_TOOLS,
+  ...RECEIPT_TOOLS,
+  ...SETTINGS_TOOLS,
+];

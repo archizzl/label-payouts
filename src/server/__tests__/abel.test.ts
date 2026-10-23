@@ -112,13 +112,26 @@ describe("Abel's tools", () => {
   it("gives an admin every tool", async () => {
     const { orgId, userId } = await setup();
     as(orgId, userId, ADMIN);
-    expect(await names()).toEqual(agent.ABEL_TOOLS.filter((t) => t.name !== "my_earnings").map((t) => t.name).sort());
+    // Not: their own earnings (no payee record), projects (a feature this group doesn't have), a band group's settings (it's a label).
+    const not = ["my_earnings", "list_projects", "save_project", "delete_project", "save_band_settings"];
+    expect(await names()).toEqual(agent.ABEL_TOOLS.filter((t) => !not.includes(t.name)).map((t) => t.name).sort());
+  });
+
+  it("has every change the app has (but file uploads, passwords and leaving or deleting the group)", () => {
+    const changes = agent.ABEL_TOOLS.filter((t) => t.write).map((t) => t.name);
+    expect(changes).toContain("save_deduction");
+    expect(changes.length).toBeGreaterThan(60);
+    // OpenAI-style APIs take at most 128 tools.
+    expect(agent.ABEL_TOOLS.length).toBeLessThanOrEqual(128);
+    expect(new Set(agent.ABEL_TOOLS.map((t) => t.name)).size).toBe(agent.ABEL_TOOLS.length);
   });
 
   it("gives a member with no member type only their own things", async () => {
     const { orgId, userId, p } = await setup();
     as(orgId, userId, { admin: false, permissions: {}, bandAreas: [], bandIds: [] }, { person: p });
-    expect(await names()).toEqual(["add_manual_sale", "my_access", "my_earnings", "where_is"]);
+    // (Adding and taking back their bands' hand-added sales, withdrawing their own receipt, and their own details:
+    // the app lets anyone, and the action decides.)
+    expect(await names()).toEqual(["add_manual_sale", "delete_expense", "delete_manual_sale", "my_access", "my_earnings", "save_my_details", "where_is"]);
   });
 
   it("gives no changes to someone viewing as another person", async () => {
@@ -195,6 +208,50 @@ describe("Abel's tools on OpenRouter", () => {
       // No Gemini-style types ("STRING") left anywhere.
       expect(JSON.stringify(schema), t.name).not.toMatch(/"type":"[A-Z]/);
     }
+  });
+});
+
+describe("Abel's changes", () => {
+  it("adds a deduction, changes only what it's told, and deletes it", async () => {
+    const { orgId, userId, a } = await setup();
+    as(orgId, userId, ADMIN);
+    expect(await run("save_deduction", { label: "Label cut", kind: "percent", percent: 10, destination: "label", bandId: a.id })).toMatchObject({ ok: "Deduction saved." });
+    const [added] = await db.select().from(schema.deductions).where(eq(schema.deductions.orgId, orgId));
+    expect(added).toMatchObject({ label: "Label cut", kind: "percent", percentBps: 1000, destination: "label", bandId: a.id });
+
+    // Only the percent changes: its name, band and destination stay.
+    await run("save_deduction", { id: added.id, percent: 15 });
+    const [changed] = await db.select().from(schema.deductions).where(eq(schema.deductions.id, added.id));
+    expect(changed).toMatchObject({ label: "Label cut", percentBps: 1500, destination: "label", bandId: a.id });
+
+    await run("delete_deduction", { id: added.id });
+    expect(await db.select().from(schema.deductions).where(eq(schema.deductions.orgId, orgId))).toEqual([]);
+  });
+
+  it("says what a change will do with names, not ids", async () => {
+    const { orgId, userId, a } = await setup();
+    as(orgId, userId, ADMIN);
+    const card = await tool.describeChange(who, agent.ABEL_TOOLS, "save_deduction", { label: "Label cut", kind: "percent", percent: 10, bandId: a.id });
+    expect(card).toBe("Save a deduction: label Label cut, kind percent, percent 10, band Band A");
+  });
+
+  it("keeps a band's other spellings when only its name changes", async () => {
+    const { orgId, userId, a } = await setup();
+    as(orgId, userId, ADMIN);
+    await db.update(schema.bands).set({ aliases: ["The A's"], urlPatterns: ["banda"] }).where(eq(schema.bands.id, a.id));
+    expect(await run("save_band", { id: a.id, name: "Band Aye" })).toMatchObject({ ok: "Band saved." });
+    const [band] = await db.select().from(schema.bands).where(eq(schema.bands.id, a.id));
+    expect(band).toMatchObject({ name: "Band Aye", aliases: ["The A's"], urlPatterns: ["banda"] });
+  });
+
+  it("only offers changes the person's access allows", async () => {
+    const { orgId, userId } = await setup();
+    as(orgId, userId, { admin: false, permissions: { rules: "view" }, bandAreas: [], bandIds: [] });
+    const got = await names();
+    expect(got).toContain("list_deductions");
+    expect(got).not.toContain("save_deduction");
+    expect(got).not.toContain("invite_to_group");
+    expect(await run("save_deduction", { label: "x", kind: "percent", percent: 5 })).toBe("not allowed");
   });
 });
 
