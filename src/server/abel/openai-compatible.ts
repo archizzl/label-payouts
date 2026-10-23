@@ -109,7 +109,29 @@ export function toChatRequest(req: LlmRequest): { messages: ChatMessage[]; tools
       },
     })),
   );
-  return { messages, tools };
+  return { messages: paired(messages), tools };
+}
+
+/** What a call with no result gets: it didn't happen (a change waiting on its confirm card, or one that never finished). */
+export const NO_RESULT = { error: "Not done: it wasn't confirmed, or didn't finish." };
+
+/**
+ * Every tool call followed straight away by a result for it, as OpenAI-style APIs insist (DeepSeek
+ * refuses the whole request otherwise). A result that came later (a change confirmed after other
+ * messages) moves up to its call; a call with none gets NO_RESULT; a result whose call isn't here
+ * (cut off the start of a long chat) is dropped.
+ */
+export function paired(messages: ChatMessage[]): ChatMessage[] {
+  const results = new Map<string, ChatMessage>();
+  for (const m of messages) if (m.role === "tool") results.set(m.tool_call_id, m);
+  const out: ChatMessage[] = [];
+  for (const m of messages) {
+    if (m.role === "tool") continue;
+    out.push(m);
+    if (m.role !== "assistant" || !m.tool_calls?.length) continue;
+    for (const call of m.tool_calls) out.push(results.get(call.id) ?? { role: "tool", tool_call_id: call.id, content: JSON.stringify(NO_RESULT) });
+  }
+  return out;
 }
 
 type Choice = {

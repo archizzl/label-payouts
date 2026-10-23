@@ -86,19 +86,20 @@ export class DrizzleSessionService extends BaseSessionService {
   }
 
   async appendEvent({ session, event }: AppendEventRequest): Promise<Event> {
-    const replacing = session.events.some((e) => e.id === event.id);
     const stored = await super.appendEvent({ session, event });
     // Streamed pieces of a reply aren't kept: the whole reply follows them.
     if (event.partial) return stored;
     const chatId = Number(session.id);
     const json = JSON.parse(JSON.stringify(stored)) as Record<string, unknown>;
     await db.transaction(async (tx) => {
-      if (replacing) {
-        await tx
-          .update(schema.abelEvents)
-          .set({ event: json })
-          .where(and(eq(schema.abelEvents.chatId, chatId), sql`${schema.abelEvents.event}->>'id' = ${stored.id}`));
-      } else {
+      // An event saved before is replaced; anything else is added. (Whether it's in the session's
+      // memory says nothing: ADK puts a confirmed tool's result there before asking to save it.)
+      const replaced = await tx
+        .update(schema.abelEvents)
+        .set({ event: json })
+        .where(and(eq(schema.abelEvents.chatId, chatId), sql`${schema.abelEvents.event}->>'id' = ${stored.id}`))
+        .returning({ id: schema.abelEvents.id });
+      if (!replaced.length) {
         await tx.insert(schema.abelEvents).values({ chatId, orgId: this.orgId, author: stored.author === "user" ? "user" : "abel", event: json });
       }
       await tx

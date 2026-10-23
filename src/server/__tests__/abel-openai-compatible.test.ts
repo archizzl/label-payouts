@@ -138,6 +138,36 @@ describe("abelProvider", () => {
   });
 });
 
+describe("paired", () => {
+  it("gives every tool call its result straight after it", async () => {
+    const { paired, NO_RESULT } = await import("../abel/openai-compatible");
+    const call = (id: string) => ({ id, type: "function" as const, function: { name: "x", arguments: "{}" } });
+    const result = (id: string) => ({ role: "tool" as const, tool_call_id: id, content: "{}" });
+    expect(
+      paired([
+        { role: "user", content: "add a shirt" },
+        // A change waiting on its confirm card when they wrote again: no result.
+        { role: "assistant", content: null, tool_calls: [call("a")] },
+        { role: "user", content: "make it blue" },
+        // One whose result came after other messages.
+        { role: "assistant", content: null, tool_calls: [call("b")] },
+        { role: "user", content: "and red" },
+        result("b"),
+        // A result whose call was cut off the start of the chat.
+        result("gone"),
+      ]),
+    ).toEqual([
+      { role: "user", content: "add a shirt" },
+      { role: "assistant", content: null, tool_calls: [call("a")] },
+      { role: "tool", tool_call_id: "a", content: JSON.stringify(NO_RESULT) },
+      { role: "user", content: "make it blue" },
+      { role: "assistant", content: null, tool_calls: [call("b")] },
+      result("b"),
+      { role: "user", content: "and red" },
+    ]);
+  });
+});
+
 describe("toJsonSchema", () => {
   it("turns Gemini's schema into JSON Schema", () => {
     expect(

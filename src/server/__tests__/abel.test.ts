@@ -394,6 +394,9 @@ describe("Abel's chats", () => {
     });
     expect(answered.at(-1)?.content?.parts?.[0]?.text).toContain("Payout finalized.");
     expect(await db.select().from(schema.periods).where(eq(schema.periods.orgId, orgId))).toHaveLength(1);
+    // The change's result is kept in the chat, after the call (DeepSeek refuses a call without one).
+    const kept = (await sessions.chatEvents(orgId, userId, Number(chat.id)))!.events.flatMap((e) => adk.getFunctionResponses(e).map((r) => r.name));
+    expect(kept).toContain("create_payout");
     const [action] = await db.select().from(schema.abelActions).where(eq(schema.abelActions.orgId, orgId));
     expect(action).toMatchObject({ tool: "create_payout", status: "done", userId });
 
