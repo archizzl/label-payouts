@@ -8,9 +8,15 @@ import { AbelText } from "./abel-text";
 import { ConfirmCard } from "./confirm-card";
 
 /*
- * Abel, the assistant: a button at the bottom right that opens a chat panel (the whole screen on a
- * phone). Talks to /api/abel, which streams Abel's reply back.
+ * Abel, the assistant: his button in the top bar (AbelButton, next to you and your group) opens a
+ * chat panel under it (the whole screen on a phone). Talks to /api/abel, which streams Abel's reply
+ * back. The two talk by window events, since the button is in the nav and the panel in the layout.
  */
+
+/** Asks the panel to open or close. */
+const TOGGLE = "abel:toggle";
+/** The panel saying whether it's open (detail: boolean). */
+const STATE = "abel:state";
 
 /** Abel's photo: cropped to his head and chest, at twice the button's size for sharp screens. */
 const ABEL_PHOTO = "https://res.cloudinary.com/xtdtnygr/image/upload/c_crop,w_230,h_230,x_85,y_20/f_auto,q_auto,w_112,h_112/abel";
@@ -19,6 +25,29 @@ const ABEL_PHOTO = "https://res.cloudinary.com/xtdtnygr/image/upload/c_crop,w_23
 function AbelPhoto({ className }: { className: string }) {
   // eslint-disable-next-line @next/next/no-img-element
   return <img src={ABEL_PHOTO} alt="" className={`shrink-0 rounded-full bg-surface-2 object-cover ${className}`} />;
+}
+
+/** Abel in the top bar, like you and your group there: his photo (a triangle: you're round, a group square) and name. */
+export function AbelButton() {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    const onState = (e: Event) => setOpen((e as CustomEvent<boolean>).detail);
+    window.addEventListener(STATE, onState);
+    return () => window.removeEventListener(STATE, onState);
+  }, []);
+  return (
+    <button
+      type="button"
+      onClick={() => window.dispatchEvent(new Event(TOGGLE))}
+      aria-expanded={open}
+      aria-label={open ? "Close Abel" : "Open Abel"}
+      className={`flex items-center gap-2 rounded-sm py-0.5 pr-1.5 pl-0.5 text-sm hover:bg-surface-2 hover:text-text ${open ? "bg-surface-2 text-text" : "text-muted"}`}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={ABEL_PHOTO} alt="" className="h-[26px] w-[28px] shrink-0 bg-surface-2 object-cover [clip-path:polygon(50%_0,100%_100%,0_100%)]" />
+      <span className="hidden sm:inline">Abel</span>
+    </button>
+  );
 }
 
 /** Something from Abel: his photo, then it. */
@@ -36,6 +65,15 @@ type Send = { message: string } | { confirmation: { id: string; confirmed: boole
 export function AbelPanel() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  // The top bar's button opens and closes it; it says when it's open, for the button's look.
+  useEffect(() => {
+    const toggle = () => setOpen((o) => !o);
+    window.addEventListener(TOGGLE, toggle);
+    return () => window.removeEventListener(TOGGLE, toggle);
+  }, []);
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent(STATE, { detail: open }));
+  }, [open]);
   const [chats, setChats] = useState<AbelChatListItem[] | null>(null);
   const [chatId, setChatId] = useState<number | null>(null);
   const [messages, setMessages] = useState<AbelMessage[]>([]);
@@ -146,24 +184,13 @@ export function AbelPanel() {
     void send({ confirmation: { id, confirmed } });
   }
 
-  if (!open) {
-    return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        aria-label="Open Abel"
-        className="no-print fixed right-4 bottom-4 z-40 h-14 w-14 overflow-hidden rounded-full border-2 border-accent bg-surface-2 shadow-lg transition hover:scale-105"
-      >
-        <AbelPhoto className="h-full w-full" />
-      </button>
-    );
-  }
+  if (!open) return null;
 
   const empty = !messages.length && !draft && !busy;
   return (
     <section
       aria-label="Abel"
-      className="no-print fixed inset-0 z-40 flex flex-col border-border bg-surface shadow-2xl sm:inset-auto sm:right-4 sm:bottom-4 sm:h-[min(640px,calc(100vh-2rem))] sm:w-[400px] sm:rounded-md sm:border"
+      className="no-print fixed inset-0 z-40 flex flex-col border-border bg-surface shadow-2xl sm:inset-auto sm:top-16 sm:right-4 sm:h-[min(640px,calc(100vh-5rem))] sm:w-[400px] sm:rounded-md sm:border"
     >
       <header className="flex items-center gap-2 border-b border-border px-4 py-2.5">
         <AbelPhoto className="h-7 w-7" />

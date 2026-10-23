@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Area } from "@/lib/permissions";
 import { signOut, switchAccount } from "@/server/account-actions";
 import type { Account } from "@/server/context";
+import { AbelButton } from "./abel/abel-panel";
 import { Avatar } from "./avatar";
 import { SyncIndicator } from "./sync-indicator";
 
@@ -169,6 +170,7 @@ export function Nav({
   hideOrders = false,
   bandLogin = false,
   earnings = false,
+  abel = false,
 }: {
   user: { name: string; email: string; image?: string | null };
   account: Account;
@@ -206,6 +208,8 @@ export function Nav({
   hideOrders?: boolean;
   /** An admin who's also paid in these books: their own earnings page. */
   earnings?: boolean;
+  /** Abel, the assistant, is on for them: his button. */
+  abel?: boolean;
 }) {
   const path = usePathname();
   // "New sales" counts from your last look at Sales: once you've opened it, stop showing the number
@@ -241,6 +245,7 @@ export function Nav({
           )}
           {/* The group you're in (a label or band), and switching to another. */}
           <AccountSwitcher account={account} accounts={accounts} photos={groupPhotos} />
+          {abel && <AbelButton />}
           {!viewing && (
             <form action={signOut}>
               <button type="submit" className="text-sm text-link hover:underline">

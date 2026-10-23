@@ -77,6 +77,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
         syncing={due || !!sync?.running}
         syncedAt={sync?.finishedAt ?? null}
         catalogBusy={!!catalogAsked || !!catalogProgress}
+        abel={abel}
         labels={labels.map(({ link, label }) => ({ href: `/from-label/${link.id}`, label: `from ${label.name}` }))}
       />
       <main className="min-w-0 flex-1 px-4 py-8 md:px-8">
