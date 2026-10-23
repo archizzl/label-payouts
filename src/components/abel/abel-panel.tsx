@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { buttonClass } from "@/components/ui";
 import { type AbelChatListItem, type AbelMessage, type AbelStreamEvent, WORKING_ON } from "@/lib/abel";
 import { AbelText } from "./abel-text";
@@ -12,10 +12,26 @@ import { ConfirmCard } from "./confirm-card";
  * phone). Talks to /api/abel, which streams Abel's reply back.
  */
 
-/** Abel's photo for the button: cropped to his head and chest, at twice the button's size for sharp screens. */
+/** Abel's photo: cropped to his head and chest, at twice the button's size for sharp screens. */
 const ABEL_PHOTO = "https://res.cloudinary.com/xtdtnygr/image/upload/c_crop,w_230,h_230,x_85,y_20/f_auto,q_auto,w_112,h_112/abel";
 
-type Send ={ message: string } | { confirmation: { id: string; confirmed: boolean } };
+/** Abel's photo in a circle. */
+function AbelPhoto({ className }: { className: string }) {
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={ABEL_PHOTO} alt="" className={`shrink-0 rounded-full bg-surface-2 object-cover ${className}`} />;
+}
+
+/** Something from Abel: his photo, then it. */
+function FromAbel({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex items-start gap-2">
+      <AbelPhoto className="mt-0.5 h-6 w-6" />
+      <div className="min-w-0 flex-1">{children}</div>
+    </div>
+  );
+}
+
+type Send = { message: string } | { confirmation: { id: string; confirmed: boolean } };
 
 export function AbelPanel() {
   const router = useRouter();
@@ -138,8 +154,7 @@ export function AbelPanel() {
         aria-label="Open Abel"
         className="no-print fixed right-4 bottom-4 z-40 h-14 w-14 overflow-hidden rounded-full border-2 border-accent bg-surface-2 shadow-lg transition hover:scale-105"
       >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={ABEL_PHOTO} alt="" className="h-full w-full object-cover" />
+        <AbelPhoto className="h-full w-full" />
       </button>
     );
   }
@@ -151,6 +166,7 @@ export function AbelPanel() {
       className="no-print fixed inset-0 z-40 flex flex-col border-border bg-surface shadow-2xl sm:inset-auto sm:right-4 sm:bottom-4 sm:h-[min(640px,calc(100vh-2rem))] sm:w-[400px] sm:rounded-md sm:border"
     >
       <header className="flex items-center gap-2 border-b border-border px-4 py-2.5">
+        <AbelPhoto className="h-7 w-7" />
         <h2 className="flex-1 font-bold">Abel</h2>
         {(chatId || messages.length > 0) && (
           <button type="button" className={buttonClass("ghost", "sm")} onClick={newChat} disabled={busy}>
@@ -187,13 +203,25 @@ export function AbelPanel() {
               {m.text}
             </p>
           ) : m.kind === "abel" ? (
-            <AbelText key={i} text={m.text} onNavigate={() => window.innerWidth < 640 && setOpen(false)} />
+            <FromAbel key={i}>
+              <AbelText text={m.text} onNavigate={() => window.innerWidth < 640 && setOpen(false)} />
+            </FromAbel>
           ) : (
-            <ConfirmCard key={m.id} summary={m.summary} answer={m.answer} disabled={busy} onAnswer={(yes) => answer(m.id, yes)} />
+            <FromAbel key={m.id}>
+              <ConfirmCard summary={m.summary} answer={m.answer} disabled={busy} onAnswer={(yes) => answer(m.id, yes)} />
+            </FromAbel>
           ),
         )}
-        {draft && <AbelText text={draft} />}
-        {busy && !draft && <p className="text-muted">{(working && WORKING_ON[working]) || "Thinking"}…</p>}
+        {draft && (
+          <FromAbel>
+            <AbelText text={draft} />
+          </FromAbel>
+        )}
+        {busy && !draft && (
+          <FromAbel>
+            <p className="text-muted">{(working && WORKING_ON[working]) || "Thinking"}…</p>
+          </FromAbel>
+        )}
         {error && <p className="text-bad">{error}</p>}
         <div ref={end} />
       </div>
