@@ -39,7 +39,7 @@ function chatDate(utc: string) {
   return when.toLocaleDateString(undefined, { month: "short", day: "numeric", ...(sameYear ? {} : { year: "numeric" }) });
 }
 
-/** Abel in the top bar, like you and your group there: his photo (a triangle: you're round, a group square) and name. */
+/** Abel in the top bar, like you and your group there: his photo (a heptagon: you're round, a group square) and name. */
 export function AbelButton() {
   const [open, setOpen] = useState(false);
   useEffect(() => {
@@ -56,7 +56,7 @@ export function AbelButton() {
       className={`flex items-center gap-2 rounded-sm py-0.5 pr-1.5 pl-0.5 text-sm hover:bg-surface-2 hover:text-text ${open ? "bg-surface-2 text-text" : "text-muted"}`}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={ABEL_PHOTO} alt="" className="h-[26px] w-[28px] shrink-0 bg-surface-2 object-cover [clip-path:polygon(50%_0,100%_100%,0_100%)]" />
+      <img src={ABEL_PHOTO} alt="" className="h-[26px] w-[26px] shrink-0 bg-surface-2 object-cover [clip-path:polygon(50%_0%,89.1%_19.8%,98.7%_64.3%,71.7%_100%,28.3%_100%,1.3%_64.3%,10.9%_19.8%)]" />
       <span className="hidden sm:inline">Abel</span>
     </button>
   );
