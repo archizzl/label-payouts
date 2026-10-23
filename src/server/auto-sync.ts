@@ -81,6 +81,7 @@ export type SyncResult = { ran: boolean; summary: string; errors: string[] };
 /** A sync's summary when it found nothing new. */
 export const UP_TO_DATE = "Up to date.";
 
+import { releasesToRefresh } from "@/lib/catalog-refresh";
 import { plural } from "@/lib/plural";
 import { bandcampAddressProblem } from "@/lib/routing";
 
@@ -126,17 +127,14 @@ async function fromPublicPages(
     // Just some bands' part of it: their releases only.
     const theirs = (r: (typeof lookup.releases)[number]) => !onlyBands || (r.bandId != null && onlyBands.includes(r.bandId));
     const fresh = lookup.releases.filter((r) => r.status === "new" && theirs(r));
-    const staleBefore = iso(Date.now() - REFRESH_AFTER_MS);
-    const syncedAt = new Map(
-      (await db.select({ id: releases.id, syncedAt: releases.syncedAt }).from(releases).where(eq(releases.orgId, orgId))).map((r) => [
-        r.id,
-        r.syncedAt,
-      ]),
+    // Releases already here: any whose cover changed, then the longest-unread once a week old.
+    const stored = new Map(
+      (await db.select({ id: releases.id, syncedAt: releases.syncedAt, artUrl: releases.artUrl }).from(releases).where(eq(releases.orgId, orgId))).map(
+        (r) => [r.id, { syncedAt: r.syncedAt, artUrl: r.artUrl }],
+      ),
     );
-    const stale = lookup.releases
-      .filter((r) => r.status === "imported" && r.releaseId && (syncedAt.get(r.releaseId) ?? "") < staleBefore && theirs(r))
-      .sort((a, b) => (syncedAt.get(a.releaseId!) ?? "").localeCompare(syncedAt.get(b.releaseId!) ?? ""))
-      .slice(0, refreshAll ? undefined : REFRESH_PER_SYNC);
+    const refreshIds = releasesToRefresh(lookup.releases.filter(theirs), stored, iso(Date.now() - REFRESH_AFTER_MS), refreshAll ? undefined : REFRESH_PER_SYNC);
+    const stale = refreshIds.map((id) => lookup.releases.find((r) => r.releaseId === id)!);
     if (!fresh.length && !stale.length) return;
     const rows = [...fresh, ...stale].map(toRow);
     onProgress?.(0, rows.length);
