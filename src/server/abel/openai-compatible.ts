@@ -117,7 +117,26 @@ type Choice = {
   message?: { content?: string | null; tool_calls?: { id?: string; function?: { name?: string; arguments?: string } }[] };
   finish_reason?: string | null;
 };
-type Chunk = { choices?: Choice[]; usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number }; error?: { code?: number | string; message?: string } };
+type Usage = {
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  total_tokens?: number;
+  /** DeepSeek: how much of the prompt was read from its cache. */
+  prompt_cache_hit_tokens?: number;
+  /** OpenRouter and other OpenAI-style APIs: the same. */
+  prompt_tokens_details?: { cached_tokens?: number };
+  completion_tokens_details?: { reasoning_tokens?: number };
+};
+type Chunk = { choices?: Choice[]; usage?: Usage; error?: { code?: number | string; message?: string } };
+
+/** Usage as ADK has it (Gemini's names), including how much of the prompt came from the service's cache. */
+const usageMetadata = (u: Usage) => ({
+  promptTokenCount: u.prompt_tokens,
+  candidatesTokenCount: u.completion_tokens,
+  totalTokenCount: u.total_tokens,
+  cachedContentTokenCount: u.prompt_cache_hit_tokens ?? u.prompt_tokens_details?.cached_tokens,
+  thoughtsTokenCount: u.completion_tokens_details?.reasoning_tokens,
+});
 
 const FINISH: Record<string, string> = { stop: "STOP", tool_calls: "STOP", length: "MAX_TOKENS", content_filter: "SAFETY" };
 
@@ -140,9 +159,7 @@ function finalResponse(text: string, calls: { id?: string; name?: string; argume
     partial: false,
     turnComplete: true,
     ...(finish ? { finishReason: (FINISH[finish] ?? "OTHER") as LlmResponse["finishReason"] } : {}),
-    ...(usage
-      ? { usageMetadata: { promptTokenCount: usage.prompt_tokens, candidatesTokenCount: usage.completion_tokens, totalTokenCount: usage.total_tokens } }
-      : {}),
+    ...(usage ? { usageMetadata: usageMetadata(usage) } : {}),
   };
 }
 

@@ -59,7 +59,7 @@ describe("Abel on OpenRouter", () => {
         { choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: '"all"}' } }] }, finish_reason: "tool_calls" }] },
       ],
       // Then answers, in two pieces.
-      [{ choices: [{ delta: { content: "There are " } }] }, { choices: [{ delta: { content: "3 bands." }, finish_reason: "stop" }], usage: { prompt_tokens: 10, completion_tokens: 4, total_tokens: 14 } }],
+      [{ choices: [{ delta: { content: "There are " } }] }, { choices: [{ delta: { content: "3 bands." }, finish_reason: "stop" }], usage: { prompt_tokens: 10, completion_tokens: 4, total_tokens: 14, prompt_cache_hit_tokens: 8 } }],
     ]);
     const events = await converse(new ChatApiLlm(OPENROUTER, ["google/gemini-3.8-flash", "anthropic/claude-haiku-5.5"], "test-key", fetcher), [countBands]);
 
@@ -67,6 +67,7 @@ describe("Abel on OpenRouter", () => {
     // The reply streamed in pieces, then came whole.
     expect(events.filter((e) => e.partial).map((e) => e.content?.parts?.[0]?.text)).toEqual(["There are ", "3 bands."]);
     expect(events.at(-1)?.content?.parts?.[0]?.text).toBe("There are 3 bands.");
+    expect(events.at(-1)?.usageMetadata).toMatchObject({ promptTokenCount: 10, candidatesTokenCount: 4, cachedContentTokenCount: 8 });
 
     // The first request: the instruction, the question, the tool as JSON Schema, and the fallback model.
     const [first, second] = sent;

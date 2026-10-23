@@ -66,6 +66,10 @@ const CASES: Case[] = [
 ];
 
 const out: string[] = [];
+/** Tokens per conversation: model calls, prompt (and how much of it came from the service's cache), reply. */
+type Tokens = { calls: number; input: number; cached: number; output: number };
+const tokens: (Tokens & { name: string })[] = [];
+const pct = (part: number, whole: number) => (whole ? `${Math.round((part / whole) * 100)}%` : "–");
 let adk: typeof import("../adk");
 let agent: typeof import("../agent");
 let tool: typeof import("../tool");
@@ -110,6 +114,17 @@ beforeAll(async () => {
 });
 
 afterAll(() => {
+  if (tokens.length) {
+    const sum = tokens.reduce((a, t) => ({ calls: a.calls + t.calls, input: a.input + t.input, cached: a.cached + t.cached, output: a.output + t.output }), { calls: 0, input: 0, cached: 0, output: 0 });
+    out.push(
+      "\n## Tokens\n",
+      "| Conversation | Model calls | Input | Cached | Output |",
+      "|---|---|---|---|---|",
+      ...tokens.map((t) => `| ${t.name} | ${t.calls} | ${t.input.toLocaleString()} | ${t.cached.toLocaleString()} (${pct(t.cached, t.input)}) | ${t.output.toLocaleString()} |`),
+      `| **All ${tokens.length}** | ${sum.calls} | ${sum.input.toLocaleString()} | ${sum.cached.toLocaleString()} (${pct(sum.cached, sum.input)}) | ${sum.output.toLocaleString()} |`,
+      `\nPer model call: ${Math.round(sum.input / Math.max(1, sum.calls)).toLocaleString()} input tokens, ${Math.round(sum.cached / Math.max(1, sum.calls)).toLocaleString()} of them cached.`,
+    );
+  }
   writeFileSync(process.env.ABEL_EVAL_OUT ?? ".abel-eval.md", out.join("\n"));
 });
 
@@ -122,6 +137,7 @@ describe("Abel", () => {
       const session = await sessions.createSession({ appName: "abel", userId: who.user.id });
       const runner = new adk.Runner({ appName: "abel", agent: await agent.abelFor(who, null), sessionService: sessions });
       out.push(`\n## ${c.name}\n`);
+      const used: Tokens = { calls: 0, input: 0, cached: 0, output: 0 };
       for (const turn of c.turns) {
         out.push(`**You:** ${turn.say}\n`);
         const started = Date.now();
@@ -133,6 +149,12 @@ describe("Abel", () => {
           runConfig: adk.createRunConfig({ maxLlmCalls: agent.MAX_LLM_CALLS }),
         })) {
           if (e.errorMessage) out.push(`> ⚠️ ${e.errorCode}: ${clip(e.errorMessage, 300)}`);
+          if (!e.partial && e.usageMetadata) {
+            used.calls++;
+            used.input += e.usageMetadata.promptTokenCount ?? 0;
+            used.cached += e.usageMetadata.cachedContentTokenCount ?? 0;
+            used.output += e.usageMetadata.candidatesTokenCount ?? 0;
+          }
           for (const part of e.content?.parts ?? []) {
             const call = part.functionCall;
             if (call?.name === adk.REQUEST_CONFIRMATION_FUNCTION_CALL_NAME) {
@@ -151,6 +173,8 @@ describe("Abel", () => {
         }
         out.push(`_${calls} tool calls, ${((Date.now() - started) / 1000).toFixed(1)}s_\n`);
       }
+      out.push(`_Tokens: ${used.calls} model calls, ${used.input.toLocaleString()} in (${used.cached.toLocaleString()} cached, ${pct(used.cached, used.input)}), ${used.output.toLocaleString()} out_\n`);
+      tokens.push({ name: c.name, ...used });
     });
   }
 });
