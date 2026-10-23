@@ -27,6 +27,18 @@ function AbelPhoto({ className }: { className: string }) {
   return <img src={ABEL_PHOTO} alt="" className={`shrink-0 rounded-full bg-surface-2 object-cover ${className}`} />;
 }
 
+/** When a chat was last used, from its UTC "YYYY-MM-DD HH:MM:SS": "Today", "Yesterday", or "Oct 21" ("Oct 21, 2025" in another year). */
+function chatDate(utc: string) {
+  const when = new Date(`${utc.replace(" ", "T")}Z`);
+  if (Number.isNaN(when.getTime())) return "";
+  const day = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const days = Math.round((day(new Date()) - day(when)) / 86_400_000);
+  if (days === 0) return "Today";
+  if (days === 1) return "Yesterday";
+  const sameYear = when.getFullYear() === new Date().getFullYear();
+  return when.toLocaleDateString(undefined, { month: "short", day: "numeric", ...(sameYear ? {} : { year: "numeric" }) });
+}
+
 /** Abel in the top bar, like you and your group there: his photo (a triangle: you're round, a group square) and name. */
 export function AbelButton() {
   const [open, setOpen] = useState(false);
@@ -76,6 +88,7 @@ export function AbelPanel() {
   }, [open]);
   const [chats, setChats] = useState<AbelChatListItem[] | null>(null);
   const [chatId, setChatId] = useState<number | null>(null);
+  const [title, setTitle] = useState("");
   const [messages, setMessages] = useState<AbelMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [working, setWorking] = useState<string | null>(null);
@@ -103,14 +116,17 @@ export function AbelPanel() {
   async function openChat(id: number) {
     setError(null);
     const r = await fetch(`/api/abel?chat=${id}`);
-    const d = (await r.json()) as { messages?: AbelMessage[]; error?: string };
+    const d = (await r.json()) as { title?: string; messages?: AbelMessage[]; error?: string };
     if (!r.ok) return setError(d.error ?? "Couldn’t open that chat.");
     setChatId(id);
+    setTitle(d.title ?? "");
     setMessages(d.messages ?? []);
   }
 
-  function newChat() {
+  /** Back to the list of chats (where typing starts a new one). */
+  function allChats() {
     setChatId(null);
+    setTitle("");
     setMessages([]);
     setError(null);
     setChats(null);
@@ -175,6 +191,7 @@ export function AbelPanel() {
     const message = input.trim();
     if (!message || busy) return;
     setInput("");
+    if (!chatId && !messages.length) setTitle(message.replace(/\s+/g, " ").slice(0, 80));
     setMessages((m) => [...m, { kind: "user", text: message }]);
     void send({ message });
   }
@@ -186,19 +203,28 @@ export function AbelPanel() {
 
   if (!open) return null;
 
-  const empty = !messages.length && !draft && !busy;
+  // The list of chats, or one chat (open, or just started).
+  const inChat = !!chatId || messages.length > 0 || busy;
   return (
     <section
       aria-label="Abel"
       className="no-print fixed inset-0 z-40 flex flex-col border-border bg-surface shadow-2xl sm:inset-auto sm:top-16 sm:right-4 sm:h-[min(640px,calc(100vh-5rem))] sm:w-[400px] sm:rounded-md sm:border"
     >
       <header className="flex items-center gap-2 border-b border-border px-4 py-2.5">
-        <AbelPhoto className="h-7 w-7" />
-        <h2 className="flex-1 font-bold">Abel</h2>
-        {(chatId || messages.length > 0) && (
-          <button type="button" className={buttonClass("ghost", "sm")} onClick={newChat} disabled={busy}>
-            new chat
-          </button>
+        {inChat ? (
+          <>
+            <button type="button" className={`${buttonClass("ghost", "sm")} -ml-2.5`} onClick={allChats} disabled={busy}>
+              ← all chats
+            </button>
+            <h2 className="min-w-0 flex-1 truncate text-sm font-bold" title={title}>
+              {title}
+            </h2>
+          </>
+        ) : (
+          <>
+            <AbelPhoto className="h-7 w-7" />
+            <h2 className="flex-1 font-bold">Abel</h2>
+          </>
         )}
         <button type="button" className={buttonClass("ghost", "sm")} onClick={() => setOpen(false)} aria-label="Close Abel">
           close
@@ -206,23 +232,26 @@ export function AbelPanel() {
       </header>
 
       <div className="flex-1 space-y-3 overflow-y-auto px-4 py-3 text-sm">
-        {empty && !chatId && (
-          <>
+        {!inChat && (
+          <section aria-labelledby="abel-chats">
+            <h3 id="abel-chats" className="mb-2 text-xs font-bold tracking-wide text-muted uppercase">
+              Chats
+            </h3>
             {chats === null ? null : chats.length === 0 ? (
               <p className="text-muted">No chats yet.</p>
             ) : (
-              <ul className="space-y-1">
+              <ul className="divide-y divide-border overflow-hidden rounded-md border border-border">
                 {chats.map((c) => (
                   <li key={c.id}>
-                    <button type="button" onClick={() => openChat(c.id)} className="w-full truncate rounded-sm px-2 py-1.5 text-left hover:bg-surface-2">
-                      {c.title || "Chat"}
-                      <span className="ml-2 text-xs text-muted">{c.updatedAt.slice(0, 10)}</span>
+                    <button type="button" onClick={() => openChat(c.id)} className="flex w-full items-baseline gap-3 px-3 py-2.5 text-left hover:bg-surface-2">
+                      <span className="min-w-0 flex-1 truncate">{c.title || "Chat"}</span>
+                      <span className="shrink-0 text-xs text-muted">{chatDate(c.updatedAt)}</span>
                     </button>
                   </li>
                 ))}
               </ul>
             )}
-          </>
+          </section>
         )}
         {messages.map((m, i) =>
           m.kind === "user" ? (
@@ -273,6 +302,7 @@ export function AbelPanel() {
           rows={2}
           maxLength={4000}
           aria-label="Message Abel"
+          placeholder={inChat ? undefined : "Start a new chat"}
           className="min-h-0 flex-1 resize-none"
         />
         <button type="submit" className={buttonClass("primary")} disabled={busy || !input.trim()}>
