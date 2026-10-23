@@ -1,12 +1,13 @@
 import "server-only";
-import { and, asc, desc, eq, gt, or } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, inArray, lte, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db, schema } from "@/db";
 import { formatCents } from "@/lib/money";
-import { AREAS, bandScope, describePermissions, inBandScope, normalizeBandAreas, normalizePermissions } from "@/lib/permissions";
+import { AREAS, bandScope, can, describePermissions, inBandScope, normalizeBandAreas, normalizePermissions } from "@/lib/permissions";
 import { salePartLabel } from "@/lib/sale-parts";
 import { nameMaps, unroutedGroups } from "../data";
 import { projectsEnabled } from "../features";
+import { grossOf } from "../sales-report";
 import { abelTool } from "./tool";
 
 /*
@@ -216,4 +217,84 @@ const projects = abelTool({
   },
 });
 
-export const LOOKUP_TOOLS = [deductions, unmatched, imports, pickups, outsideArtists, logins, links, projects];
+const topBuyers = abelTool({
+  name: "top_buyers",
+  description:
+    "Fans ranked by what they've spent (what they paid, before Bandcamp's share), for the whole group or one band or release, over any dates: each buyer's total, purchases, what they bought and when. Buyers are matched by their email (which isn't stored), so it covers sales whose report had one; names come from the mailing list. link: their sales on the Sales page.",
+  params: z.object({
+    bandId: z.number().int().optional(),
+    releaseId: z.number().int().optional(),
+    from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    limit: z.number().int().min(1).max(50).optional(),
+  }),
+  needs: { area: "sales" },
+  available: (ctx) => !ctx.lens,
+  run: async (ctx, { bandId, releaseId, from, to, limit = 10 }) => {
+    const scope = bandScope(ctx.access, "sales");
+    if (bandId && !inBandScope(scope, [bandId])) return { error: "That isn't one of your bands." };
+    const s = schema.sales;
+    const rows = await db
+      .select({ buyerKey: s.buyerKey, date: s.date, itemName: s.itemName, bandId: s.bandId, currency: s.currency, netCents: s.netCents, raw: s.raw })
+      .from(s)
+      .where(
+        and(
+          eq(s.orgId, ctx.orgId),
+          sql`coalesce(${s.buyerKey}, '') <> ''`,
+          bandId ? eq(s.bandId, bandId) : undefined,
+          releaseId ? eq(s.releaseId, releaseId) : undefined,
+          from ? gte(s.date, from) : undefined,
+          to ? lte(s.date, to) : undefined,
+          scope ? (scope.length ? inArray(s.bandId, scope) : sql`false`) : undefined,
+        ),
+      );
+    if (!rows.length) return { buyers: [], note: "No sales with a buyer's email in these." };
+    // One currency to rank in: the one most of these sales are in.
+    const counts = new Map<string, number>();
+    for (const r of rows) counts.set(r.currency, (counts.get(r.currency) ?? 0) + 1);
+    const currency = [...counts].sort((a, b) => b[1] - a[1])[0][0];
+    const byBuyer = new Map<string, { spent: number; net: number; purchases: number; items: Map<string, number>; first: string; last: string }>();
+    for (const r of rows.filter((r) => r.currency === currency)) {
+      const b = byBuyer.get(r.buyerKey!) ?? { spent: 0, net: 0, purchases: 0, items: new Map(), first: r.date, last: r.date };
+      b.spent += grossOf(r.raw, r.netCents);
+      b.net += r.netCents;
+      b.purchases += r.netCents < 0 ? 0 : 1;
+      b.items.set(r.itemName, (b.items.get(r.itemName) ?? 0) + 1);
+      if (r.date < b.first) b.first = r.date;
+      if (r.date > b.last) b.last = r.date;
+      byBuyer.set(r.buyerKey!, b);
+    }
+    const ranked = [...byBuyer].sort((a, b) => b[1].spent - a[1].spent).slice(0, limit);
+    // Who they are, from the mailing list: only for those who can see it (the fans section).
+    const seesFans = can(ctx.access, "fans");
+    const known = seesFans
+      ? await db
+          .select({ key: schema.fans.emailKey, name: schema.fans.name, email: schema.fans.email, country: schema.fans.country })
+          .from(schema.fans)
+          .where(and(eq(schema.fans.orgId, ctx.orgId), inArray(schema.fans.emailKey, ranked.map(([k]) => k))))
+      : [];
+    return {
+      currency,
+      ...(counts.size > 1 ? { otherCurrencies: [...counts.keys()].filter((c) => c !== currency) } : {}),
+      buyers: ranked.map(([key, b], i) => {
+        const fan = known.find((f) => f.key === key);
+        return {
+          rank: i + 1,
+          who: fan ? fan.name || fan.email : seesFans ? "Not on the mailing list" : "A buyer (names are in the fans section)",
+          ...(fan ? { email: fan.email, country: fan.country || null } : {}),
+          spent: formatCents(b.spent, currency),
+          net: formatCents(b.net, currency),
+          purchases: b.purchases,
+          bought: [...b.items].sort((x, y) => y[1] - x[1]).slice(0, 4).map(([item, n]) => (n > 1 ? `${item} (×${n})` : item)),
+          first: b.first,
+          last: b.last,
+          link: `/sales?buyer=${encodeURIComponent(key)}`,
+        };
+      }),
+      buyersInAll: byBuyer.size,
+      salesWithoutBuyer: "Sales whose report had no buyer email aren't counted.",
+    };
+  },
+});
+
+export const LOOKUP_TOOLS = [topBuyers, deductions, unmatched, imports, pickups, outsideArtists, logins, links, projects];

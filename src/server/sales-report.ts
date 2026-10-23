@@ -85,6 +85,14 @@ export type SalesReport = {
   items: SalesItem[];
 };
 
+/** What the fan paid for a sale (negative for a refund): its report's item total, else worked out from its parts. */
+export function grossOf(raw: Record<string, string>, netCents: number) {
+  const sign = Math.sign(netCents) || 1;
+  const processor = Math.abs(rawCents(raw, RAW.processorFee) ?? 0) * sign;
+  const grossRaw = rawCents(raw, RAW.gross) ?? (rawCents(raw, RAW.subTotal) ?? netCents + processor) + (rawCents(raw, RAW.shipping) ?? 0) + (rawCents(raw, RAW.fanExtra) ?? 0);
+  return Math.abs(grossRaw) * sign;
+}
+
 /** What the sale was, as a fan would say it: "Digital album", "Vinyl LP", "T-Shirt/Shirt"… */
 function formatOf(s: SaleRow, packages: (typeof schema.releases.$inferSelect)["packages"]): string {
   if (s.category === "album") return "Digital album";
@@ -165,10 +173,7 @@ export async function salesReport(books: string | { orgId: string; bandId: numbe
     const net = r.netCents;
     const processor = Math.abs(rawCents(s.raw, RAW.processorFee) ?? 0) * sign;
     const marketplaceTax = Math.abs(rawCents(s.raw, RAW.marketplaceTax) ?? 0) * sign;
-    const grossRaw =
-      rawCents(s.raw, RAW.gross) ??
-      (rawCents(s.raw, RAW.subTotal) ?? net + processor) + (rawCents(s.raw, RAW.shipping) ?? 0) + (rawCents(s.raw, RAW.fanExtra) ?? 0);
-    const gross = Math.abs(grossRaw) * sign;
+    const gross = grossOf(s.raw, net);
     // Bandcamp's share: its own column if the report has one, otherwise what's left over.
     const explicitShare = rawCents(s.raw, RAW.bandcampShare);
     // Shipping isn't in the net amount either: it stays with the label (for postage), not Bandcamp.

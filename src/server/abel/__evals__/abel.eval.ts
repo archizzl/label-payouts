@@ -63,6 +63,7 @@ const CASES: Case[] = [
   { name: "split for a release", turns: [{ say: "give archie 100% of triple single" }] },
   { name: "who can sign in", turns: [{ say: "who can sign in to the label?" }] },
   { name: "can't do", turns: [{ say: "import this bandcamp csv for me" }] },
+  { name: "top fans", turns: [{ say: "please rank the top 5 flag day fans by spend" }, { say: "ok -- rank the top flag day items by sales" }] },
 ];
 
 const out: string[] = [];

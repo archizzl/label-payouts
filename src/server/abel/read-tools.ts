@@ -198,7 +198,22 @@ const salesSummary = abelTool({
     if (bandId && onlyBands && !onlyBands.includes(bandId)) return { error: "That isn't one of your bands." };
     const s = await summarizeSales(books, { from, to, band: ctx.managedBy ? undefined : bandId, q: search, onlyBands, sort: "date", dir: "desc", page: 1, per: 10 });
     // The breakdowns are in the main currency (the one with the most sales).
-    const top = (rows: { key: string; net: number; units: number }[]) => rows.map((r) => `${r.key}: ${formatCents(r.net, s.main)} (${plural(r.units, "unit")})`);
+    // (Spellings that differ only in capitals or spacing, like "Flags of the World" and "Flags Of The World", are one item.)
+    const top = (rows: { key: string; net: number; units: number }[]) => {
+      const merged = new Map<string, { key: string; net: number; units: number; best: number }>();
+      for (const r of rows) {
+        const k = r.key.toLowerCase().replace(/\s+/g, " ").trim();
+        const m = merged.get(k);
+        if (!m) merged.set(k, { ...r, best: r.units });
+        else {
+          // Named by the spelling with the most units.
+          if (r.units > m.best) Object.assign(m, { key: r.key, best: r.units });
+          m.net += r.net;
+          m.units += r.units;
+        }
+      }
+      return [...merged.values()].sort((a, b) => b.net - a.net).map((r) => `${r.key}: ${formatCents(r.net, s.main)} (${plural(r.units, "unit")})`);
+    };
     return {
       totals: s.totals.map((t) => ({
         currency: t.currency,

@@ -242,6 +242,61 @@ describe("Abel's search", () => {
   });
 });
 
+describe("Abel's top buyers", () => {
+  /** Sales to two buyers for Band A (one on the mailing list) and one for Band B. */
+  async function buyers() {
+    const base = await setup();
+    const { orgId, a, b } = base;
+    const [imp] = await db.insert(schema.imports).values({ orgId, filename: "fans", rowCount: 4, addedCount: 4, duplicateCount: 0 }).returning();
+    const sale = (key: string, bandId: number, buyerKey: string, paid: string, netCents: number) => ({
+      orgId,
+      importId: imp.id,
+      dedupeKey: key,
+      date: "2026-02-01",
+      itemType: "album",
+      category: "album" as const,
+      itemName: "An album",
+      artist: "",
+      itemUrl: "",
+      packageName: "",
+      currency: "USD",
+      netCents,
+      transactionId: key,
+      routingKey: key,
+      bandId,
+      buyerKey,
+      raw: { "item total": paid },
+    });
+    await db.insert(schema.sales).values([
+      sale("f1", a.id, "fan-one", "20.00", 1700),
+      sale("f2", a.id, "fan-one", "10.00", 850),
+      sale("f3", a.id, "fan-two", "25.00", 2100),
+      sale("f4", b.id, "fan-three", "99.00", 8400),
+    ]);
+    await db.insert(schema.fans).values({ orgId, email: "one@example.test", name: "Fan One", emailKey: "fan-one", addedOn: "2026-01-01" });
+    return base;
+  }
+
+  it("ranks a band's buyers by what they paid, with names from the mailing list", async () => {
+    const { orgId, userId, a } = await buyers();
+    as(orgId, userId, ADMIN);
+    const r = (await run("top_buyers", { bandId: a.id })) as { buyers: { rank: number; who: string; spent: string; purchases: number }[] };
+    expect(r.buyers).toMatchObject([
+      { rank: 1, who: "Fan One", spent: "$30.00", purchases: 2 },
+      { rank: 2, who: "Not on the mailing list", spent: "$25.00", purchases: 1 },
+    ]);
+  });
+
+  it("leaves out names for someone who can see sales but not fans, and keeps to their bands", async () => {
+    const { orgId, userId, a, b } = await buyers();
+    as(orgId, userId, { admin: false, permissions: { sales: "view" }, bandAreas: ["sales"], bandIds: [a.id] });
+    const r = (await run("top_buyers", {})) as { buyers: { who: string; email?: string }[] };
+    expect(r.buyers).toHaveLength(2);
+    expect(r.buyers.every((x) => x.who.startsWith("A buyer") && !x.email)).toBe(true);
+    expect(await run("top_buyers", { bandId: b.id })).toEqual({ error: "That isn't one of your bands." });
+  });
+});
+
 describe("Abel's changes", () => {
   it("adds a deduction, changes only what it's told, and deletes it", async () => {
     const { orgId, userId, a } = await setup();

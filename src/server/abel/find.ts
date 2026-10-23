@@ -105,7 +105,9 @@ const releaseDetail = abelTool({
   needs: { area: "catalog" },
   run: async (ctx, { releaseId }) => {
     const [release] = await db.select().from(schema.releases).where(and(eq(schema.releases.orgId, ctx.orgId), eq(schema.releases.id, releaseId)));
-    if (!release || !inBandScope(bandScope(ctx.access, "catalog"), [release.bandId])) return { error: "No such release that you can see." };
+    if (!release || !inBandScope(bandScope(ctx.access, "catalog"), [release.bandId])) {
+      return { error: "No such release that you can see. (A band's id isn't a release's: find gives each thing's type and id.)" };
+    }
     const names = await nameMaps(ctx.orgId);
     const tracks = await db.select().from(schema.tracks).where(eq(schema.tracks.releaseId, release.id)).orderBy(asc(schema.tracks.position));
     const out: Record<string, unknown> = {
