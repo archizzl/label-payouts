@@ -12,7 +12,10 @@ import { ConfirmCard } from "./confirm-card";
  * phone). Talks to /api/abel, which streams Abel's reply back.
  */
 
-type Send = { message: string } | { confirmation: { id: string; confirmed: boolean } };
+/** Abel's photo for the button: cropped to his head and chest, at twice the button's size for sharp screens. */
+const ABEL_PHOTO = "https://res.cloudinary.com/xtdtnygr/image/upload/c_crop,w_230,h_230,x_85,y_20/f_auto,q_auto,w_112,h_112/abel";
+
+type Send ={ message: string } | { confirmation: { id: string; confirmed: boolean } };
 
 export function AbelPanel() {
   const router = useRouter();
@@ -132,9 +135,11 @@ export function AbelPanel() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="no-print fixed right-4 bottom-4 z-40 rounded-full border border-accent bg-accent px-4 py-2 text-sm font-bold text-accent-fg shadow-lg hover:brightness-95"
+        aria-label="Open Abel"
+        className="no-print fixed right-4 bottom-4 z-40 h-14 w-14 overflow-hidden rounded-full border-2 border-accent bg-surface-2 shadow-lg transition hover:scale-105"
       >
-        abel
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={ABEL_PHOTO} alt="" className="h-full w-full object-cover" />
       </button>
     );
   }
