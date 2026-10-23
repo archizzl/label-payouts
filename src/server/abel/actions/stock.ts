@@ -51,7 +51,7 @@ const saveItem = actionTool({
     id: id.optional(),
     name: z.string().min(1).max(200).optional(),
     kind: z.enum(["product", "supply"]).optional(),
-    bandId: id.optional(),
+    bandId: id.optional().describe("The band it's for (a band's id, not a person's)"),
     releaseId: id.optional(),
     packageId: id.optional(),
     option: z.string().max(100).optional().describe("Like a size"),

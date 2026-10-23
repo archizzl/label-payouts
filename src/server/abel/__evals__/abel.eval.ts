@@ -64,6 +64,8 @@ const CASES: Case[] = [
   { name: "split for a release", turns: [{ say: "give archie 100% of triple single" }] },
   { name: "who can sign in", turns: [{ say: "who can sign in to the label?" }] },
   { name: "can't do", turns: [{ say: "import this bandcamp csv for me" }] },
+  { name: "band or person", turns: [{ say: "can you add a new t shirt inventory item for alex klint please" }] },
+  { name: "person not band", turns: [{ say: "what's alex klint's paypal?" }] },
   { name: "top fans", turns: [{ say: "please rank the top 5 flag day fans by spend" }, { say: "ok -- rank the top flag day items by sales" }] },
 ];
 
