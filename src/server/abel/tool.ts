@@ -7,6 +7,7 @@ import { db, schema } from "@/db";
 import type { Area } from "@/lib/permissions";
 import { type Context, contextFor } from "../context";
 import { nameMaps } from "../data";
+import { type ItemKind, itemName } from "./item-names";
 import { FunctionTool } from "./adk";
 
 /*
@@ -170,6 +171,8 @@ export function actionTool<P extends z.ZodObject>(t: {
   fields?: (ctx: Context, args: z.infer<P>) => Fields | Promise<Fields>;
   done?: string;
   summary?: (ctx: Context, args: z.infer<P>) => string | Promise<string>;
+  /** Ids in the arguments besides bands, people, releases and tracks, and what they are, for the confirm card. */
+  items?: Record<string, ItemKind>;
 }): AbelTool {
   return abelTool<P>({
     name: t.name,
@@ -178,7 +181,7 @@ export function actionTool<P extends z.ZodObject>(t: {
     needs: t.needs,
     available: t.available,
     write: true,
-    summary: t.summary ?? ((ctx, args) => describeArgs(ctx, t.label, args)),
+    summary: t.summary ?? ((ctx, args) => describeArgs(ctx, t.label, args, t.items)),
     run: async (ctx, args) => {
       const fields = t.fields ? await t.fields(ctx, args) : (args as Fields);
       return viaAction(() => t.action(form(fields)), t.done ?? `${t.label}: done.`);
@@ -199,6 +202,14 @@ const NAMED: Record<string, "band" | "person" | "release" | "track"> = {
   trackId: "track",
 };
 
+/** A thing as find returns it ({ type: "release", id: 16 }), or "everything". */
+function thing(v: unknown): { type: "band" | "release" | "track"; id: number } | { type: "everything" } | null {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+  const { type, id } = v as { type?: unknown; id?: unknown };
+  if (type === "everything") return { type };
+  return (type === "band" || type === "release" || type === "track") && typeof id === "number" ? { type, id } : null;
+}
+
 /** "deductionId" → "deduction", "effectiveFrom" → "effective from". */
 const words = (key: string) =>
   key
@@ -206,15 +217,25 @@ const words = (key: string) =>
     .replace(/([a-z])([A-Z])/g, "$1 $2")
     .toLowerCase();
 
-/** "Add a deduction: kind percent, percent 10, band Flag Day" for the confirm card. */
-export async function describeArgs(ctx: Context, label: string, args: Record<string, unknown>): Promise<string> {
-  const names = Object.keys(args).some((k) => k in NAMED) ? await nameMaps(ctx.orgId) : null;
+/**
+ * "Add a deduction: kind percent, percent 10, band Flag Day" for the confirm card. `items`: the
+ * tool's other ids and what they are ({ id: "deduction" }), shown by name ("deduction CD costs").
+ */
+export async function describeArgs(ctx: Context, label: string, args: Record<string, unknown>, items: Record<string, ItemKind> = {}): Promise<string> {
+  const names = Object.entries(args).some(([k, v]) => k in NAMED || thing(v)) ? await nameMaps(ctx.orgId) : null;
   const named = (kind: (typeof NAMED)[string], id: unknown) => names?.[kind].get(Number(id)) ?? `#${id}`;
   const parts: string[] = [];
   for (const [k, v] of Object.entries(args)) {
     if (v === undefined || v === null || v === "" || (Array.isArray(v) && !v.length)) continue;
     let value: string;
-    if (k in NAMED) value = (Array.isArray(v) ? v : [v]).map((id) => named(NAMED[k], id)).join(", ");
+    if (k in items) {
+      const name = await itemName(ctx, items[k], Number(v)).catch(() => null);
+      parts.push(name ? `${items[k]} ${name}` : `${items[k]} #${v}`);
+      continue;
+    }
+    const t = thing(v);
+    if (t) value = t.type === "everything" ? "every band" : `${t.type} ${named(t.type, t.id)}`;
+    else if (k in NAMED) value = (Array.isArray(v) ? v : [v]).map((id) => named(NAMED[k], id)).join(", ");
     else if (typeof v === "boolean") value = v ? "yes" : "no";
     else if (Array.isArray(v)) value = v.map((x) => (typeof x === "object" ? JSON.stringify(x) : String(x))).join(", ");
     else if (typeof v === "object") value = JSON.stringify(v);

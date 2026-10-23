@@ -485,13 +485,16 @@ const PAGES = [
   { path: "/account", what: "Account: your name, email, password and photo." },
 ] as const satisfies { path: string; what: string; area?: (typeof AREAS)[number]["key"]; admin?: boolean }[];
 
+/** The pages this person can open (also in Abel's instructions, so he links to real ones). */
+export const pagesFor = (ctx: Context) =>
+  PAGES.filter((p) => ("admin" in p ? ctx.isAdmin : "area" in p ? can(ctx.access, p.area) || ctx.lens : true)).map((p) => ({ link: p.path, what: p.what }));
+
 const whereIs = abelTool({
   name: "where_is",
   description: "The app's pages this person can open, with their links. Use it to point people to the right page.",
   params: z.object({}),
   needs: "anyone",
-  run: async (ctx) =>
-    PAGES.filter((p) => ("admin" in p ? ctx.isAdmin : "area" in p ? can(ctx.access, p.area) || ctx.lens : true)).map((p) => ({ link: p.path, what: p.what })),
+  run: async (ctx) => pagesFor(ctx),
 });
 
 export const READ_TOOLS = [myAccess, myEarnings, whereIs, owed, listPayouts, payoutDetail, salesSummary, salesBreakdown, funds, listBands, people, catalog, orders, inventory, receipts, splits];

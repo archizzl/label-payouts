@@ -26,6 +26,7 @@ const handedOff = actionTool({
   description: "An order waiting for pickup has been handed over (pickup_orders lists them): it comes off the list.",
   params: z.object({ pickupId: id }),
   needs: { area: "orders", level: "edit" },
+  items: { pickupId: "pickup" },
   action: (fd) => markHandedOff(fd),
   fields: (_ctx, a) => ({ id: a.pickupId }),
 });
@@ -36,6 +37,7 @@ const pickupNote = actionTool({
   description: "The note on an order waiting for pickup: where, when, who's collecting.",
   params: z.object({ pickupId: id, note: z.string().max(500) }),
   needs: { area: "orders", level: "edit" },
+  items: { pickupId: "pickup" },
   action: (fd) => savePickupNote(fd),
   fields: (_ctx, a) => ({ id: a.pickupId, note: a.note }),
 });
@@ -63,6 +65,7 @@ const saveItem = actionTool({
     onHand: z.number().int().min(0).optional(),
   }),
   needs: { area: "inventory", level: "edit" },
+  items: { id: "inventory item" },
   action: (fd) => saveInventoryItem(null, fd),
   fields: async (ctx, a) => {
     const i = a.id ? await current(schema.inventoryItems, ctx.orgId, a.id, "inventory item") : null;
@@ -93,6 +96,7 @@ const archiveItem = actionTool({
   description: "Take an item off the inventory list (its history is kept).",
   params: z.object({ itemId: id }),
   needs: { area: "inventory", level: "edit" },
+  items: { itemId: "inventory item" },
   action: (fd) => archiveInventoryItem(fd),
   fields: (_ctx, a) => ({ id: a.itemId }),
 });

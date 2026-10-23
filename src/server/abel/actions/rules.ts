@@ -4,6 +4,7 @@ import { schema } from "@/db";
 import { SALE_PARTS } from "@/lib/sale-parts";
 import { deleteDeduction, deleteSplitRule, saveDeduction, saveItemCost, saveSplitRule, setLabelKeepsNothing } from "../../actions";
 import { nameMaps } from "../../data";
+import { itemName } from "../item-names";
 import { actionTool } from "../tool";
 import { amount, current, currency, date, id, or, toAmount } from "./shared";
 
@@ -18,7 +19,7 @@ const saveDeductionTool = actionTool({
   description: `Add a deduction (something withheld from sales before the split), or change one (give its id; only the fields given change). Use list_deductions to see them.
 kind: percent (a percent of each sale), fixed (a cost recouped from sales until it's paid off), per_unit (an amount for each item sold), sale_part (a part of each sale: ${SALE_PARTS.map((p) => `${p.key} is ${p.label.toLowerCase()}`).join("; ")}).
 destination: label (the label keeps it), band_fund (the band's fund), expense (pays a cost), person (paid to someone: personId).
-Limit it to a band, release, track or item type, and to dates, if asked.`,
+appliesTo: what it's withheld from, as find returns it (a release found by name: type release with its id); "everything" for every band. Limit it to an item type or to dates only if asked: with no effectiveFrom it applies to every sale not paid out yet.`,
   params: z.object({
     id: id.optional().describe("The deduction to change; leave out to add one"),
     label: z.string().max(120).optional().describe("Its name, like Label cut"),
@@ -29,14 +30,16 @@ Limit it to a band, release, track or item type, and to dates, if asked.`,
     salePart: salePart.optional().describe("For sale_part"),
     destination: z.enum(["label", "band_fund", "expense", "person"]).optional(),
     personId: id.optional().describe("For destination person"),
-    bandId: id.optional(),
-    releaseId: id.optional(),
-    trackId: id.optional(),
+    appliesTo: z
+      .object({ type: z.enum(["everything", "band", "release", "track"]), id: id.optional() })
+      .optional()
+      .describe("For a new one, required; for a change, only if it moves"),
     itemCategory: category.optional(),
     effectiveFrom: date.optional(),
     effectiveTo: date.optional(),
   }),
   needs: { area: "rules", level: "edit" },
+  items: { id: "deduction" },
   action: (fd) => saveDeduction(fd),
   fields: async (ctx, a) => {
     const d = a.id ? await current(schema.deductions, ctx.orgId, a.id, "deduction") : null;
@@ -50,10 +53,18 @@ Limit it to a band, release, track or item type, and to dates, if asked.`,
       salePart: or(a.salePart, d?.salePart ?? undefined),
       destination: or(a.destination, d?.destination ?? "label"),
       personId: or(a.personId, d?.personId ?? undefined),
-      bandId: or(a.bandId, d?.bandId ?? undefined),
-      releaseId: or(a.releaseId, d?.releaseId ?? undefined),
-      trackId: or(a.trackId, d?.trackId ?? undefined),
-      formatKey: d?.packageId && a.releaseId === undefined ? `${d.releaseId}:${d.packageId}` : undefined,
+      ...(a.appliesTo
+        ? {
+            bandId: a.appliesTo.type === "band" ? a.appliesTo.id : undefined,
+            releaseId: a.appliesTo.type === "release" ? a.appliesTo.id : undefined,
+            trackId: a.appliesTo.type === "track" ? a.appliesTo.id : undefined,
+          }
+        : {
+            bandId: d?.bandId ?? undefined,
+            releaseId: d?.releaseId ?? undefined,
+            trackId: d?.trackId ?? undefined,
+            formatKey: d?.packageId ? `${d.releaseId}:${d.packageId}` : undefined,
+          }),
       itemCategory: or(a.itemCategory, d?.itemCategory ?? undefined),
       formatMatch: d?.formatMatch ?? undefined,
       effectiveFrom: or(a.effectiveFrom, d?.effectiveFrom ?? undefined),
@@ -70,6 +81,7 @@ const deleteDeductionTool = actionTool({
   description: "Delete a deduction (list_deductions has their ids).",
   params: z.object({ id }),
   needs: { area: "rules", level: "edit" },
+  items: { id: "deduction" },
   action: (fd) => deleteDeduction(fd),
   done: "Deduction deleted.",
 });
@@ -78,7 +90,7 @@ const saveSplit = actionTool({
   name: "save_split",
   label: "Save a split",
   description: `Set how money is split between people: each person's share in percent, adding up to 100 (the label default's shares are carve-outs and may add up to less). Use list_people for ids and splits to see the current ones.
-scope: band_default (all of a band's sales), band_item_type (a band's albums, tracks, merch or other: itemCategory), release, track, label_default (every band). Give ruleId to change an existing split; from is when it starts.`,
+scope: band_default (all of a band's sales), band_item_type (a band's albums, tracks, merch or other: itemCategory), release, track, label_default (every band). Give ruleId to change an existing split. from: when it starts, only if asked; left out, it applies to every sale not paid out yet.`,
   params: z.object({
     scope: z.enum(["label_default", "band_default", "band_item_type", "release", "track"]),
     bandId: id.optional(),
@@ -91,6 +103,7 @@ scope: band_default (all of a band's sales), band_item_type (a band's albums, tr
     note: z.string().max(200).optional(),
   }),
   needs: { area: "rules", level: "edit" },
+  items: { ruleId: "split" },
   action: (fd) => saveSplitRule(null, fd),
   fields: (_ctx, a) => ({
     scope: a.scope,
@@ -108,7 +121,8 @@ scope: band_default (all of a band's sales), band_item_type (a band's albums, tr
     const what = a.bandId ? `${names.band.get(a.bandId) ?? `band #${a.bandId}`}’s` : a.scope === "label_default" ? "the label’s default" : "the";
     const shares = a.shares.map((s) => `${names.person.get(s.personId) ?? `person #${s.personId}`} ${s.percent}%`).join(", ");
     const item = a.releaseId ? ` for ${names.release.get(a.releaseId) ?? `release #${a.releaseId}`}` : a.trackId ? ` for ${names.track.get(a.trackId) ?? `track #${a.trackId}`}` : a.itemCategory ? ` for ${a.itemCategory}` : "";
-    return `Set ${what} split${item}: ${shares}${a.from ? `, from ${a.from}` : ""}`;
+    const replacing = a.ruleId ? await itemName(ctx, "split", a.ruleId) : null;
+    return `Set ${what} split${item}: ${shares}${a.from ? `, from ${a.from}` : ""}${replacing ? ` (changing ${replacing})` : ""}`;
   },
   done: "Split saved.",
 });
@@ -119,6 +133,7 @@ const deleteSplit = actionTool({
   description: "Delete a split (splits has their ids).",
   params: z.object({ ruleId: id }),
   needs: { area: "rules", level: "edit" },
+  items: { ruleId: "split" },
   action: (fd) => deleteSplitRule(fd),
   done: "Split deleted.",
 });
@@ -127,7 +142,7 @@ const saveItemCostTool = actionTool({
   name: "save_item_cost",
   label: "Add an item cost",
   description:
-    "Add a cost for each copy of a release's merch or format sold (a per-item deduction), withheld or paid to a person who made it. packageId picks one format of the release.",
+    "Add a cost for each copy sold of a release's physical formats or merch (a per-item deduction), withheld or paid to a person who made it. packageId picks one format (release_detail lists them). Only for releases that have formats; a digital-only release has no copies to cost.",
   params: z.object({ releaseId: id, packageId: id.optional(), amount, currency: currency.optional(), payToPersonId: id.optional().describe("Leave out to withhold it") }),
   needs: { area: "rules", level: "edit" },
   action: (fd) => saveItemCost(fd),

@@ -137,6 +137,7 @@ const memberType = actionTool({
     ownBandsOnly: z.array(area).optional(),
   }),
   needs: "admin",
+  items: { id: "member type" },
   action: (fd) => saveMemberType(null, fd),
   fields: (_ctx, a) => ({
     id: a.id,
@@ -152,6 +153,7 @@ const deleteType = actionTool({
   description: "Delete a member type. Anyone who had it goes back to seeing just their own earnings.",
   params: z.object({ id }),
   needs: "admin",
+  items: { id: "member type" },
   action: (fd) => deleteMemberType(fd),
 });
 
@@ -256,6 +258,7 @@ const saveProjectTool = actionTool({
     notes: z.string().max(1000).optional(),
   }),
   needs: "admin",
+  items: { id: "project" },
   available: () => projectsEnabled(),
   action: (fd) => saveProject(null, fd),
   fields: async (ctx, a) => {
@@ -283,6 +286,7 @@ const deleteProjectTool = actionTool({
   description: "Delete a project (its expenses stay, no longer in a project).",
   params: z.object({ projectId: id }),
   needs: "admin",
+  items: { projectId: "project" },
   available: () => projectsEnabled(),
   action: (fd) => deleteProject(fd),
   fields: (_ctx, a) => ({ id: a.projectId }),

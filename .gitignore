@@ -50,3 +50,6 @@ data/
 # npm run workers:local (throwaway database, temporary config)
 .workers-local/
 wrangler.local.tmp.jsonc
+
+# npm run abel:eval transcripts
+.abel-eval.md

@@ -13,6 +13,7 @@ const payoutLineStatus = actionTool({
   description: "Mark one person's line in a finalized payout paid, kept in the label's account, or back to not paid (payout_detail has each line's id).",
   params: z.object({ payoutLineId: id, status: z.enum(["paid", "kept", "pending"]), reference: z.string().max(120).optional() }),
   needs: { area: "payouts", level: "edit" },
+  items: { payoutLineId: "payout line" },
   action: (fd) => setPayoutStatus(fd),
   fields: (_ctx, a) => ({ id: a.payoutLineId, status: a.status, reference: a.reference }),
 });
@@ -23,6 +24,7 @@ const undoPayout = actionTool({
   description: "Undo a finalized payout: its amounts and paid marks are removed and its sales are owed again.",
   params: z.object({ payoutId: id }),
   needs: { area: "payouts", level: "edit" },
+  items: { payoutId: "payout" },
   action: (fd) => undoFinalize(fd),
   fields: (_ctx, a) => ({ id: a.payoutId }),
   done: "Payout undone.",
@@ -34,6 +36,7 @@ const releaseUnpaid = actionTool({
   description: "For an older finalized payout that took in sales nobody was paid for: let go of those sales, so a later payout pays them.",
   params: z.object({ payoutId: id }),
   needs: { area: "payouts", level: "edit" },
+  items: { payoutId: "payout" },
   action: (fd) => releaseUnpaidSales(fd),
   fields: (_ctx, a) => ({ id: a.payoutId }),
 });
@@ -58,6 +61,7 @@ const saveSendOut = actionTool({
     note: z.string().max(500).optional(),
   }),
   needs: { area: "funds", level: "edit" },
+  items: { id: "send-out" },
   action: (fd) => saveLabelTransfer(null, fd),
   fields: async (ctx, a) => {
     const t = a.id ? await current(schema.labelTransfers, ctx.orgId, a.id, "send-out") : null;
@@ -84,6 +88,7 @@ const deleteSendOut = actionTool({
   description: "Delete a record of money the label sent on (label_funds lists their ids).",
   params: z.object({ id }),
   needs: { area: "funds", level: "edit" },
+  items: { id: "send-out" },
   action: (fd) => deleteLabelTransfer(fd),
 });
 

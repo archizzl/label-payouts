@@ -82,6 +82,7 @@ npx vitest run      # tests (same as npm test)
 | --- | --- |
 | `npm run dev` | Local Postgres and the Next dev server. |
 | `npm run workers:local` | The built Worker in wrangler's local runtime, on a throwaway database in `.workers-local/`. |
+| `npm run abel:eval` | Talks to Abel (with the real AI service) about the local data, read-only, and writes the conversations to `.abel-eval.md`. Needs `npm run dev`'s database running. `-- -t "name"` runs one. |
 | `npm run deploy` | Migrates the live database, builds and deploys to Cloudflare (see [DEPLOY.md](DEPLOY.md)). |
 | `npm run db:migrate` | Brings `DATABASE_URL`'s schema up to date. |
 | `npm run db:studio` | Drizzle Studio on the database. |

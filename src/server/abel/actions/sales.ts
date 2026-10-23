@@ -93,6 +93,7 @@ const deleteMatch = actionTool({
   description: "Forget a remembered choice of where some sales belong (sales_imports lists them), and match those sales again.",
   params: z.object({ id }),
   needs: { area: "sales", level: "edit" },
+  items: { id: "saved match" },
   action: (fd) => deleteRoutingOverride(fd),
 });
 
@@ -111,6 +112,7 @@ const deleteImportTool = actionTool({
   description: "Delete a sales import and every sale it brought in (sales_imports lists them).",
   params: z.object({ importId: id }),
   needs: { area: "sales", level: "edit" },
+  items: { importId: "import" },
   action: (fd) => deleteImport(fd),
   fields: (_ctx, a) => ({ id: a.importId }),
 });

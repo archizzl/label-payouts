@@ -137,6 +137,7 @@ const updateMember = actionTool({
   description: "Change someone's roles in a band, or mark them a former member (active false). list_bands with members gives membership ids.",
   params: z.object({ membershipId: id, roles: words.optional(), active: z.boolean().optional() }),
   needs: { area: "roster", level: "edit" },
+  items: { membershipId: "band membership" },
   action: (fd) => updateMembership(fd),
   fields: async (ctx, a) => {
     const m = await current(schema.bandMemberships, ctx.orgId, a.membershipId, "band membership");
@@ -151,6 +152,7 @@ const removeMemberTool = actionTool({
   description: "Take someone off a band entirely (to keep them as a former member, use update_band_member with active false).",
   params: z.object({ membershipId: id }),
   needs: { area: "roster", level: "edit" },
+  items: { membershipId: "band membership" },
   action: (fd) => removeMember(fd),
 });
 

@@ -30,6 +30,7 @@ const saveExpenseTool = actionTool({
     recoup: z.boolean().optional(),
   }),
   needs: { area: "receipts", level: "edit" },
+  items: { id: "expense" },
   action: (fd) => saveExpense(null, fd),
   fields: async (ctx, a) => {
     const e = a.id ? await current(schema.expenses, ctx.orgId, a.id, "expense") : null;
@@ -58,6 +59,7 @@ const review = actionTool({
   description: "Approve or reject a receipt someone sent in (receipts lists those waiting: status pending). recoup: when approving, sales pay it back.",
   params: z.object({ expenseId: id, decision: z.enum(["approve", "reject"]), note: z.string().max(500).optional(), recoup: z.boolean().optional() }),
   needs: { area: "receipts", level: "edit" },
+  items: { expenseId: "expense" },
   action: (fd) => reviewExpense(fd),
   fields: (_ctx, a) => ({ id: a.expenseId, decision: a.decision, note: a.note, recoup: a.recoup }),
 });
@@ -68,6 +70,7 @@ const reimbursed = actionTool({
   description: "Mark that the label has paid back someone who paid for an expense themselves (or undo that: reimbursed false).",
   params: z.object({ expenseId: id, reimbursed: z.boolean(), reference: z.string().max(120).optional(), method: z.string().max(60).optional() }),
   needs: { area: "receipts", level: "edit" },
+  items: { expenseId: "expense" },
   action: (fd) => setReimbursed(fd),
   fields: (_ctx, a) => ({ id: a.expenseId, reimbursed: a.reimbursed ? "true" : "false", reference: a.reference, method: a.method }),
 });
@@ -78,6 +81,7 @@ const deleteExpenseTool = actionTool({
   description: "Delete an expense and its files (or withdraw your own receipt while it's waiting for review).",
   params: z.object({ expenseId: id }),
   needs: "anyone",
+  items: { expenseId: "expense" },
   action: (fd) => deleteExpense(fd),
   fields: (_ctx, a) => ({ id: a.expenseId }),
 });
@@ -88,6 +92,7 @@ const deleteFile = actionTool({
   description: "Delete one photo or PDF from a receipt (receipts lists their file ids).",
   params: z.object({ fileId: id }),
   needs: { area: "receipts", level: "edit" },
+  items: { fileId: "receipt file" },
   action: (fd) => deleteExpenseFile(fd),
   fields: (_ctx, a) => ({ id: a.fileId }),
 });

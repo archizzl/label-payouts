@@ -131,7 +131,18 @@ describe("Abel's tools", () => {
     as(orgId, userId, { admin: false, permissions: {}, bandAreas: [], bandIds: [] }, { person: p });
     // (Adding and taking back their bands' hand-added sales, withdrawing their own receipt, and their own details:
     // the app lets anyone, and the action decides.)
-    expect(await names()).toEqual(["add_manual_sale", "delete_expense", "delete_manual_sale", "my_access", "my_earnings", "save_my_details", "where_is"]);
+    // (find and person_detail too: limited to themselves.)
+    expect(await names()).toEqual([
+      "add_manual_sale",
+      "delete_expense",
+      "delete_manual_sale",
+      "find",
+      "my_access",
+      "my_earnings",
+      "person_detail",
+      "save_my_details",
+      "where_is",
+    ]);
   });
 
   it("gives no changes to someone viewing as another person", async () => {
@@ -211,11 +222,33 @@ describe("Abel's tools on OpenRouter", () => {
   });
 });
 
+describe("Abel's search", () => {
+  it("finds anything by a loosely typed name, whatever kind it is", async () => {
+    const { orgId, userId, a } = await setup();
+    as(orgId, userId, ADMIN);
+    const [album] = await db.insert(schema.releases).values({ orgId, bandId: a.id, title: "The Young Jethros", kind: "album" }).returning();
+    const found = (await run("find", { name: "young jethros" })) as { found: { type: string; id: number; match: string }[] };
+    expect(found.found[0]).toMatchObject({ type: "release", id: album.id, match: "exact" });
+    const typo = (await run("find", { name: "banda" })) as { found: { type: string; name: string }[] };
+    expect(typo.found[0]).toMatchObject({ type: "band", name: "Band A" });
+  });
+
+  it("finds only what the person can see", async () => {
+    const { orgId, userId, p } = await setup();
+    as(orgId, userId, { admin: false, permissions: {}, bandAreas: [], bandIds: [] }, { person: p });
+    expect(await run("find", { name: "Band A" })).toMatchObject({ found: [] });
+    expect(await run("find", { name: "a member" })).toMatchObject({ found: [{ type: "person", id: p.id }] });
+    expect(await run("person_detail", { personId: p.id + 1000 })).toEqual({ error: "You can only see your own details." });
+  });
+});
+
 describe("Abel's changes", () => {
   it("adds a deduction, changes only what it's told, and deletes it", async () => {
     const { orgId, userId, a } = await setup();
     as(orgId, userId, ADMIN);
-    expect(await run("save_deduction", { label: "Label cut", kind: "percent", percent: 10, destination: "label", bandId: a.id })).toMatchObject({ ok: "Deduction saved." });
+    expect(await run("save_deduction", { label: "Label cut", kind: "percent", percent: 10, destination: "label", appliesTo: { type: "band", id: a.id } })).toMatchObject({
+      ok: "Deduction saved.",
+    });
     const [added] = await db.select().from(schema.deductions).where(eq(schema.deductions.orgId, orgId));
     expect(added).toMatchObject({ label: "Label cut", kind: "percent", percentBps: 1000, destination: "label", bandId: a.id });
 
@@ -224,6 +257,7 @@ describe("Abel's changes", () => {
     const [changed] = await db.select().from(schema.deductions).where(eq(schema.deductions.id, added.id));
     expect(changed).toMatchObject({ label: "Label cut", percentBps: 1500, destination: "label", bandId: a.id });
 
+    expect(await tool.describeChange(who, agent.ABEL_TOOLS, "delete_deduction", { id: added.id })).toBe("Delete a deduction: deduction Label cut");
     await run("delete_deduction", { id: added.id });
     expect(await db.select().from(schema.deductions).where(eq(schema.deductions.orgId, orgId))).toEqual([]);
   });
@@ -231,8 +265,8 @@ describe("Abel's changes", () => {
   it("says what a change will do with names, not ids", async () => {
     const { orgId, userId, a } = await setup();
     as(orgId, userId, ADMIN);
-    const card = await tool.describeChange(who, agent.ABEL_TOOLS, "save_deduction", { label: "Label cut", kind: "percent", percent: 10, bandId: a.id });
-    expect(card).toBe("Save a deduction: label Label cut, kind percent, percent 10, band Band A");
+    const card = await tool.describeChange(who, agent.ABEL_TOOLS, "save_deduction", { label: "Label cut", kind: "percent", percent: 10, appliesTo: { type: "band", id: a.id } });
+    expect(card).toBe("Save a deduction: label Label cut, kind percent, percent 10, applies to band Band A");
   });
 
   it("keeps a band's other spellings when only its name changes", async () => {
@@ -251,7 +285,7 @@ describe("Abel's changes", () => {
     expect(got).toContain("list_deductions");
     expect(got).not.toContain("save_deduction");
     expect(got).not.toContain("invite_to_group");
-    expect(await run("save_deduction", { label: "x", kind: "percent", percent: 5 })).toBe("not allowed");
+    expect(await run("save_deduction", { label: "x", kind: "percent", percent: 5, appliesTo: { type: "everything" } })).toBe("not allowed");
   });
 });
 
