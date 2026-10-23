@@ -54,7 +54,7 @@ npm run workers:local
 - **Building takes a couple of minutes.** In Claude Code, start it with `run_in_background` and wait for "Ready on" in its output.
 - **Signing in from a script:** POST to `/api/auth/sign-in/email` (or `sign-up/email`) with JSON and an `Origin: http://localhost:8799` header.
 - **Pages stream in.** In a hidden browser pane, call `$RV($RB)` in the page to reveal content that's still waiting.
-- **Abel there:** run it with `OPENROUTER_API_KEY=… npm run workers:local` (or `GEMINI_API_KEY=…`) and switch on the `abel` flag on `/admin`.
+- **Abel there:** run it with an AI service's key, as in `DEEPSEEK_API_KEY=… npm run workers:local`, and switch on the `abel` flag on `/admin`.
 - **Test data:** use generated passwords, and keep any `example.test` users in this throwaway database.
 
 ## Deploy
@@ -117,7 +117,7 @@ Never write to the live database by hand. Changes go through migrations and the 
 - **`src/app/(admin)`:** the site admin dashboard (applications, invite links, accounts, groups, feature flags).
 - **`src/app/api`:** Better Auth, the hourly cron sync (`cron/sync`, called by `cloudflare/worker.ts`), sync status.
 - **`src/server`:** data and server actions.
-  - `abel/`: Abel, the assistant (feature flag `abel`, needs `OPENROUTER_API_KEY` or `GEMINI_API_KEY`). Google ADK, imported only through `abel/adk.ts` (its web build: the default one doesn't run on Workers). `openrouter.ts` is the model class that translates ADK's Gemini format to OpenRouter's. `tool.ts` is the permission rule every tool follows; `read-tools.ts` and `write-tools.ts` mirror their pages' access and band limits, and changes call the existing server actions after the person confirms. Chats are in `abel_chats`/`abel_events`, changes in `abel_actions`. The chat route is `src/app/api/abel`, the panel `src/components/abel`.
+  - `abel/`: Abel, the assistant (feature flag `abel`, needs `OPENROUTER_API_KEY`, `DEEPSEEK_API_KEY` or `GEMINI_API_KEY`; `config.ts` picks the service). Google ADK, imported only through `abel/adk.ts` (its web build: the default one doesn't run on Workers). `openai-compatible.ts` is the model class that translates ADK's Gemini format to OpenRouter's and DeepSeek's OpenAI-style API. `tool.ts` is the permission rule every tool follows; `read-tools.ts` and `write-tools.ts` mirror their pages' access and band limits, and changes call the existing server actions after the person confirms. Chats are in `abel_chats`/`abel_events`, changes in `abel_actions`. The chat route is `src/app/api/abel`, the panel `src/components/abel`.
   - `context.ts`: who's signed in, what they can do, and "view as".
   - `data.ts`: payout calculations.
   - `auto-sync.ts`, `sync.ts`, `bandcamp-api.ts`: syncing with Bandcamp.

@@ -9,8 +9,8 @@
  *
  * The database lives in .workers-local/ (git-ignored) and is kept between runs. Sign up at /signup
  * as admin@example.test (a site admin here) to create accounts. Ctrl-C stops everything and removes
- * the temporary files it made (.dev.vars and wrangler.local.tmp.jsonc). OPENROUTER_API_KEY or
- * GEMINI_API_KEY in the shell turns Abel on here.
+ * the temporary files it made (.dev.vars and wrangler.local.tmp.jsonc). OPENROUTER_API_KEY,
+ * DEEPSEEK_API_KEY or GEMINI_API_KEY in the shell turns Abel on here.
  */
 import { execSync, spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
@@ -42,8 +42,8 @@ execSync("npx tsx scripts/migrate.mts", { stdio: "inherit", env: { ...process.en
 // Test secrets, and the live config without its routes (with routes, wrangler pretends every
 // request is for labelmaker.ing, and sign-ins fail as coming from the wrong address).
 const secret = () => randomBytes(32).toString("hex");
-// Abel's key, if the shell has one (OPENROUTER_API_KEY=… or GEMINI_API_KEY=… npm run workers:local).
-const passThrough = ["GEMINI_API_KEY", "OPENROUTER_API_KEY", "ABEL_MODEL"].filter((k) => process.env[k]).map((k) => `${k}=${process.env[k]}`);
+// Abel's key, if the shell has one (OPENROUTER_API_KEY=…, DEEPSEEK_API_KEY=… or GEMINI_API_KEY=… npm run workers:local).
+const passThrough = ["GEMINI_API_KEY", "OPENROUTER_API_KEY", "DEEPSEEK_API_KEY", "ABEL_PROVIDER", "ABEL_MODEL"].filter((k) => process.env[k]).map((k) => `${k}=${process.env[k]}`);
 writeFileSync(
   VARS,
   [MARK, `BETTER_AUTH_SECRET=${secret()}`, `APP_ENCRYPTION_KEY=${secret()}`, `CRON_SECRET=${secret()}`, `CATALOG_SYNC_SECRET=${secret()}`, `BETTER_AUTH_URL=http://localhost:${port}`, "SITE_ADMIN_EMAILS=admin@example.test", "BANDCAMP_API=off", ...passThrough, ""].join("\n"),

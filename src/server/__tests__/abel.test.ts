@@ -185,7 +185,7 @@ describe("Abel's tool schemas", () => {
 
 describe("Abel's tools on OpenRouter", () => {
   it("all convert to JSON Schema", async () => {
-    const { toJsonSchema } = await import("../abel/openrouter");
+    const { toJsonSchema } = await import("../abel/openai-compatible");
     const { orgId, userId } = await setup();
     as(orgId, userId, ADMIN);
     for (const t of await tool.toolsFor(who, agent.ABEL_TOOLS, null)) {

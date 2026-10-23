@@ -17,7 +17,7 @@ In the app, a label or band is a **group**, and a person's login is an **account
 - **Label funds** (`/funds`): what the label has kept from sales, what it has sent on, and what's left.
 - **Receipts:** expenses with photos or PDFs (stored in R2), who paid, and whether sales pay them back. Members can submit receipts; an admin approves them.
 - **Projects** (a feature flag, switched on per group from the admin dashboard): what an album, tour or video cost against what its releases made back.
-- **Abel** (a feature flag, switched on per group from the admin dashboard): an assistant in the corner of every page. It answers questions from the group's data (earnings, sales, payouts, orders, stock, splits) and makes changes (a sale added by hand, a payout, a split, an order shipped, a stock count) once the person confirms them on screen. It only sees and does what that person's account can. Built with Google's Agent Development Kit, on OpenRouter or Gemini (`src/server/abel`).
+- **Abel** (a feature flag, switched on per group from the admin dashboard): an assistant in the corner of every page. It answers questions from the group's data (earnings, sales, payouts, orders, stock, splits) and makes changes (a sale added by hand, a payout, a split, an order shipped, a stock count) once the person confirms them on screen. It only sees and does what that person's account can. Built with Google's Agent Development Kit, on OpenRouter, DeepSeek or Gemini (`src/server/abel`).
 - **Fans:** the mailing list, imported from Bandcamp's export. Built, but hidden from the nav for now.
 
 ## Signing up
@@ -56,9 +56,11 @@ To try a change in the real Cloudflare runtime against a throwaway database, run
 | `APP_ENCRYPTION_KEY` | Encrypts secrets stored in the database (each group's Bandcamp API secret). Without it they can't be read. |
 | `SITE_ADMIN_EMAILS` | Comma-separated emails of site admins (the admin dashboard, invite links, approving groups). |
 | `BANDCAMP_API` | Keep it `off` locally. Bandcamp allows one API sign-in per client, and the live site holds it. |
-| `OPENROUTER_API_KEY` | Abel's OpenRouter API key. With it, Abel runs on OpenRouter (Gemini, falling back to Claude when Gemini is busy). |
-| `GEMINI_API_KEY` | Or Abel's Gemini API key (from Google AI Studio), to use Gemini directly. Without either key Abel stays hidden. |
-| `ABEL_MODEL` | Optional: which model Abel uses. On OpenRouter, a comma-separated list tried in order (`google/gemini-3.8-flash,anthropic/claude-haiku-5.5` by default). On Gemini, one model (`gemini-3.8-flash` by default; Google's error says which to use when one is retired). |
+| `OPENROUTER_API_KEY` | Abel's OpenRouter API key: Gemini, falling back to Claude when Gemini is busy. |
+| `DEEPSEEK_API_KEY` | Or Abel's DeepSeek API key (from platform.deepseek.com). |
+| `GEMINI_API_KEY` | Or Abel's Gemini API key (from Google AI Studio). Without any of the three, Abel stays hidden. |
+| `ABEL_PROVIDER` | Optional: `openrouter`, `deepseek` or `gemini`, when more than one key is set. Otherwise the first in that order is used. |
+| `ABEL_MODEL` | Optional: which model Abel uses. On OpenRouter, a comma-separated list tried in order (`google/gemini-3.8-flash,anthropic/claude-haiku-5.5` by default); on DeepSeek, `deepseek-flash` by default; on Gemini, `gemini-3.8-flash` by default (Google's error says which to use when one is retired). |
 | `DATABASE_URL` | Leave it out locally: `npm run dev` runs its own Postgres. |
 
 Never create `.env`, `.env.local` or `.env.production*`: the Cloudflare build bakes them into the live app, and `npm run deploy` refuses to run while they exist.

@@ -1,21 +1,22 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { FunctionTool, InMemorySessionService, LlmAgent, Runner, type Event } from "../abel/adk";
-import { OpenRouterLlm, toJsonSchema } from "../abel/openrouter";
+import { abelProvider } from "../abel/config";
+import { ChatApiLlm, DEEPSEEK, OPENROUTER, toJsonSchema } from "../abel/openai-compatible";
 
 /*
- * Abel on OpenRouter (src/server/abel/openrouter.ts), against a stand-in for OpenRouter's API: a
- * whole ADK conversation goes through it (a tool call, its result, a streamed reply), and what's
- * sent is OpenRouter's OpenAI-style format.
+ * Abel on OpenRouter or DeepSeek (src/server/abel/openai-compatible.ts), against a stand-in for
+ * their API: a whole ADK conversation goes through it (a tool call, its result, a streamed reply),
+ * and what's sent is the OpenAI-style format.
  */
 
-type Sent = { model: string; models?: string[]; messages: Record<string, unknown>[]; tools?: { function: { name: string; parameters: Record<string, unknown> } }[]; stream: boolean };
+type Sent = { url: string; auth: string; thinking?: unknown; model: string; models?: string[]; messages: Record<string, unknown>[]; tools?: { function: { name: string; parameters: Record<string, unknown> } }[]; stream: boolean };
 
-/** OpenRouter, answering each request with the next of these: streamed chunks, or an error status. */
-function fakeOpenRouter(replies: (object[] | { status: number; error: string })[]) {
+/** The API, answering each request with the next of these: streamed chunks, or an error status. */
+function fakeApi(replies: (object[] | { status: number; error: string })[]) {
   const sent: Sent[] = [];
-  const fetcher = (async (_url: string, init: RequestInit) => {
-    sent.push(JSON.parse(init.body as string));
+  const fetcher = (async (url: string, init: RequestInit) => {
+    sent.push({ ...JSON.parse(init.body as string), url, auth: (init.headers as Record<string, string>).authorization });
     const reply = replies.shift()!;
     if (!Array.isArray(reply)) return Response.json({ error: { code: reply.status, message: reply.error } }, { status: reply.status });
     const body = [": OPENROUTER PROCESSING", ...reply.map((c) => `data: ${JSON.stringify(c)}`), "data: [DONE]"].join("\n\n") + "\n\n";
@@ -24,7 +25,7 @@ function fakeOpenRouter(replies: (object[] | { status: number; error: string })[
   return { fetcher, sent };
 }
 
-async function converse(llm: OpenRouterLlm, tools: FunctionTool[] = []) {
+async function converse(llm: ChatApiLlm, tools: FunctionTool[] = []) {
   const sessions = new InMemorySessionService();
   const session = await sessions.createSession({ appName: "abel", userId: "u" });
   const runner = new Runner({ appName: "abel", agent: new LlmAgent({ name: "abel", model: llm, instruction: "You are Abel.", tools }), sessionService: sessions });
@@ -51,7 +52,7 @@ describe("Abel on OpenRouter", () => {
         return { bands: 3 };
       },
     });
-    const { fetcher, sent } = fakeOpenRouter([
+    const { fetcher, sent } = fakeApi([
       // The model asks for the tool, its arguments arriving in two pieces.
       [
         { choices: [{ delta: { tool_calls: [{ index: 0, id: "call_abc", function: { name: "count_bands", arguments: '{"kind":' } }] } }] },
@@ -60,7 +61,7 @@ describe("Abel on OpenRouter", () => {
       // Then answers, in two pieces.
       [{ choices: [{ delta: { content: "There are " } }] }, { choices: [{ delta: { content: "3 bands." }, finish_reason: "stop" }], usage: { prompt_tokens: 10, completion_tokens: 4, total_tokens: 14 } }],
     ]);
-    const events = await converse(new OpenRouterLlm(["google/gemini-3.8-flash", "anthropic/claude-haiku-5.5"], "test-key", fetcher), [countBands]);
+    const events = await converse(new ChatApiLlm(OPENROUTER, ["google/gemini-3.8-flash", "anthropic/claude-haiku-5.5"], "test-key", fetcher), [countBands]);
 
     expect(asked).toEqual([{ kind: "all" }]);
     // The reply streamed in pieces, then came whole.
@@ -89,22 +90,50 @@ describe("Abel on OpenRouter", () => {
   });
 
   it("passes on OpenRouter's errors, for Abel to explain", async () => {
-    const { fetcher } = fakeOpenRouter([{ status: 402, error: "Insufficient credits" }]);
-    const events = await converse(new OpenRouterLlm(["google/gemini-3.8-flash"], "test-key", fetcher));
+    const { fetcher } = fakeApi([{ status: 402, error: "Insufficient credits" }]);
+    const events = await converse(new ChatApiLlm(OPENROUTER, ["google/gemini-3.8-flash"], "test-key", fetcher));
     expect(events.find((e) => e.errorCode)).toMatchObject({ errorCode: "402", errorMessage: "Insufficient credits" });
   });
 
   it("passes on an error that arrives partway through the reply", async () => {
-    const { fetcher } = fakeOpenRouter([[{ choices: [{ delta: { content: "Th" } }] }, { error: { code: 503, message: "Provider overloaded" } }]]);
-    const events = await converse(new OpenRouterLlm(["google/gemini-3.8-flash"], "test-key", fetcher));
+    const { fetcher } = fakeApi([[{ choices: [{ delta: { content: "Th" } }] }, { error: { code: 503, message: "Provider overloaded" } }]]);
+    const events = await converse(new ChatApiLlm(OPENROUTER, ["google/gemini-3.8-flash"], "test-key", fetcher));
     expect(events.find((e) => e.errorCode)).toMatchObject({ errorCode: "503", errorMessage: "Provider overloaded" });
   });
 
   it("sends only one model when there's no fallback", async () => {
-    const { fetcher, sent } = fakeOpenRouter([[{ choices: [{ delta: { content: "Hi." }, finish_reason: "stop" }] }]]);
-    await converse(new OpenRouterLlm(["anthropic/claude-haiku-5.5"], "test-key", fetcher));
+    const { fetcher, sent } = fakeApi([[{ choices: [{ delta: { content: "Hi." }, finish_reason: "stop" }] }]]);
+    await converse(new ChatApiLlm(OPENROUTER, ["anthropic/claude-haiku-5.5"], "test-key", fetcher));
     expect(sent[0].model).toBe("anthropic/claude-haiku-5.5");
     expect(sent[0].models).toBeUndefined();
+  });
+});
+
+describe("Abel on DeepSeek", () => {
+  it("sends DeepSeek its key and one model, with thinking off", async () => {
+    const { fetcher, sent } = fakeApi([[{ choices: [{ delta: { content: "Hi." }, finish_reason: "stop" }] }]]);
+    const events = await converse(new ChatApiLlm(DEEPSEEK, ["deepseek-flash"], "ds-key", fetcher));
+    expect(events.at(-1)?.content?.parts?.[0]?.text).toBe("Hi.");
+    expect(sent[0]).toMatchObject({ url: "https://api.deepseek.com/chat/completions", auth: "Bearer ds-key", model: "deepseek-flash", thinking: { type: "disabled" } });
+    expect(sent[0].models).toBeUndefined();
+  });
+
+  it("keeps the status when DeepSeek's error code is a word", async () => {
+    const fetcher = (async () => Response.json({ error: { message: "Insufficient Balance", code: "invalid_request_error" } }, { status: 402 })) as unknown as typeof fetch;
+    const events = await converse(new ChatApiLlm(DEEPSEEK, ["deepseek-flash"], "ds-key", fetcher));
+    expect(events.find((e) => e.errorCode)).toMatchObject({ errorCode: "402", errorMessage: "Insufficient Balance" });
+  });
+});
+
+describe("abelProvider", () => {
+  it("uses the service named, else the first with a key", () => {
+    expect(abelProvider({})).toBeNull();
+    expect(abelProvider({ GEMINI_API_KEY: "g" })).toBe("gemini");
+    expect(abelProvider({ GEMINI_API_KEY: "g", DEEPSEEK_API_KEY: "d" })).toBe("deepseek");
+    expect(abelProvider({ GEMINI_API_KEY: "g", DEEPSEEK_API_KEY: "d", OPENROUTER_API_KEY: "o" })).toBe("openrouter");
+    expect(abelProvider({ GEMINI_API_KEY: "g", DEEPSEEK_API_KEY: "d", ABEL_PROVIDER: "gemini" })).toBe("gemini");
+    // Named, but no key for it: not set up.
+    expect(abelProvider({ GEMINI_API_KEY: "g", ABEL_PROVIDER: "deepseek" })).toBeNull();
   });
 });
 

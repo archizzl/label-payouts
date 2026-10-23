@@ -55,7 +55,7 @@ npx wrangler secret put CRON_SECRET
 - **APP_ENCRYPTION_KEY:** the **same value as in `.env.development.local`**. Your saved Bandcamp API secret, the Bandcamp sign-in, and buyers' email fingerprints are encrypted with it. A different key breaks them.
 - **CRON_SECRET:** a new long random value. It lets the hourly Bandcamp sync in.
 
-For Abel, the assistant, also set its OpenRouter API key (or `GEMINI_API_KEY` instead, to use Gemini directly; with both, it uses OpenRouter). Without either Abel stays hidden, even for groups that have its feature flag:
+For Abel, the assistant, also set a key for its AI service: `OPENROUTER_API_KEY`, `DEEPSEEK_API_KEY` or `GEMINI_API_KEY` (with more than one, the first in that order, or `ABEL_PROVIDER`). Without one Abel stays hidden, even for groups that have its feature flag:
 ```bash
 npx wrangler secret put OPENROUTER_API_KEY
 ```

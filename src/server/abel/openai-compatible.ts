@@ -2,13 +2,28 @@ import "server-only";
 import { BaseLlm, type BaseLlmConnection, type LlmRequest, type LlmResponse } from "./adk";
 
 /*
- * Abel on OpenRouter (https://openrouter.ai): one key for Gemini, Claude, GPT and others, with
- * fallbacks to the next model when one is busy. ADK speaks Gemini's format, so this model class
- * translates: Gemini contents, tools and schemas into OpenRouter's OpenAI-style chat request, and its
- * streamed reply back into ADK's responses (text pieces marked partial, then the whole turn).
+ * Abel on an OpenAI-style chat API: OpenRouter (https://openrouter.ai: one key for Gemini, Claude,
+ * GPT and others, falling back to the next model when one is busy) or DeepSeek. ADK speaks Gemini's
+ * format, so this model class translates: Gemini contents, tools and schemas into the OpenAI-style
+ * chat request, and its streamed reply back into ADK's responses (text pieces marked partial, then
+ * the whole turn).
  */
 
-const API = "https://openrouter.ai/api/v1/chat/completions";
+/** Where to send the chat and how: the API's address, extra headers, and extra fields for every request. */
+export type ChatApi = { url: string; headers?: Record<string, string>; extra?: Record<string, unknown> };
+
+export const OPENROUTER: ChatApi = {
+  url: "https://openrouter.ai/api/v1/chat/completions",
+  // How the app shows up in OpenRouter's dashboard.
+  headers: { "x-title": "labelmaker", "http-referer": "https://labelmaker.ing" },
+};
+
+export const DEEPSEEK: ChatApi = {
+  url: "https://api.deepseek.com/chat/completions",
+  // Thinking is on by default, and with tools DeepSeek then wants its reasoning sent back on every
+  // later request (ADK has nowhere to keep it), so it's off.
+  extra: { thinking: { type: "disabled" } },
+};
 
 type Part = NonNullable<NonNullable<LlmRequest["contents"][number]["parts"]>[number]>;
 type Schema = Record<string, unknown>;
@@ -137,11 +152,12 @@ const failure = (code: number | string | undefined, message: string | undefined)
   turnComplete: true,
 });
 
-export class OpenRouterLlm extends BaseLlm {
+export class ChatApiLlm extends BaseLlm {
   /** The models to try, in order (OpenRouter moves to the next when one is busy or down). */
   private readonly models: string[];
 
   constructor(
+    private readonly api: ChatApi,
     models: string[],
     private readonly apiKey: string,
     private readonly fetcher: typeof fetch = (...a) => fetch(...a),
@@ -154,6 +170,7 @@ export class OpenRouterLlm extends BaseLlm {
     this.maybeAppendUserContent(llmRequest);
     const { messages, tools } = toChatRequest(llmRequest);
     const body = {
+      ...this.api.extra,
       model: this.models[0],
       ...(this.models.length > 1 ? { models: this.models } : {}),
       messages,
@@ -161,22 +178,18 @@ export class OpenRouterLlm extends BaseLlm {
       ...(llmRequest.config?.temperature !== undefined ? { temperature: llmRequest.config.temperature } : {}),
       ...(llmRequest.config?.maxOutputTokens ? { max_tokens: llmRequest.config.maxOutputTokens } : {}),
       stream,
+      ...(stream ? { stream_options: { include_usage: true } } : {}),
     };
-    const res = await this.fetcher(API, {
+    const res = await this.fetcher(this.api.url, {
       method: "POST",
-      headers: {
-        authorization: `Bearer ${this.apiKey}`,
-        "content-type": "application/json",
-        // How the app shows up in OpenRouter's dashboard.
-        "x-title": "labelmaker",
-        "http-referer": "https://labelmaker.ing",
-      },
+      headers: { authorization: `Bearer ${this.apiKey}`, "content-type": "application/json", ...this.api.headers },
       body: JSON.stringify(body),
       signal: abortSignal,
     });
     if (!res.ok || !res.body) {
+      // (OpenRouter and DeepSeek both answer { error: { message } }; DeepSeek's code is a word, so the status is kept.)
       const err = (await res.json().catch(() => ({}))) as Chunk;
-      yield failure(err.error?.code ?? res.status, err.error?.message ?? res.statusText);
+      yield failure(typeof err.error?.code === "number" ? err.error.code : res.status, err.error?.message ?? res.statusText);
       return;
     }
     if (!stream) {
@@ -213,6 +226,7 @@ export class OpenRouterLlm extends BaseLlm {
           continue;
         }
         if (chunk.error) return yield failure(chunk.error.code, chunk.error.message);
+        // (A chunk can carry the usage with no choices, at the end.)
         if (chunk.usage) usage = chunk.usage;
         for (const choice of chunk.choices ?? []) {
           if (choice.finish_reason) finish = choice.finish_reason;
